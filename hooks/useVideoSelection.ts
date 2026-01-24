@@ -80,7 +80,7 @@ export function useVideoSelection() {
           console.warn('[useVideoSelection] Compatibility check timed out after 6 seconds');
         }, 6000);
         
-        result = await checkCompatibility(video.id);
+        result = await checkCompatibility(video);
         
         if (timeoutId) {
           clearTimeout(timeoutId);
@@ -212,7 +212,7 @@ export function useVideoSelection() {
           console.warn('[useVideoSelection] Compatibility check timed out after 6 seconds');
         }, 6000);
         
-        result = await checkCompatibility(video.id);
+        result = await checkCompatibility(video);
         
         if (timeoutId) {
           clearTimeout(timeoutId);
