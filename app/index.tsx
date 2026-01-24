@@ -33,8 +33,10 @@ import {
   MOTION_INJECTION_SCRIPT,
   CONSOLE_CAPTURE_SCRIPT,
   createMediaInjectionScript,
+  VIDEO_SIMULATION_TEST_SCRIPT,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
+import { formatVideoUriForWebView } from '@/utils/videoServing';
 import { APP_CONFIG } from '@/constants/app';
 import type { SimulationConfig } from '@/types/browser';
 import BrowserHeader from '@/components/browser/BrowserHeader';
@@ -179,10 +181,18 @@ export default function MotionBrowserScreen() {
       });
       return;
     }
+
+    const normalizedDevices = activeTemplate.captureDevices.map(d => {
+      if (!d.assignedVideoUri) return d;
+      return {
+        ...d,
+        assignedVideoUri: formatVideoUriForWebView(d.assignedVideoUri),
+      };
+    });
     
     const config = {
       stealthMode: effectiveStealthMode,
-      devices: activeTemplate.captureDevices,
+      devices: normalizedDevices,
     };
     
     console.log('[App] Injecting media config:', {
@@ -757,9 +767,19 @@ export default function MotionBrowserScreen() {
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
   const getBeforeLoadScript = useCallback(() => {
-    const devices = activeTemplate?.captureDevices || [];
+    const devices = (activeTemplate?.captureDevices || []).map(d => {
+      if (!d.assignedVideoUri) return d;
+      return {
+        ...d,
+        assignedVideoUri: formatVideoUriForWebView(d.assignedVideoUri),
+      };
+    });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
-    const script = CONSOLE_CAPTURE_SCRIPT + spoofScript + createMediaInjectionScript(devices, effectiveStealthMode);
+    const script =
+      CONSOLE_CAPTURE_SCRIPT +
+      spoofScript +
+      createMediaInjectionScript(devices, effectiveStealthMode) +
+      VIDEO_SIMULATION_TEST_SCRIPT;
     console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode);
     return script;
   }, [activeTemplate, safariModeEnabled, effectiveStealthMode]);
@@ -925,6 +945,10 @@ export default function MotionBrowserScreen() {
                 allowsBackForwardNavigationGestures
                 contentMode="mobile"
                 applicationNameForUserAgent="Safari/604.1"
+                allowFileAccess={Platform.OS === 'android'}
+                allowFileAccessFromFileURLs={Platform.OS === 'android'}
+                allowUniversalAccessFromFileURLs={Platform.OS === 'android'}
+                mixedContentMode={Platform.OS === 'android' ? 'always' : undefined}
               />
             )}
           </View>
