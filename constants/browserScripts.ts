@@ -915,7 +915,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         },
         'EXTERNAL_URL_BLOCKED': {
           message: 'External video URL blocked',
-          solution: 'Sites like catbox.moe often block video loading in apps. Please upload the video from your Photos library or Files app instead.',
+          solution: 'Some hosts block video loading in embedded webviews. Please upload the video from your Photos library or Files app instead.',
         },
         'TIMEOUT': {
           message: 'Video loading timed out',
@@ -932,8 +932,6 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       // Check if this is an external URL that likely has CORS issues
       const isExternalUrl = videoUrl && (videoUrl.startsWith('http://') || videoUrl.startsWith('https://'));
       const isKnownBlockingSite = videoUrl && (
-        videoUrl.includes('catbox.moe') ||
-        videoUrl.includes('litterbox') ||
         videoUrl.includes('imgur.com') ||
         videoUrl.includes('giphy.com') ||
         videoUrl.includes('gfycat.com')
@@ -1221,8 +1219,6 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     
     // Notify RN about the final failure with better error context
     const isKnownBlockingSite = videoUri && (
-      videoUri.includes('catbox.moe') ||
-      videoUri.includes('litterbox') ||
       videoUri.includes('imgur.com') ||
       videoUri.includes('giphy.com') ||
       videoUri.includes('gfycat.com')
