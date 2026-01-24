@@ -275,14 +275,32 @@ export default function DevicesList({
     setPendingSavedVideo(video);
     setPendingApplyTarget(applyTarget);
     
-    const result = await checkCompatibility(video.id);
+    let result: CompatibilityResult | null = null;
+    
+    try {
+      result = await checkCompatibility(video);
+    } catch (error) {
+      console.error('[DevicesList] Compatibility check failed:', error);
+    }
     
     setIsCheckingCompatibility(false);
-    setCompatibilityResult(result);
     
-    if (result) {
-      console.log('[DevicesList] Compatibility result:', result.overallStatus, 'ready:', result.readyForSimulation);
+    if (!result) {
+      console.warn('[DevicesList] Compatibility check returned null, using fallback');
+      setCompatibilityResult({
+        overallStatus: 'warning',
+        score: 50,
+        items: [],
+        summary: 'Could not fully analyze video. It may still work.',
+        readyForSimulation: true,
+        requiresModification: false,
+        modifications: [],
+      });
+      return;
     }
+    
+    setCompatibilityResult(result);
+    console.log('[DevicesList] Compatibility result:', result.overallStatus, 'ready:', result.readyForSimulation);
   }, [checkCompatibility]);
 
   const handleApplyCompatibleVideo = useCallback(() => {

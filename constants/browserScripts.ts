@@ -1075,6 +1075,63 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     window.__mediaSimConfig.debugEnabled = enabled;
   };
   
+  function getConstraintValue(constraint) {
+    if (!constraint) return null;
+    if (typeof constraint === 'string') return constraint;
+    if (Array.isArray(constraint)) return constraint[0];
+    if (typeof constraint === 'object') {
+      if (constraint.exact) {
+        return Array.isArray(constraint.exact) ? constraint.exact[0] : constraint.exact;
+      }
+      if (constraint.ideal) {
+        return Array.isArray(constraint.ideal) ? constraint.ideal[0] : constraint.ideal;
+      }
+    }
+    return null;
+  }
+  
+  function normalizeFacingMode(mode) {
+    if (!mode || typeof mode !== 'string') return null;
+    const value = mode.toLowerCase();
+    if (value === 'user' || value === 'front') return 'front';
+    if (value === 'environment' || value === 'back') return 'back';
+    return null;
+  }
+  
+  function selectDevice(devices, requestedId, requestedFacing) {
+    if (!Array.isArray(devices) || devices.length === 0) return null;
+    if (requestedId) {
+      const byId = devices.find(function(d) {
+        return d.id === requestedId || d.nativeDeviceId === requestedId;
+      });
+      if (byId) return byId;
+    }
+    if (requestedFacing) {
+      const byFacing = devices.find(function(d) { return d.facing === requestedFacing; });
+      if (byFacing) return byFacing;
+    }
+    const preferred = devices.find(function(d) { return d.isDefault || d.isPrimary; });
+    return preferred || devices[0];
+  }
+  
+  function buildSimulatedDevices(devices) {
+    return (devices || []).map(function(d) {
+      const info = {
+        deviceId: d.nativeDeviceId || d.id || 'sim_' + Math.random().toString(36).substr(2, 9),
+        groupId: d.groupId || 'default',
+        kind: d.type === 'camera' ? 'videoinput' : 'audioinput',
+        label: d.name || 'Camera',
+        toJSON: function() { return this; }
+      };
+      try {
+        if (typeof MediaDeviceInfo !== 'undefined') {
+          Object.setPrototypeOf(info, MediaDeviceInfo.prototype);
+        }
+      } catch(e) {}
+      return info;
+    });
+  }
+  
   // ============ PORTRAIT RESOLUTION HELPERS ============
   function getPortraitRes(device) {
     let w = CONFIG.PORTRAIT_WIDTH;
@@ -1108,48 +1165,59 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
   // ============ DEVICE ENUMERATION OVERRIDE ============
   if (navigator.mediaDevices) {
     navigator.mediaDevices.enumerateDevices = async function() {
-      const cfg = window.__mediaSimConfig;
-      if (cfg.devices?.length > 0) {
-        const simDevices = cfg.devices.map(function(d) {
-          const info = {
-            deviceId: d.id || 'sim_' + Math.random().toString(36).substr(2, 9),
-            groupId: d.groupId || 'default',
-            kind: d.type === 'camera' ? 'videoinput' : 'audioinput',
-            label: d.name || 'Camera',
-            toJSON: function() { return this; }
-          };
-          try { Object.setPrototypeOf(info, MediaDeviceInfo.prototype); } catch(e) {}
-          return info;
-        });
-        Logger.log('enumerateDevices ->', simDevices.length, 'devices');
+      const cfg = window.__mediaSimConfig || {};
+      const devices = cfg.devices || [];
+      const hasSimDevices = devices.length > 0;
+      
+      if (cfg.stealthMode && hasSimDevices) {
+        const simDevices = buildSimulatedDevices(devices);
+        Logger.log('enumerateDevices ->', simDevices.length, 'devices (simulated)');
         return simDevices;
       }
-      if (_origEnumDevices && !cfg.stealthMode) {
-        return _origEnumDevices();
+      
+      if (_origEnumDevices) {
+        try {
+          const realDevices = await _origEnumDevices();
+          Logger.log('enumerateDevices ->', realDevices.length, 'devices (real)');
+          return realDevices;
+        } catch (err) {
+          Logger.warn('enumerateDevices real failed:', err?.message || err);
+        }
       }
+      
+      if (hasSimDevices) {
+        const simDevices = buildSimulatedDevices(devices);
+        Logger.log('enumerateDevices fallback ->', simDevices.length, 'devices');
+        return simDevices;
+      }
+      
       return [];
     };
 
     // ============ GET USER MEDIA OVERRIDE ============
     navigator.mediaDevices.getUserMedia = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
-      const cfg = window.__mediaSimConfig;
-      const wantsVideo = constraints?.video;
-      const wantsAudio = constraints?.audio;
+      const cfg = window.__mediaSimConfig || {};
+      const wantsVideo = !!constraints?.video;
+      const wantsAudio = !!constraints?.audio;
       
-      // Extract requested device ID
       let reqDeviceId = null;
-      if (wantsVideo && typeof constraints.video === 'object' && constraints.video.deviceId) {
-        reqDeviceId = constraints.video.deviceId.exact || constraints.video.deviceId.ideal || constraints.video.deviceId;
-        if (typeof reqDeviceId === 'object') reqDeviceId = null;
+      let reqFacing = null;
+      
+      if (wantsVideo && typeof constraints.video === 'object') {
+        reqDeviceId = getConstraintValue(constraints.video.deviceId);
+        reqFacing = normalizeFacingMode(getConstraintValue(constraints.video.facingMode));
       }
       
-      // Find matching device
-      const device = reqDeviceId 
-        ? cfg.devices?.find(function(d) { return d.id === reqDeviceId && d.type === 'camera'; })
-        : cfg.devices?.find(function(d) { return d.type === 'camera'; });
+      const device = selectDevice(cfg.devices, reqDeviceId, reqFacing);
       
-      Logger.log('Device:', device?.name || 'none', '| SimEnabled:', device?.simulationEnabled, '| URI:', device?.assignedVideoUri?.substring(0, 40) || 'none');
+      Logger.log(
+        'Device:', device?.name || 'none',
+        '| ReqId:', reqDeviceId || 'none',
+        '| Facing:', reqFacing || 'any',
+        '| SimEnabled:', device?.simulationEnabled,
+        '| URI:', device?.assignedVideoUri?.substring(0, 40) || 'none'
+      );
       
       const shouldSimulate = cfg.stealthMode || (device?.simulationEnabled && device?.assignedVideoUri);
       
