@@ -60,6 +60,10 @@ export function useVideoSelection() {
     console.log('[useVideoSelection] User wants to use video:', video.name);
     isProcessingRef.current = true;
     
+    // Track timeout state at function scope so it's accessible throughout
+    let timedOut = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
     try {
       if (!isMountedRef.current) return;
 
@@ -77,6 +81,78 @@ export function useVideoSelection() {
       }
 
       Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
+      
+      setCheckingVideoName(video.name);
+      setCompatibilityResult(null);
+      setCompatibilityModalVisible(true);
+      setIsCheckingCompatibility(true);
+      
+      let result: CompatibilityResult | null = null;
+      
+      try {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          console.warn('[useVideoSelection] Compatibility check timed out after 6 seconds');
+        }, 6000);
+        
+        result = await checkCompatibility(video);
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
+        if (timedOut) {
+          console.warn('[useVideoSelection] Check completed but timed out flag was set');
+        }
+      } catch (checkError) {
+        console.error('[useVideoSelection] Compatibility check error:', checkError);
+        result = null;
+      }
+      
+      if (!isMountedRef.current) {
+        console.log('[useVideoSelection] Unmounted during check, aborting');
+        return;
+      }
+      
+      setIsCheckingCompatibility(false);
+      
+      if (!result || timedOut) {
+        setCompatibilityResult(null);
+        setCompatibilityModalVisible(false);
+        isProcessingRef.current = false;
+        Alert.alert('Error', 'Failed to check video compatibility. Please try again.');
+        return;
+      }
+      
+      setCompatibilityResult(result);
+      console.log('[useVideoSelection] Compatibility result:', result.overallStatus, 'ready:', result.readyForSimulation);
+      
+      if (result.readyForSimulation) {
+        const selectedVideo = selectVideoForSimulation(video.id);
+        if (selectedVideo) {
+          console.log('[useVideoSelection] Setting pending video for apply:', selectedVideo.name);
+          
+          // Close modal and mark as done BEFORE setting pending video to avoid race conditions
+          setCompatibilityModalVisible(false);
+          isProcessingRef.current = false;
+          
+          // Set pending video after modal is closed
+          setPendingVideoForApply(selectedVideo);
+          
+          // Use a slightly longer delay before navigating back to let state settle
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              console.log('[useVideoSelection] Navigating back to main screen');
+              router.back();
+            }
+          }, 50);
+          return;
+        } else {
+          setCompatibilityModalVisible(false);
+          Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
+        }
+      }
     } catch (error) {
       console.error('[useVideoSelection] handleSelectVideo error:', error);
       if (isMountedRef.current) {
@@ -85,6 +161,11 @@ export function useVideoSelection() {
       }
       Alert.alert('Error', 'An unexpected error occurred while selecting the video.');
     } finally {
+      // Clean up timeout if still pending
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Reset processing flag after a short delay
       setTimeout(() => {
         isProcessingRef.current = false;
       }, 300);
@@ -128,6 +209,10 @@ export function useVideoSelection() {
     
     isProcessingRef.current = true;
     
+    // Track timeout state at function scope
+    let timedOut = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
     try {
       setCheckingVideoName(video.name);
       setCompatibilityResult(null);
@@ -135,15 +220,19 @@ export function useVideoSelection() {
       setIsCheckingCompatibility(true);
       
       let result: CompatibilityResult | null = null;
-      let timedOut = false;
       
       try {
-        const timeoutId = setTimeout(() => {
+        timeoutId = setTimeout(() => {
           timedOut = true;
+          console.warn('[useVideoSelection] Compatibility check timed out after 6 seconds');
         }, 6000);
         
-        result = await checkCompatibility(video.id);
-        clearTimeout(timeoutId);
+        result = await checkCompatibility(video);
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
       } catch (checkError) {
         console.error('[useVideoSelection] Compatibility check error:', checkError);
         result = null;
@@ -169,6 +258,10 @@ export function useVideoSelection() {
       setCompatibilityModalVisible(false);
       Alert.alert('Error', 'An unexpected error occurred.');
     } finally {
+      // Clean up timeout if still pending
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       setTimeout(() => {
         isProcessingRef.current = false;
       }, 300);

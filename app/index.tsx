@@ -34,8 +34,10 @@ import {
   MOTION_INJECTION_SCRIPT,
   CONSOLE_CAPTURE_SCRIPT,
   createMediaInjectionScript,
+  VIDEO_SIMULATION_TEST_SCRIPT,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
+import { formatVideoUriForWebView } from '@/utils/videoServing';
 import { APP_CONFIG } from '@/constants/app';
 import type { SimulationConfig } from '@/types/browser';
 import BrowserHeader from '@/components/browser/BrowserHeader';
@@ -180,10 +182,18 @@ export default function MotionBrowserScreen() {
       });
       return;
     }
+
+    const normalizedDevices = activeTemplate.captureDevices.map(d => {
+      if (!d.assignedVideoUri) return d;
+      return {
+        ...d,
+        assignedVideoUri: formatVideoUriForWebView(d.assignedVideoUri),
+      };
+    });
     
     const config = {
       stealthMode: effectiveStealthMode,
-      devices: activeTemplate.captureDevices,
+      devices: normalizedDevices,
     };
     
     console.log('[App] Injecting media config:', {
@@ -440,7 +450,9 @@ export default function MotionBrowserScreen() {
         isApplyingVideoRef.current = false;
       }
       
+      // Capture video and clear pending immediately to prevent race conditions
       const videoToProcess = pendingVideoForApply;
+      const templateId = activeTemplate.id;
       setPendingVideoForApply(null);
       
       const interactionHandle = InteractionManager.runAfterInteractions(() => {
@@ -468,8 +480,45 @@ export default function MotionBrowserScreen() {
       });
       
       return () => interactionHandle.cancel();
+      // Video from my-videos is ALREADY compatibility checked - apply it directly
+      // without opening another modal (which causes freeze due to modal conflicts)
+      console.log('[VideoSim] Video already checked in my-videos, applying directly...');
+      isApplyingVideoRef.current = true;
+      
+      // Use a longer delay to let the navigation animation complete first
+      const timeoutId = setTimeout(async () => {
+        try {
+          console.log('[VideoSim] Applying video directly (skipping redundant check):', videoToProcess.name);
+          console.log('[VideoSim] Timestamp:', new Date().toISOString());
+          
+          // Apply to all devices directly - no modal needed
+          await assignVideoToAllDevices(templateId, videoToProcess.uri, videoToProcess.name, undefined, true);
+          console.log('[VideoSim] Video applied successfully');
+          
+          isApplyingVideoRef.current = false;
+          
+          // Inject the updated config after a short delay
+          setTimeout(() => {
+            injectMediaConfig();
+            console.log('[VideoSim] Media config injected after apply');
+          }, 100);
+          
+          Alert.alert('Success', `Video "${videoToProcess.name}" applied to all cameras. Reload the page to see changes.`);
+          console.log('[VideoSim] ========== PENDING VIDEO APPLY COMPLETE ==========');
+        } catch (error) {
+          console.error('[VideoSim] ERROR applying pending video:', error);
+          console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
+          isApplyingVideoRef.current = false;
+          Alert.alert('Error', `Failed to apply video: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }, 350); // Longer delay to let modal dismiss animation complete
+      
+      return () => {
+        clearTimeout(timeoutId);
+        isApplyingVideoRef.current = false;
+      };
     }
-  }, [pendingVideoForApply, activeTemplate, setPendingVideoForApply, runCompatibilityCheckAndApply]);
+  }, [pendingVideoForApply, activeTemplate, setPendingVideoForApply, assignVideoToAllDevices, injectMediaConfig]);
 
   const handleApplyCompatibleVideo = useCallback(async () => {
     console.log('[VideoSim] ========== START APPLY VIDEO ==========');
@@ -744,9 +793,19 @@ export default function MotionBrowserScreen() {
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
   const getBeforeLoadScript = useCallback(() => {
-    const devices = activeTemplate?.captureDevices || [];
+    const devices = (activeTemplate?.captureDevices || []).map(d => {
+      if (!d.assignedVideoUri) return d;
+      return {
+        ...d,
+        assignedVideoUri: formatVideoUriForWebView(d.assignedVideoUri),
+      };
+    });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
-    const script = CONSOLE_CAPTURE_SCRIPT + spoofScript + createMediaInjectionScript(devices, effectiveStealthMode);
+    const script =
+      CONSOLE_CAPTURE_SCRIPT +
+      spoofScript +
+      createMediaInjectionScript(devices, effectiveStealthMode) +
+      VIDEO_SIMULATION_TEST_SCRIPT;
     console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode);
     return script;
   }, [activeTemplate, safariModeEnabled, effectiveStealthMode]);
@@ -912,6 +971,10 @@ export default function MotionBrowserScreen() {
                 allowsBackForwardNavigationGestures
                 contentMode="mobile"
                 applicationNameForUserAgent="Safari/604.1"
+                allowFileAccess={Platform.OS === 'android'}
+                allowFileAccessFromFileURLs={Platform.OS === 'android'}
+                allowUniversalAccessFromFileURLs={Platform.OS === 'android'}
+                mixedContentMode={Platform.OS === 'android' ? 'always' : undefined}
               />
             )}
           </View>
@@ -981,6 +1044,13 @@ export default function MotionBrowserScreen() {
               onDeviceCheckPress={() => {
                 setShowDevicesModal(false);
                 router.push('/device-check');
+              }}
+              onOpenMyVideos={() => {
+                // Avoid stacking a router modal on top of an RN Modal (can cause freezes on dismiss)
+                setShowDevicesModal(false);
+                requestAnimationFrame(() => {
+                  setTimeout(() => router.push('/my-videos'), 0);
+                });
               }}
               onPickVideo={pickMediaForDevice}
               onPickVideoForAll={pickMediaForAllDevices}
