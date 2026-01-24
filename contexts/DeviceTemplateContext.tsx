@@ -19,6 +19,7 @@ import type {
   DeviceTemplate,
   ActiveCameraStatus,
 } from '@/types/device';
+import { formatVideoUriForWebView } from '@/utils/videoServing';
 
 interface DeviceTemplateContextValue {
   templates: DeviceTemplate[];
@@ -470,11 +471,17 @@ export const [DeviceTemplateProvider, useDeviceTemplate] = createContextHook<Dev
       throw new Error(appError.message);
     }
     
-    await updateCaptureDevice(templateId, deviceId, {
-      assignedVideoUri: videoUri.trim(),
+    const normalizedUri = formatVideoUriForWebView(videoUri.trim());
+    const updates: Partial<CaptureDevice> = {
+      assignedVideoUri: normalizedUri,
       assignedVideoName: videoName.trim(),
-      simulationEnabled: autoEnableSim ? true : undefined,
-    });
+    };
+    
+    if (autoEnableSim) {
+      updates.simulationEnabled = true;
+    }
+    
+    await updateCaptureDevice(templateId, deviceId, updates);
     console.log('[DeviceTemplate] Video assigned successfully, simulation:', autoEnableSim ? 'enabled' : 'unchanged');
   }, [updateCaptureDevice]);
 
@@ -531,6 +538,8 @@ export const [DeviceTemplateProvider, useDeviceTemplate] = createContextHook<Dev
       deviceType ? d.type === deviceType : d.type === 'camera'
     );
     
+    const normalizedUri = formatVideoUriForWebView(videoUri.trim());
+    
     const newTemplates = templates.map(t => {
       if (t.id !== templateId) return t;
       return {
@@ -540,7 +549,7 @@ export const [DeviceTemplateProvider, useDeviceTemplate] = createContextHook<Dev
           if (devicesToUpdate.some(du => du.id === d.id)) {
             return {
               ...d,
-              assignedVideoUri: videoUri.trim(),
+              assignedVideoUri: normalizedUri,
               assignedVideoName: videoName.trim(),
               simulationEnabled: autoEnableSim ? true : d.simulationEnabled,
             };

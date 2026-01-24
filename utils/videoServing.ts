@@ -41,8 +41,6 @@ export const isExternalUrl = (uri: string): boolean => {
 
 export const isKnownCorsBlockingSite = (url: string): boolean => {
   const blockingSites = [
-    'catbox.moe',
-    'litterbox',
     'imgur.com',
     'giphy.com',
     'gfycat.com',
