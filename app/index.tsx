@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet, 
   Platform, 
+  InteractionManager,
   KeyboardAvoidingView,
   Keyboard,
   ActivityIndicator,
@@ -442,28 +443,31 @@ export default function MotionBrowserScreen() {
       const videoToProcess = pendingVideoForApply;
       setPendingVideoForApply(null);
       
-      // Small delay to allow state to settle and prevent race conditions
-      const timeoutId = setTimeout(async () => {
-        try {
-          console.log('[VideoSim] Starting async video processing...');
-          console.log('[VideoSim] Timestamp:', new Date().toISOString());
-          await runCompatibilityCheckAndApply(videoToProcess, 'all');
-          console.log('[VideoSim] Pending video processed successfully');
-          console.log('[VideoSim] Timestamp:', new Date().toISOString());
-        } catch (error) {
-          console.error('[VideoSim] ERROR processing pending video:', error);
-          console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
-          // Ensure we clean up ALL state on any error
-          setIsCheckingCompatibility(false);
-          setCompatibilityModalVisible(false);
-          setPendingSavedVideo(null);
-          setPendingApplyTarget(null);
-          isApplyingVideoRef.current = false;
-          console.log('[VideoSim] Cleaned up all state after error');
-        }
-      }, 100);
+      const interactionHandle = InteractionManager.runAfterInteractions(() => {
+        if (!isMountedRef.current) return;
+        
+        (async () => {
+          try {
+            console.log('[VideoSim] Starting async video processing...');
+            console.log('[VideoSim] Timestamp:', new Date().toISOString());
+            await runCompatibilityCheckAndApply(videoToProcess, 'all');
+            console.log('[VideoSim] Pending video processed successfully');
+            console.log('[VideoSim] Timestamp:', new Date().toISOString());
+          } catch (error) {
+            console.error('[VideoSim] ERROR processing pending video:', error);
+            console.error('[VideoSim] Error stack:', error instanceof Error ? error.stack : 'No stack');
+            // Ensure we clean up ALL state on any error
+            setIsCheckingCompatibility(false);
+            setCompatibilityModalVisible(false);
+            setPendingSavedVideo(null);
+            setPendingApplyTarget(null);
+            isApplyingVideoRef.current = false;
+            console.log('[VideoSim] Cleaned up all state after error');
+          }
+        })();
+      });
       
-      return () => clearTimeout(timeoutId);
+      return () => interactionHandle.cancel();
     }
   }, [pendingVideoForApply, activeTemplate, setPendingVideoForApply, runCompatibilityCheckAndApply]);
 

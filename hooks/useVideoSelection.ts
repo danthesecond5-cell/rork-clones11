@@ -62,68 +62,21 @@ export function useVideoSelection() {
     
     try {
       if (!isMountedRef.current) return;
-      
-      setCheckingVideoName(video.name);
-      setCompatibilityResult(null);
-      setCompatibilityModalVisible(true);
-      setIsCheckingCompatibility(true);
-      
-      let result: CompatibilityResult | null = null;
-      let timedOut = false;
-      
-      try {
-        const timeoutId = setTimeout(() => {
-          timedOut = true;
-        }, 6000);
-        
-        result = await checkCompatibility(video.id);
-        clearTimeout(timeoutId);
-        
-        if (timedOut) {
-          console.warn('[useVideoSelection] Check completed but timed out flag was set');
-        }
-      } catch (checkError) {
-        console.error('[useVideoSelection] Compatibility check error:', checkError);
-        result = null;
-      }
-      
-      if (!isMountedRef.current) {
-        console.log('[useVideoSelection] Unmounted during check, aborting');
+
+      const selectedVideo = selectVideoForSimulation(video.id);
+      if (selectedVideo) {
+        console.log('[useVideoSelection] Setting pending video for apply:', selectedVideo.name);
+        setPendingVideoForApply(selectedVideo);
+
+        requestAnimationFrame(() => {
+          if (isMountedRef.current) {
+            router.back();
+          }
+        });
         return;
       }
-      
-      setIsCheckingCompatibility(false);
-      
-      if (!result || timedOut) {
-        setCompatibilityResult(null);
-        setCompatibilityModalVisible(false);
-        isProcessingRef.current = false;
-        Alert.alert('Error', 'Failed to check video compatibility. Please try again.');
-        return;
-      }
-      
-      setCompatibilityResult(result);
-      console.log('[useVideoSelection] Compatibility result:', result.overallStatus, 'ready:', result.readyForSimulation);
-      
-      if (result.readyForSimulation) {
-        const selectedVideo = selectVideoForSimulation(video.id);
-        if (selectedVideo) {
-          console.log('[useVideoSelection] Setting pending video for apply:', selectedVideo.name);
-          setPendingVideoForApply(selectedVideo);
-          setCompatibilityModalVisible(false);
-          isProcessingRef.current = false;
-          
-          requestAnimationFrame(() => {
-            if (isMountedRef.current) {
-              router.back();
-            }
-          });
-          return;
-        } else {
-          setCompatibilityModalVisible(false);
-          Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
-        }
-      }
+
+      Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
     } catch (error) {
       console.error('[useVideoSelection] handleSelectVideo error:', error);
       if (isMountedRef.current) {
@@ -136,7 +89,7 @@ export function useVideoSelection() {
         isProcessingRef.current = false;
       }, 300);
     }
-  }, [selectVideoForSimulation, checkCompatibility, setPendingVideoForApply]);
+  }, [selectVideoForSimulation, setPendingVideoForApply]);
 
   const handleDeleteVideo = useCallback((videoId: string, videoName: string) => {
     Alert.alert(
