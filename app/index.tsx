@@ -978,6 +978,13 @@ export default function MotionBrowserScreen() {
                 setShowDevicesModal(false);
                 router.push('/device-check');
               }}
+              onOpenMyVideos={() => {
+                // Avoid stacking a router modal on top of an RN Modal (can cause freezes on dismiss)
+                setShowDevicesModal(false);
+                requestAnimationFrame(() => {
+                  setTimeout(() => router.push('/my-videos'), 0);
+                });
+              }}
               onPickVideo={pickMediaForDevice}
               onPickVideoForAll={pickMediaForAllDevices}
               onApplyVideoUrl={applyVideoUrlToDevice}

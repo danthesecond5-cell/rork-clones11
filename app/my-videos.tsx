@@ -160,6 +160,11 @@ export default function MyVideosScreen() {
               contentContainerStyle={styles.gridContent}
               columnWrapperStyle={styles.gridWrapper}
               showsVerticalScrollIndicator={false}
+              removeClippedSubviews
+              initialNumToRender={8}
+              maxToRenderPerBatch={8}
+              updateCellsBatchingPeriod={16}
+              windowSize={5}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               refreshControl={
@@ -181,6 +186,11 @@ export default function MyVideosScreen() {
               ListFooterComponent={VideoListFooter}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              removeClippedSubviews
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={16}
+              windowSize={7}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               refreshControl={
