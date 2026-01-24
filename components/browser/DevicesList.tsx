@@ -74,6 +74,7 @@ interface DevicesListProps {
   onStealthModeToggle: () => void;
   onTemplateHeaderPress: () => void;
   onDeviceCheckPress: () => void;
+  onOpenMyVideos?: () => void;
   onPickVideo: (deviceId: string) => void;
   onPickVideoForAll: () => void;
   onApplyVideoUrl: (deviceId: string, url: string, autoEnableSim?: boolean) => void;
@@ -92,6 +93,7 @@ export default function DevicesList({
   onStealthModeToggle,
   onTemplateHeaderPress,
   onDeviceCheckPress,
+  onOpenMyVideos,
   onPickVideo,
   onPickVideoForAll,
   onApplyVideoUrl,
@@ -340,8 +342,12 @@ export default function DevicesList({
   }, [applyToAllUrl, executeDownload]);
 
   const handleOpenMyVideos = useCallback(() => {
+    if (onOpenMyVideos) {
+      onOpenMyVideos();
+      return;
+    }
     router.push('/my-videos');
-  }, []);
+  }, [onOpenMyVideos]);
 
   const handleQuickApplySample = useCallback((item: { video: SampleVideo; resolution: SampleVideoResolution }) => {
     const isCanvasVideo = item.resolution.url.startsWith('canvas:');
