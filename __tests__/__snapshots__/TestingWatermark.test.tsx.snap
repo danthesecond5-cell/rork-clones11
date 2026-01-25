@@ -2,4 +2,6 @@
 
 exports[`TestingWatermark renders full variant 1`] = `null`;
 
+exports[`TestingWatermark renders fullscreen position with all elements 1`] = `null`;
+
 exports[`TestingWatermark renders minimal variant 1`] = `null`;

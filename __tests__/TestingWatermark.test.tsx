@@ -17,4 +17,18 @@ describe('TestingWatermark', () => {
     const tree = renderer.create(<TestingWatermark visible={false} />).toJSON();
     expect(tree).toBeNull();
   });
+
+  it('renders fullscreen position with all elements', () => {
+    const tree = renderer.create(
+      <TestingWatermark
+        visible={true}
+        position="fullscreen"
+        showPulse={false}
+        mlSafetyEnabled={true}
+        httpsEnforced={true}
+        protocolName="TEST-PROTOCOL"
+      />
+    ).toJSON();
+    expect(tree).toMatchSnapshot();
+  });
 });
