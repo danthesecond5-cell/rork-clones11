@@ -9,6 +9,7 @@ import {
   Platform,
   Modal,
   Switch,
+  TextInput,
 } from 'react-native';
 import {
   ChevronUp,
@@ -49,7 +50,10 @@ interface ControlToolbarProps {
   onStealthModeToggle: () => void;
   onOpenDevices: () => void;
   onOpenMyVideos: () => void;
+  onOpenProtocols: () => void;
   onOpenSiteSettings: () => void;
+  allowlistStatusLabel: string;
+  allowlistBlocked: boolean;
   simulationActive: boolean;
   useRealSensors: boolean;
   accelData: AccelerometerData;
@@ -75,7 +79,10 @@ const ControlToolbar = memo(function ControlToolbar({
   onStealthModeToggle,
   onOpenDevices,
   onOpenMyVideos,
+  onOpenProtocols,
   onOpenSiteSettings,
+  allowlistStatusLabel,
+  allowlistBlocked,
   simulationActive,
   useRealSensors,
   accelData,
@@ -103,6 +110,7 @@ const ControlToolbar = memo(function ControlToolbar({
   }, [savedVideos, isVideoReady]);
 
   const hasCompatibleVideos = compatibleVideos.length > 0;
+  const injectionDisabled = allowlistBlocked || !hasCompatibleVideos;
 
   const applyAllLabel = useMemo(() => {
     if (!activeTemplate?.captureDevices.length) return 'Select compatible video';
@@ -141,6 +149,12 @@ const ControlToolbar = memo(function ControlToolbar({
       setOpenVideoDropdownId(null);
     }
   }, [isExpanded]);
+
+  useEffect(() => {
+    if (injectionDisabled) {
+      setOpenVideoDropdownId(null);
+    }
+  }, [injectionDisabled]);
 
   useEffect(() => {
     if (isSimulating) {
@@ -306,6 +320,10 @@ const ControlToolbar = memo(function ControlToolbar({
               <Film size={16} color="#ffffff" />
               <Text style={styles.actionButtonText}>My Videos</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={onOpenProtocols}>
+              <Settings size={16} color="#ffffff" />
+              <Text style={styles.actionButtonText}>Protocols</Text>
+            </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.actionButton, styles.settingsButton]} 
               onPress={() => setShowMotionSection(!showMotionSection)}
@@ -328,26 +346,27 @@ const ControlToolbar = memo(function ControlToolbar({
                 <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>
             </View>
+          <Text style={styles.allowlistStatusText}>{allowlistStatusLabel}</Text>
 
             <View style={styles.dropdownGroup}>
               <Text style={styles.dropdownLabel}>Apply to all cameras</Text>
               <TouchableOpacity
-                style={[styles.dropdownButton, !hasCompatibleVideos && styles.dropdownButtonDisabled]}
+                style={[styles.dropdownButton, injectionDisabled && styles.dropdownButtonDisabled]}
                 onPress={() => toggleVideoDropdown('all')}
-                disabled={!hasCompatibleVideos}
+                disabled={injectionDisabled}
               >
                 <Text
                   style={[
                     styles.dropdownButtonText,
-                    !hasCompatibleVideos && styles.dropdownButtonTextDisabled,
+                    injectionDisabled && styles.dropdownButtonTextDisabled,
                   ]}
                   numberOfLines={1}
                 >
                   {applyAllLabel}
                 </Text>
-                <ChevronDown size={16} color={hasCompatibleVideos ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'} />
+                <ChevronDown size={16} color={!injectionDisabled ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'} />
               </TouchableOpacity>
-              {openVideoDropdownId === 'all' && hasCompatibleVideos && (
+              {openVideoDropdownId === 'all' && !injectionDisabled && (
                 <View style={styles.dropdownList}>
                   <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
                     {compatibleVideos.map(video => (
@@ -380,22 +399,22 @@ const ControlToolbar = memo(function ControlToolbar({
               <View key={device.id} style={styles.dropdownGroup}>
                 <Text style={styles.dropdownLabel}>{device.name}</Text>
                 <TouchableOpacity
-                  style={[styles.dropdownButton, !hasCompatibleVideos && styles.dropdownButtonDisabled]}
+                  style={[styles.dropdownButton, injectionDisabled && styles.dropdownButtonDisabled]}
                   onPress={() => toggleVideoDropdown(device.id)}
-                  disabled={!hasCompatibleVideos}
+                  disabled={injectionDisabled}
                 >
                   <Text
                     style={[
                       styles.dropdownButtonText,
-                      !hasCompatibleVideos && styles.dropdownButtonTextDisabled,
+                      injectionDisabled && styles.dropdownButtonTextDisabled,
                     ]}
                     numberOfLines={1}
                   >
                     {device.assignedVideoName || 'Select compatible video'}
                   </Text>
-                  <ChevronDown size={16} color={hasCompatibleVideos ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'} />
+                  <ChevronDown size={16} color={!injectionDisabled ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'} />
                 </TouchableOpacity>
-                {openVideoDropdownId === device.id && hasCompatibleVideos && (
+                {openVideoDropdownId === device.id && !injectionDisabled && (
                   <View style={styles.dropdownList}>
                     <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
                       {compatibleVideos.map(video => (
@@ -425,9 +444,11 @@ const ControlToolbar = memo(function ControlToolbar({
               </View>
             ))}
 
-            {!hasCompatibleVideos && (
+            {injectionDisabled && (
               <Text style={styles.dropdownEmptyText}>
-                Import videos in My Videos to unlock injection options.
+                {allowlistBlocked
+                  ? 'Allowlist mode is blocking injection on this site.'
+                  : 'Import compatible videos in My Videos to unlock injection options.'}
               </Text>
             )}
           </View>
@@ -642,6 +663,158 @@ export function SiteSettingsModal({
   );
 }
 
+interface ProtocolSettingsModalProps {
+  visible: boolean;
+  allowlistEnabled: boolean;
+  allowedDomains: string[];
+  currentHostname: string;
+  onToggleAllowlist: () => void;
+  onAddDomain: (domain: string) => void;
+  onRemoveDomain: (domain: string) => void;
+  onOpenProtectedPreview: () => void;
+  onOpenTestHarness: () => void;
+  onClose: () => void;
+}
+
+export function ProtocolSettingsModal({
+  visible,
+  allowlistEnabled,
+  allowedDomains,
+  currentHostname,
+  onToggleAllowlist,
+  onAddDomain,
+  onRemoveDomain,
+  onOpenProtectedPreview,
+  onOpenTestHarness,
+  onClose,
+}: ProtocolSettingsModalProps) {
+  const [domainInput, setDomainInput] = useState('');
+
+  const currentAllowlisted = useMemo(() => {
+    if (!allowlistEnabled || !currentHostname) return false;
+    return allowedDomains.some(domain =>
+      currentHostname === domain || currentHostname.endsWith(`.${domain}`)
+    );
+  }, [allowlistEnabled, currentHostname, allowedDomains]);
+
+  const handleAddDomain = () => {
+    if (!domainInput.trim()) return;
+    onAddDomain(domainInput);
+    setDomainInput('');
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={protocolStyles.overlay}>
+        <View style={protocolStyles.content}>
+          <View style={protocolStyles.header}>
+            <Text style={protocolStyles.title}>Testing Protocols</Text>
+            <TouchableOpacity onPress={onClose}>
+              <X size={24} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={protocolStyles.body} showsVerticalScrollIndicator={false}>
+            <View style={protocolStyles.section}>
+              <Text style={protocolStyles.sectionTitle}>Protocol 1: Standard Injection</Text>
+              <Text style={protocolStyles.sectionText}>
+                Uses the current media injection flow inside this app. This is the default
+                for internal testing and controlled environments.
+              </Text>
+            </View>
+
+            <View style={protocolStyles.section}>
+              <View style={protocolStyles.sectionHeaderRow}>
+                <View>
+                  <Text style={protocolStyles.sectionTitle}>Protocol 2: Allowlist Test Mode</Text>
+                  <Text style={protocolStyles.sectionText}>
+                    Limits injection to domains you explicitly allow. Recommended for safe testing.
+                  </Text>
+                </View>
+                <Switch
+                  value={allowlistEnabled}
+                  onValueChange={onToggleAllowlist}
+                  trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                  thumbColor={allowlistEnabled ? '#ffffff' : '#888888'}
+                />
+              </View>
+
+              <View style={protocolStyles.statusRow}>
+                <Text style={protocolStyles.statusLabel}>Current site:</Text>
+                <Text style={protocolStyles.statusValue}>
+                  {currentHostname || 'No site loaded'}
+                </Text>
+                {allowlistEnabled && currentHostname.length > 0 && (
+                  <View style={[
+                    protocolStyles.statusBadge,
+                    currentAllowlisted ? protocolStyles.statusBadgeAllowed : protocolStyles.statusBadgeBlocked,
+                  ]}>
+                    <Text style={protocolStyles.statusBadgeText}>
+                      {currentAllowlisted ? 'Allowed' : 'Blocked'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={protocolStyles.inputRow}>
+                <TextInput
+                  style={protocolStyles.domainInput}
+                  value={domainInput}
+                  onChangeText={setDomainInput}
+                  placeholder="Add domain (example.com)"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={protocolStyles.addButton} onPress={handleAddDomain}>
+                  <Text style={protocolStyles.addButtonText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+
+              {allowedDomains.length === 0 ? (
+                <Text style={protocolStyles.emptyText}>No domains added yet.</Text>
+              ) : (
+                <View style={protocolStyles.domainList}>
+                  {allowedDomains.map(domain => (
+                    <View key={domain} style={protocolStyles.domainItem}>
+                      <Text style={protocolStyles.domainText}>{domain}</Text>
+                      <TouchableOpacity onPress={() => onRemoveDomain(domain)}>
+                        <Trash2 size={16} color="#ff4757" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={protocolStyles.section}>
+              <Text style={protocolStyles.sectionTitle}>Protocol 3: Protected Preview</Text>
+              <Text style={protocolStyles.sectionText}>
+                A consent-based local preview that swaps to a safe looping video whenever
+                body detection is triggered (placeholder for your future model).
+              </Text>
+              <TouchableOpacity style={protocolStyles.actionButton} onPress={onOpenProtectedPreview}>
+                <Text style={protocolStyles.actionButtonText}>Open Protected Preview</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={protocolStyles.section}>
+              <Text style={protocolStyles.sectionTitle}>Protocol 4: Local Test Harness</Text>
+              <Text style={protocolStyles.sectionText}>
+                A local sandbox page that requests camera access and allows safe overlay testing
+                without touching third-party sites.
+              </Text>
+              <TouchableOpacity style={protocolStyles.actionButton} onPress={onOpenTestHarness}>
+                <Text style={protocolStyles.actionButtonText}>Open Test Harness</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#151515',
@@ -831,11 +1004,14 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    rowGap: 8,
     marginBottom: 12,
   },
   actionButton: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '48%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -890,6 +1066,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#00aaff',
     fontWeight: '600' as const,
+  },
+  allowlistStatusText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.45)',
+    marginBottom: 8,
   },
   dropdownGroup: {
     marginBottom: 10,
@@ -1160,5 +1341,151 @@ const modalStyles = StyleSheet.create({
   },
   deleteSiteBtn: {
     padding: 8,
+  },
+});
+
+const protocolStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'flex-end',
+  },
+  content: {
+    backgroundColor: '#1a1a1a',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+  },
+  body: {
+    padding: 16,
+  },
+  section: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+    marginBottom: 6,
+  },
+  sectionText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 18,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  statusLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  statusValue: {
+    fontSize: 12,
+    color: '#ffffff',
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusBadgeAllowed: {
+    backgroundColor: 'rgba(0,255,136,0.15)',
+  },
+  statusBadgeBlocked: {
+    backgroundColor: 'rgba(255,68,68,0.15)',
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: '#ffffff',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  domainInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: '#ffffff',
+    fontSize: 13,
+  },
+  addButton: {
+    backgroundColor: '#00ff88',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  addButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#0a0a0a',
+  },
+  emptyText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 10,
+  },
+  domainList: {
+    marginTop: 10,
+    gap: 6,
+  },
+  domainItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  domainText: {
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  actionButton: {
+    marginTop: 10,
+    backgroundColor: 'rgba(0,170,255,0.15)',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#00aaff',
   },
 });

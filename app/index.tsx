@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAccelerometer, useGyroscope, useOrientation, AccelerometerData, GyroscopeData, OrientationData } from '@/hooks/useMotionSensors';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
@@ -38,9 +39,12 @@ import BrowserHeader from '@/components/browser/BrowserHeader';
 import DevicesList from '@/components/browser/DevicesList';
 import TemplateModal from '@/components/browser/TemplateModal';
 
-import ControlToolbar, { SiteSettingsModal } from '@/components/browser/ControlToolbar';
+import ControlToolbar, { SiteSettingsModal, ProtocolSettingsModal } from '@/components/browser/ControlToolbar';
 import SetupRequired from '@/components/SetupRequired';
 
+
+const ALLOWLIST_ENABLED_KEY = '@injection_allowlist_enabled';
+const ALLOWLIST_DOMAINS_KEY = '@injection_allowlist_domains';
 
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -118,14 +122,102 @@ export default function MotionBrowserScreen() {
   const [showDevicesModal, setShowDevicesModal] = useState(false);
 
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
+  const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
+  const [allowlistEnabled, setAllowlistEnabled] = useState(false);
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
 
   const accelData = simulationActive ? simAccelData : realAccelData;
   const gyroData = simulationActive ? simGyroData : realGyroData;
+
+  useEffect(() => {
+    const loadAllowlistSettings = async () => {
+      try {
+        const [enabledValue, domainsValue] = await Promise.all([
+          AsyncStorage.getItem(ALLOWLIST_ENABLED_KEY),
+          AsyncStorage.getItem(ALLOWLIST_DOMAINS_KEY),
+        ]);
+        if (enabledValue !== null) {
+          setAllowlistEnabled(enabledValue === 'true');
+        }
+        if (domainsValue) {
+          const parsed = JSON.parse(domainsValue);
+          if (Array.isArray(parsed)) {
+            setAllowedDomains(parsed.filter(domain => typeof domain === 'string'));
+          }
+        }
+      } catch (error) {
+        console.warn('[Allowlist] Failed to load settings:', error);
+      }
+    };
+    loadAllowlistSettings();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.setItem(ALLOWLIST_ENABLED_KEY, String(allowlistEnabled)).catch(error => {
+      console.warn('[Allowlist] Failed to persist enabled flag:', error);
+    });
+  }, [allowlistEnabled]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(ALLOWLIST_DOMAINS_KEY, JSON.stringify(allowedDomains)).catch(error => {
+      console.warn('[Allowlist] Failed to persist domains:', error);
+    });
+  }, [allowedDomains]);
+
+  const normalizeAllowlistDomain = useCallback((value: string): string | null => {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) return null;
+
+    try {
+      const parsed = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+      return parsed.hostname.replace(/^www\./, '');
+    } catch {
+      return trimmed.split('/')[0].replace(/^www\./, '');
+    }
+  }, []);
+
+  const handleAddAllowlistDomain = useCallback((value: string) => {
+    const normalized = normalizeAllowlistDomain(value);
+    if (!normalized) return;
+
+    setAllowedDomains(prev => {
+      if (prev.includes(normalized)) return prev;
+      return [...prev, normalized];
+    });
+  }, [normalizeAllowlistDomain]);
+
+  const handleRemoveAllowlistDomain = useCallback((domain: string) => {
+    setAllowedDomains(prev => prev.filter(item => item !== domain));
+  }, []);
 
   const currentWebsiteSettings = useMemo(() => 
     getWebsiteSettings(url),
     [getWebsiteSettings, url]
   );
+
+  const currentHostname = useMemo(() => {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
+  }, [url]);
+
+  const isAllowlisted = useMemo(() => {
+    if (!allowlistEnabled) return true;
+    if (!currentHostname) return false;
+    return allowedDomains.some(domain =>
+      currentHostname === domain || currentHostname.endsWith(`.${domain}`)
+    );
+  }, [allowlistEnabled, allowedDomains, currentHostname]);
+
+  const allowlistStatusLabel = useMemo(() => {
+    if (!allowlistEnabled) return 'Allowlist: Off';
+    if (allowedDomains.length === 0) return 'Allowlist: On (no domains)';
+    return isAllowlisted ? 'Allowlist: On (site allowed)' : 'Allowlist: On (site blocked)';
+  }, [allowlistEnabled, allowedDomains.length, isAllowlisted]);
+
+  const allowlistBlocked = allowlistEnabled && !isAllowlisted;
 
   const effectiveStealthMode = useMemo(() =>
     shouldUseStealthForUrl(url),
@@ -168,6 +260,11 @@ export default function MotionBrowserScreen() {
       return;
     }
 
+    if (allowlistEnabled && !isAllowlisted) {
+      console.log('[App] Allowlist mode active - injection disabled for:', currentHostname || url);
+      return;
+    }
+
     const normalizedDevices = activeTemplate.captureDevices.map(d => {
       if (!d.assignedVideoUri) return d;
       return {
@@ -200,7 +297,7 @@ export default function MotionBrowserScreen() {
       })();
       true;
     `);
-  }, [activeTemplate, effectiveStealthMode]);
+  }, [activeTemplate, effectiveStealthMode, allowlistEnabled, isAllowlisted, currentHostname, url]);
 
   const injectMediaConfig = useCallback(() => {
     if (!isMountedRef.current) {
@@ -300,6 +397,13 @@ export default function MotionBrowserScreen() {
 
     return () => clearInterval(interval);
   }, [simulationActive, simConfig, injectMotionData]);
+
+  useEffect(() => {
+    if (webViewRef.current) {
+      console.log('[App] Allowlist settings changed, reloading WebView');
+      webViewRef.current.reload();
+    }
+  }, [allowlistEnabled, allowedDomains]);
 
   useEffect(() => {
     if (useRealSensors && !simulationActive) {
@@ -461,14 +565,15 @@ export default function MotionBrowserScreen() {
       };
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
+    const shouldInjectMedia = !allowlistEnabled || isAllowlisted;
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
-      createMediaInjectionScript(devices, effectiveStealthMode) +
+      (shouldInjectMedia ? createMediaInjectionScript(devices, effectiveStealthMode) : '') +
       VIDEO_SIMULATION_TEST_SCRIPT;
-    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode);
+    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode, 'allowlisted:', shouldInjectMedia);
     return script;
-  }, [activeTemplate, safariModeEnabled, effectiveStealthMode]);
+  }, [activeTemplate, safariModeEnabled, effectiveStealthMode, allowlistEnabled, isAllowlisted]);
 
   const getAfterLoadScript = useCallback(() => {
     return MOTION_INJECTION_SCRIPT;
@@ -652,8 +757,11 @@ export default function MotionBrowserScreen() {
             onStealthModeToggle={toggleStealthMode}
             onOpenDevices={() => setShowDevicesModal(true)}
             onOpenMyVideos={() => router.push('/my-videos')}
+            onOpenProtocols={() => setShowProtocolSettingsModal(true)}
 
             onOpenSiteSettings={() => setShowSiteSettingsModal(true)}
+            allowlistStatusLabel={allowlistStatusLabel}
+            allowlistBlocked={allowlistBlocked}
             simulationActive={simulationActive}
             useRealSensors={useRealSensors}
             accelData={accelData}
@@ -731,6 +839,25 @@ export default function MotionBrowserScreen() {
         onClose={() => setShowSiteSettingsModal(false)}
         onSave={handleSaveWebsiteSettings}
         onDelete={handleDeleteWebsiteSettings}
+      />
+
+      <ProtocolSettingsModal
+        visible={showProtocolSettingsModal}
+        allowlistEnabled={allowlistEnabled}
+        allowedDomains={allowedDomains}
+        currentHostname={currentHostname}
+        onToggleAllowlist={() => setAllowlistEnabled(prev => !prev)}
+        onAddDomain={handleAddAllowlistDomain}
+        onRemoveDomain={handleRemoveAllowlistDomain}
+        onOpenProtectedPreview={() => {
+          setShowProtocolSettingsModal(false);
+          router.push('/protected-preview');
+        }}
+        onOpenTestHarness={() => {
+          setShowProtocolSettingsModal(false);
+          router.push('/test-harness');
+        }}
+        onClose={() => setShowProtocolSettingsModal(false)}
       />
     </View>
   );
