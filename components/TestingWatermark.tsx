@@ -6,13 +6,21 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { Shield, AlertTriangle, FlaskConical, Lock } from 'lucide-react-native';
+import {
+  Shield,
+  AlertTriangle,
+  FlaskConical,
+  Lock,
+} from 'lucide-react-native';
+
+type WatermarkPosition = 'top' | 'bottom' | 'top-right' | 'bottom-right';
+type WatermarkVariant = 'minimal' | 'full';
 
 interface TestingWatermarkProps {
   visible?: boolean;
-  position?: 'top' | 'bottom' | 'top-right' | 'bottom-right' | 'fullscreen';
+  position?: WatermarkPosition;
   showPulse?: boolean;
-  variant?: 'minimal' | 'full';
+  variant?: WatermarkVariant;
   mlSafetyEnabled?: boolean;
   httpsEnforced?: boolean;
   protocolName?: string;
@@ -37,75 +45,81 @@ const TestingWatermark = memo(function TestingWatermark({
         duration: 300,
         useNativeDriver: true,
       }).start();
-
-      if (showPulse) {
-        const pulse = Animated.loop(
-          Animated.sequence([
-            Animated.timing(pulseAnim, {
-              toValue: 1,
-              duration: 1500,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(pulseAnim, {
-              toValue: 0.7,
-              duration: 1500,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-          ])
-        );
-        pulse.start();
-        return () => pulse.stop();
-      }
     } else {
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
       }).start();
+      return;
     }
+
+    if (!showPulse) {
+      return;
+    }
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.7,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulse.start();
+    return () => pulse.stop();
   }, [visible, showPulse, fadeAnim, pulseAnim]);
 
   if (!visible) return null;
 
-  // Fullscreen variant for presentation mode
-  if (position === 'fullscreen') {
+  if (showOverlay) {
     return (
-      <View style={styles.fullscreenContainer} pointerEvents="none">
-        {/* Top Banner */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.overlayContainer, { opacity: fadeAnim }]}
+      >
         <View style={styles.topBanner}>
-          <Animated.View style={[styles.bannerContent, { opacity: pulseAnim }]}>
+          <Animated.View
+            style={[styles.bannerContent, { opacity: showPulse ? pulseAnim : 1 }]}
+          >
             <FlaskConical size={14} color="#ffcc00" />
             <Text style={styles.bannerText}>TESTING PROTOTYPE</Text>
             <FlaskConical size={14} color="#ffcc00" />
           </Animated.View>
         </View>
 
-        {/* Safety Badges */}
         <View style={styles.safetyBadges}>
-          {httpsEnforced && (
-            <View style={styles.httpsBadge}>
+          {overlayHttpsEnforced && (
+            <View style={styles.badge}>
               <Lock size={10} color="#00ff88" />
-              <Text style={styles.httpsBadgeText}>HTTPS</Text>
+              <Text style={styles.badgeText}>HTTPS</Text>
             </View>
           )}
-          {mlSafetyEnabled && (
-            <View style={styles.mlSafetyBadge}>
+          {overlayMlSafetyEnabled && (
+            <View style={[styles.badge, styles.mlBadge]}>
               <Shield size={10} color="#00aaff" />
-              <Text style={styles.mlSafetyBadgeText}>ML SAFETY</Text>
+              <Text style={[styles.badgeText, styles.mlBadgeText]}>
+                ML SAFETY
+              </Text>
             </View>
           )}
         </View>
 
-        {/* Protocol Indicator */}
         {protocolName && (
           <View style={styles.protocolIndicator}>
             <Text style={styles.protocolText}>{protocolName}</Text>
           </View>
         )}
 
-        {/* Corner Watermarks */}
         <View style={styles.cornerTopLeft}>
           <Text style={styles.cornerText}>BETA</Text>
         </View>
@@ -119,7 +133,6 @@ const TestingWatermark = memo(function TestingWatermark({
           <Text style={styles.cornerText}>DEV</Text>
         </View>
 
-        {/* Disclaimer Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             For demonstration purposes only. Not for production use.
@@ -128,14 +141,13 @@ const TestingWatermark = memo(function TestingWatermark({
             ML safety protocols prevent malicious use in production builds.
           </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   }
 
-  // Regular badge variants
-  const positionStyles: Record<string, object> = {
-    'top': styles.positionTop,
-    'bottom': styles.positionBottom,
+  const positionStyles: Record<WatermarkPosition, object> = {
+    top: styles.positionTop,
+    bottom: styles.positionBottom,
     'top-right': styles.positionTopRight,
     'bottom-right': styles.positionBottomRight,
   };
@@ -144,7 +156,7 @@ const TestingWatermark = memo(function TestingWatermark({
     <Animated.View
       pointerEvents="none"
       style={[
-        styles.container,
+        styles.badgeContainer,
         positionStyles[position],
         {
           opacity: showPulse ? pulseAnim : fadeAnim,
@@ -169,7 +181,7 @@ const TestingWatermark = memo(function TestingWatermark({
           <View style={styles.statusDot} />
         )}
       </View>
-      
+
       {variant === 'full' && (
         <View style={styles.securityNote}>
           <AlertTriangle size={10} color="rgba(255, 184, 0, 0.7)" />
@@ -185,11 +197,15 @@ const TestingWatermark = memo(function TestingWatermark({
 export default TestingWatermark;
 
 const styles = StyleSheet.create({
-  // Regular badge container styles
-  container: {
+  badgeContainer: {
     position: 'absolute',
     zIndex: 9999,
     alignItems: 'flex-end',
+  },
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    justifyContent: 'space-between',
   },
   positionTop: {
     top: 60,
@@ -275,50 +291,6 @@ const styles = StyleSheet.create({
   securityNoteText: {
     fontSize: 8,
     color: 'rgba(255, 184, 0, 0.7)',
-  },
-
-  // Fullscreen container styles
-  fullscreenContainer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    justifyContent: 'space-between',
-    pointerEvents: 'none',
-  },
-  topBanner: {
-    backgroundColor: 'rgba(255, 204, 0, 0.15)',
-    paddingVertical: 6,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 204, 0, 0.3)',
-  },
-  bannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bannerText: {
-    color: '#ffcc00',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  safetyBadges: {
-    position: 'absolute',
-    top: 40,
-    right: 8,
-    flexDirection: 'column',
-    gap: 4,
-  },
-  httpsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0, 255, 136, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 136, 0.3)',
   },
   httpsBadgeText: {
     color: '#00ff88',
