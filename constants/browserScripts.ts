@@ -20,6 +20,8 @@ export const IPHONE_DEFAULT_PORTRAIT_RESOLUTION = {
 
 export const SAFARI_SPOOFING_SCRIPT = `
 (function() {
+  if (typeof window === 'undefined') return;
+  if (!window.navigator) return;
   if (window.__safariSpooferInitialized) return;
   window.__safariSpooferInitialized = true;
   
@@ -111,9 +113,13 @@ export const SAFARI_SPOOFING_SCRIPT = `
   } catch(e) {}
   
   // ============ WEBGL FINGERPRINT SPOOFING ============
-  const originalGetContext = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function(type, attributes) {
-    const context = originalGetContext.call(this, type, attributes);
+  const hasCanvas = typeof HTMLCanvasElement !== 'undefined' &&
+    HTMLCanvasElement.prototype &&
+    typeof HTMLCanvasElement.prototype.getContext === 'function';
+  if (hasCanvas) {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(type, attributes) {
+      const context = originalGetContext.call(this, type, attributes);
     
     if (context && (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl')) {
       const originalGetParameter = context.getParameter.bind(context);
@@ -172,11 +178,15 @@ export const SAFARI_SPOOFING_SCRIPT = `
       }
     }
     
-    return context;
-  };
+      return context;
+    };
+  }
   
   // ============ CANVAS FINGERPRINT PROTECTION ============
-  if (CANVAS_CONFIG.addNoise) {
+  if (CANVAS_CONFIG.addNoise &&
+      typeof CanvasRenderingContext2D !== 'undefined' &&
+      CanvasRenderingContext2D.prototype &&
+      typeof CanvasRenderingContext2D.prototype.getImageData === 'function') {
     const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
     CanvasRenderingContext2D.prototype.getImageData = function(sx, sy, sw, sh) {
       const imageData = originalGetImageData.call(this, sx, sy, sw, sh);
@@ -194,23 +204,27 @@ export const SAFARI_SPOOFING_SCRIPT = `
       return imageData;
     };
     
-    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-    HTMLCanvasElement.prototype.toDataURL = function(type, quality) {
-      if (CANVAS_CONFIG.modifyToDataURL && this.width > 0 && this.height > 0) {
-        try {
-          const ctx = this.getContext('2d');
-          if (ctx) {
-            const imageData = ctx.getImageData(0, 0, this.width, this.height);
-            ctx.putImageData(imageData, 0, 0);
-          }
-        } catch(e) {}
-      }
-      return originalToDataURL.call(this, type, quality);
-    };
+    if (hasCanvas && typeof HTMLCanvasElement.prototype.toDataURL === 'function') {
+      const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function(type, quality) {
+        if (CANVAS_CONFIG.modifyToDataURL && this.width > 0 && this.height > 0) {
+          try {
+            const ctx = this.getContext('2d');
+            if (ctx) {
+              const imageData = ctx.getImageData(0, 0, this.width, this.height);
+              ctx.putImageData(imageData, 0, 0);
+            }
+          } catch(e) {}
+        }
+        return originalToDataURL.call(this, type, quality);
+      };
+    }
   }
   
   // ============ AUDIO FINGERPRINT PROTECTION ============
-  if (AUDIO_CONFIG.modifyAnalyserNode) {
+  if (AUDIO_CONFIG.modifyAnalyserNode &&
+      typeof AnalyserNode !== 'undefined' &&
+      AnalyserNode.prototype) {
     const originalAnalyserGetFloatFrequencyData = AnalyserNode.prototype.getFloatFrequencyData;
     const originalAnalyserGetByteFrequencyData = AnalyserNode.prototype.getByteFrequencyData;
     
@@ -234,23 +248,42 @@ export const SAFARI_SPOOFING_SCRIPT = `
   }
   
   if (AUDIO_CONFIG.modifyOscillator) {
-    const originalCreateOscillator = AudioContext.prototype.createOscillator;
-    AudioContext.prototype.createOscillator = function() {
-      const osc = originalCreateOscillator.call(this);
-      const originalStart = osc.start.bind(osc);
-      osc.start = function(when) {
-        // Add tiny timing variation
-        const jitter = AUDIO_CONFIG.addMicroVariations ? (Math.random() - 0.5) * 0.0001 : 0;
-        return originalStart(when ? when + jitter : when);
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextCtor && AudioContextCtor.prototype && AudioContextCtor.prototype.createOscillator) {
+      const originalCreateOscillator = AudioContextCtor.prototype.createOscillator;
+      AudioContextCtor.prototype.createOscillator = function() {
+        const osc = originalCreateOscillator.call(this);
+        const originalStart = osc.start.bind(osc);
+        osc.start = function(when) {
+          // Add tiny timing variation
+          const jitter = AUDIO_CONFIG.addMicroVariations ? (Math.random() - 0.5) * 0.0001 : 0;
+          return originalStart(when ? when + jitter : when);
+        };
+        return osc;
       };
-      return osc;
-    };
+    }
   }
   
   // ============ WEBRTC LEAK PREVENTION ============
   if (WEBRTC_CONFIG.blockLocalIPs) {
-    const originalRTCPeerConnection = window.RTCPeerConnection;
-    if (originalRTCPeerConnection) {
+    const RTCPeerConnectionCtor = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+    if (RTCPeerConnectionCtor) {
+      const createIceCandidateEvent = function() {
+        try {
+          if (typeof RTCPeerConnectionIceEvent !== 'undefined') {
+            return new RTCPeerConnectionIceEvent('icecandidate', { candidate: null });
+          }
+        } catch(e) {}
+        try {
+          if (typeof Event === 'function') {
+            const evt = new Event('icecandidate');
+            evt.candidate = null;
+            return evt;
+          }
+        } catch(e) {}
+        return { candidate: null };
+      };
+      
       window.RTCPeerConnection = function(config) {
         // Filter out STUN servers if configured
         if (config && config.iceServers && WEBRTC_CONFIG.disableSTUN) {
@@ -260,7 +293,7 @@ export const SAFARI_SPOOFING_SCRIPT = `
           });
         }
         
-        const pc = new originalRTCPeerConnection(config);
+        const pc = new RTCPeerConnectionCtor(config);
         
         // Intercept ICE candidates to block local IPs
         const originalAddEventListener = pc.addEventListener.bind(pc);
@@ -283,9 +316,7 @@ export const SAFARI_SPOOFING_SCRIPT = `
                         ip.startsWith('fe80:') || ip.startsWith('fc') ||
                         ip.startsWith('fd')) {
                       // Create modified event without local IP
-                      const modifiedEvent = new RTCPeerConnectionIceEvent('icecandidate', {
-                        candidate: null
-                      });
+                      const modifiedEvent = createIceCandidateEvent();
                       return listener.call(this, modifiedEvent);
                     }
                   }
@@ -300,7 +331,7 @@ export const SAFARI_SPOOFING_SCRIPT = `
         
         return pc;
       };
-      window.RTCPeerConnection.prototype = originalRTCPeerConnection.prototype;
+      window.RTCPeerConnection.prototype = RTCPeerConnectionCtor.prototype;
     }
   }
   
@@ -447,8 +478,40 @@ true;
 
 export const MOTION_INJECTION_SCRIPT = `
 (function() {
+  if (typeof window === 'undefined') return;
   if (window.__motionInjectorInitialized) return;
   window.__motionInjectorInitialized = true;
+  
+  const createFallbackEvent = function(type, payload) {
+    try {
+      if (typeof Event === 'function') {
+        const evt = new Event(type);
+        if (payload && typeof payload === 'object') {
+          Object.keys(payload).forEach(function(key) { evt[key] = payload[key]; });
+        }
+        return evt;
+      }
+    } catch (e) {}
+    return null;
+  };
+  
+  const createMotionEvent = function(payload) {
+    try {
+      if (typeof DeviceMotionEvent === 'function') {
+        return new DeviceMotionEvent('devicemotion', payload);
+      }
+    } catch (e) {}
+    return createFallbackEvent('devicemotion', payload);
+  };
+  
+  const createOrientationEvent = function(payload) {
+    try {
+      if (typeof DeviceOrientationEvent === 'function') {
+        return new DeviceOrientationEvent('deviceorientation', payload);
+      }
+    } catch (e) {}
+    return createFallbackEvent('deviceorientation', payload);
+  };
   
   window.__simulatedMotion = {
     acceleration: { x: 0, y: 0, z: 9.8 },
@@ -463,33 +526,35 @@ export const MOTION_INJECTION_SCRIPT = `
     window.__simulatedMotion = { ...window.__simulatedMotion, ...data };
     
     if (window.__simulatedMotion.active) {
-      const motionEvent = new DeviceMotionEvent('devicemotion', {
+      const motionEvent = createMotionEvent({
         acceleration: window.__simulatedMotion.acceleration,
         accelerationIncludingGravity: window.__simulatedMotion.accelerationIncludingGravity,
         rotationRate: window.__simulatedMotion.rotationRate,
         interval: window.__simulatedMotion.interval
       });
-      window.dispatchEvent(motionEvent);
+      if (motionEvent) window.dispatchEvent(motionEvent);
       
-      const orientEvent = new DeviceOrientationEvent('deviceorientation', {
+      const orientEvent = createOrientationEvent({
         alpha: window.__simulatedMotion.orientation.alpha,
         beta: window.__simulatedMotion.orientation.beta,
         gamma: window.__simulatedMotion.orientation.gamma,
         absolute: false
       });
-      window.dispatchEvent(orientEvent);
+      if (orientEvent) window.dispatchEvent(orientEvent);
     }
   };
   
-  document.addEventListener('message', function(e) {
-    try {
-      if (typeof e.data !== 'string' || !e.data.startsWith('{')) return;
-      const data = JSON.parse(e.data);
-      if (data && data.type === 'motion') {
-        window.__updateMotionData(data.payload);
-      }
-    } catch(err) {}
-  });
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('message', function(e) {
+      try {
+        if (typeof e.data !== 'string' || !e.data.startsWith('{')) return;
+        const data = JSON.parse(e.data);
+        if (data && data.type === 'motion') {
+          window.__updateMotionData(data.payload);
+        }
+      } catch(err) {}
+    });
+  }
   
   window.addEventListener('message', function(e) {
     try {
@@ -596,6 +661,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
 
   return `
 (function() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__mediaInjectorInitialized) {
     console.log('[MediaSim] Already initialized, updating config');
     if (window.__updateMediaConfig) {
@@ -633,6 +699,49 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     MAX_ACTIVE_STREAMS: 3,
     CLEANUP_DELAY: 100,
   };
+  
+  // ============ EXPO/WEBVIEW COMPATIBILITY ============
+  if (!window.performance) {
+    window.performance = { now: function() { return Date.now(); } };
+  } else if (typeof window.performance.now !== 'function') {
+    window.performance.now = function() { return Date.now(); };
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function(cb) { return setTimeout(function() { cb(Date.now()); }, 16); };
+  }
+  if (!window.cancelAnimationFrame) {
+    window.cancelAnimationFrame = function(id) { clearTimeout(id); };
+  }
+  
+  function safeRemoveElement(el) {
+    if (!el) return;
+    try {
+      if (typeof el.remove === 'function') {
+        el.remove();
+        return;
+      }
+    } catch (e) {}
+    try {
+      if (el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    } catch (e) {}
+  }
+  
+  function getCanvasStream(canvas, fps) {
+    if (!canvas) return null;
+    const capture = canvas.captureStream || canvas.mozCaptureStream || canvas.webkitCaptureStream;
+    if (!capture) return null;
+    try {
+      return capture.call(canvas, fps);
+    } catch (e) {
+      try {
+        return capture.call(canvas);
+      } catch (e2) {
+        return null;
+      }
+    }
+  }
   
   // ============ LOGGING SYSTEM ============
   const Logger = {
@@ -1157,12 +1266,28 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
   }
   
   // ============ ORIGINAL API REFERENCES ============
-  const _origGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
-  const _origEnumDevices = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
+  const nav = window.navigator;
+  let mediaDevices = nav && nav.mediaDevices ? nav.mediaDevices : null;
+  
+  if (!mediaDevices && nav) {
+    mediaDevices = {};
+    try {
+      Object.defineProperty(nav, 'mediaDevices', { value: mediaDevices, configurable: true });
+    } catch (e) {
+      try { nav.mediaDevices = mediaDevices; } catch (e2) {}
+    }
+  }
+  
+  if (!mediaDevices) {
+    mediaDevices = {};
+  }
+  
+  const _origGetUserMedia = mediaDevices.getUserMedia ? mediaDevices.getUserMedia.bind(mediaDevices) : null;
+  const _origEnumDevices = mediaDevices.enumerateDevices ? mediaDevices.enumerateDevices.bind(mediaDevices) : null;
   
   // ============ DEVICE ENUMERATION OVERRIDE ============
-  if (navigator.mediaDevices) {
-    navigator.mediaDevices.enumerateDevices = async function() {
+  if (mediaDevices) {
+    mediaDevices.enumerateDevices = async function() {
       const cfg = window.__mediaSimConfig || {};
       const devices = cfg.devices || [];
       const hasSimDevices = devices.length > 0;
@@ -1193,7 +1318,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     };
 
     // ============ GET USER MEDIA OVERRIDE ============
-    navigator.mediaDevices.getUserMedia = async function(constraints) {
+    mediaDevices.getUserMedia = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
       const cfg = window.__mediaSimConfig || {};
       const wantsVideo = !!constraints?.video;
@@ -1334,7 +1459,12 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         video.crossOrigin = corsMode;
       }
       
-      document.body.appendChild(video);
+      const container = document.body || document.documentElement;
+      if (container && container.appendChild) {
+        container.appendChild(video);
+      } else {
+        Logger.warn('Video element not attached - document not ready');
+      }
       
       let resolved = false;
       let lastProgressTime = Date.now();
@@ -1344,7 +1474,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         if (resolved) return;
         resolved = true;
         cleanup();
-        video.remove();
+        safeRemoveElement(video);
         const errorInfo = ErrorHandler.getDetailedErrorMessage(null, 'timeout');
         reject(new Error(errorInfo.message + ' - ' + errorInfo.solution));
       }, timeout);
@@ -1408,7 +1538,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         cleanup();
         const errorInfo = ErrorHandler.getDetailedErrorMessage(video.error, 'load', videoUri);
         Logger.error('Video load error:', errorInfo.message, '| URL:', videoUri.substring(0, 60));
-        video.remove();
+        safeRemoveElement(video);
         reject(new Error(errorInfo.message + ' - ' + errorInfo.solution));
       };
       
@@ -1543,7 +1673,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       
       setTimeout(function() {
         try {
-          const stream = canvas.captureStream(CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('Green screen captureStream failed'));
             return;
@@ -1720,7 +1850,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       
       setTimeout(function() {
         try {
-          const stream = canvas.captureStream(CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('captureStream failed'));
             return;
@@ -1796,7 +1926,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
             isRunning = false;
             video.pause();
             video.src = '';
-            video.remove();
+            safeRemoveElement(video);
             Logger.log('Stream cleanup completed');
           };
           
@@ -1876,7 +2006,9 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       
       Logger.log('Creating green screen stream with fallbacks:', w, 'x', h, '(9:16 enforced)');
       
-      if (typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+      const canvasProto = typeof HTMLCanvasElement !== 'undefined' ? HTMLCanvasElement.prototype : null;
+      const captureSupported = canvasProto && (canvasProto.captureStream || canvasProto.mozCaptureStream || canvasProto.webkitCaptureStream);
+      if (!captureSupported) {
         reject(new Error('captureStream not supported'));
         return;
       }
@@ -1945,7 +2077,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       
       setTimeout(function() {
         try {
-          const stream = canvas.captureStream(CONFIG.TARGET_FPS);
+          const stream = getCanvasStream(canvas, CONFIG.TARGET_FPS);
           if (!stream || stream.getVideoTracks().length === 0) {
             reject(new Error('Green screen captureStream failed'));
             return;
@@ -2161,6 +2293,7 @@ true;
 
 export const VIDEO_SIMULATION_TEST_SCRIPT = `
 (function() {
+  if (typeof window === 'undefined') return;
   if (window.__videoSimTestInitialized) return;
   window.__videoSimTestInitialized = true;
   
@@ -2184,6 +2317,12 @@ export const VIDEO_SIMULATION_TEST_SCRIPT = `
     };
     
     try {
+      if (typeof navigator === 'undefined' ||
+          !navigator.mediaDevices ||
+          typeof navigator.mediaDevices.enumerateDevices !== 'function' ||
+          typeof navigator.mediaDevices.getUserMedia !== 'function') {
+        throw new Error('MediaDevices API unavailable in this WebView');
+      }
       // Step 1: Enumerate devices
       result.steps.push({ step: 'enumerate_devices', status: 'running' });
       const devices = await navigator.mediaDevices.enumerateDevices();
