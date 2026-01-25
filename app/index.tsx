@@ -822,7 +822,7 @@ export default function MotionBrowserScreen() {
         visible={showTestingWatermark && presentationMode}
         mlSafetyEnabled={mlSafetyEnabled}
         httpsEnforced={httpsEnforced}
-        protocolName={protocols[activeProtocol]?.name.replace('Protocol ', 'P')}
+        protocolName={protocols[activeProtocol]?.name?.replace('Protocol ', 'P')}
       />
     </View>
   );
