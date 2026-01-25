@@ -13,6 +13,9 @@ import { WebView } from 'react-native-webview';
 import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
+import { ChevronLeft, Monitor, Film, FlaskConical, Shield, Settings } from 'lucide-react-native';
+import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
+import { useProtocol } from '@/contexts/ProtocolContext';
 import { formatVideoUriForWebView } from '@/utils/videoServing';
 import TestingWatermark from '@/components/TestingWatermark';
 
@@ -66,7 +69,7 @@ const TEST_HARNESS_HTML = `
         background: rgba(0, 0, 0, 0.6);
         padding: 6px 10px;
         border-radius: 8px;
-        font-size: 12px;
+        ont-size: 12px;
         color: #00ff88;
       }
     </style>
@@ -116,7 +119,6 @@ const TEST_HARNESS_HTML = `
 
 export default function TestHarnessScreen() {
   const webViewRef = useRef<WebView>(null);
-  const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
@@ -128,6 +130,16 @@ export default function TestHarnessScreen() {
   } = useDeveloperMode();
 
   const harnessSettings = protocolSettings.harness;
+  const {
+    harnessSettings,
+    updateHarnessSettings,
+    developerModeEnabled,
+    presentationMode,
+    mlSafetyEnabled,
+  } = useProtocol();
+
+  const overlayEnabled = harnessSettings.overlayEnabled;
+  const setOverlayEnabled = (enabled: boolean) => updateHarnessSettings({ overlayEnabled: enabled });
 
   const compatibleVideos = useMemo(() => {
     return savedVideos.filter(video => {
@@ -210,6 +222,18 @@ export default function TestHarnessScreen() {
             </View>
           )}
         </View>
+        {presentationMode && (
+          <View style={styles.protocolBadge}>
+            <FlaskConical size={14} color="#ffcc00" />
+            <Text style={styles.protocolBadgeText}>Protocol 4: Local Test Harness</Text>
+            {mlSafetyEnabled && (
+              <View style={styles.mlBadge}>
+                <Shield size={10} color="#00aaff" />
+                <Text style={styles.mlBadgeText}>ML SAFE</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
@@ -230,8 +254,37 @@ export default function TestHarnessScreen() {
               onValueChange={setOverlayEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={overlayEnabled ? '#ffffff' : '#888888'}
+              disabled={!developerModeEnabled}
             />
           </View>
+
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Show Debug Info</Text>
+            <Switch
+              value={harnessSettings.showDebugInfo}
+              onValueChange={(v) => updateHarnessSettings({ showDebugInfo: v })}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+              thumbColor={harnessSettings.showDebugInfo ? '#ffffff' : '#888888'}
+              disabled={!developerModeEnabled}
+            />
+          </View>
+
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Mirror Video</Text>
+            <Switch
+              value={harnessSettings.mirrorVideo}
+              onValueChange={(v) => updateHarnessSettings({ mirrorVideo: v })}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+              thumbColor={harnessSettings.mirrorVideo ? '#ffffff' : '#888888'}
+              disabled={!developerModeEnabled}
+            />
+          </View>
+
+          {!developerModeEnabled && (
+            <Text style={styles.lockedHint}>
+              Enable developer mode in Protocols to modify settings.
+            </Text>
+          )}
 
           <Text style={styles.selectorTitle}>Overlay Video</Text>
           {compatibleVideos.length === 0 ? (
@@ -465,6 +518,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#ffffff',
     fontWeight: '600' as const,
+  },
+  lockedHint: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 8,
+    textAlign: 'center' as const,
+  },
+  protocolBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 204, 0, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.3)',
+  },
+  protocolBadgeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#ffcc00',
+  },
+  mlBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 170, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  mlBadgeText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: '#00aaff',
   },
   selectorTitle: {
     fontSize: 13,

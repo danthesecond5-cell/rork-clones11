@@ -15,10 +15,12 @@ import { ChevronLeft, Shield, Film, Settings, Lock } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import TestingWatermark from '@/components/TestingWatermark';
+import { ChevronLeft, Shield, Film, FlaskConical, AlertTriangle } from 'lucide-react-native';
+import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
+import { useProtocol } from '@/contexts/ProtocolContext';
 
 export default function ProtectedPreviewScreen() {
   const [permission, requestPermission] = useCameraPermissions();
-  const [simulateBodyDetected, setSimulateBodyDetected] = useState(true);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
@@ -30,6 +32,14 @@ export default function ProtectedPreviewScreen() {
   } = useDeveloperMode();
 
   const protectedSettings = protocolSettings.protected;
+    protectedSettings, 
+    updateProtectedSettings,
+    developerModeEnabled,
+    presentationMode,
+    mlSafetyEnabled,
+  } = useProtocol();
+
+  const simulateBodyDetected = protectedSettings.bodyDetectionEnabled;
 
   const compatibleVideos = useMemo(() => {
     return savedVideos.filter(video => {
@@ -146,18 +156,59 @@ export default function ProtectedPreviewScreen() {
           </View>
 
           <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Simulate body detected</Text>
+            <Text style={styles.toggleLabel}>Body Detection Active</Text>
             <Switch
               value={simulateBodyDetected}
-              onValueChange={setSimulateBodyDetected}
+              onValueChange={(v) => updateProtectedSettings({ bodyDetectionEnabled: v })}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={simulateBodyDetected ? '#ffffff' : '#888888'}
+              disabled={!developerModeEnabled}
             />
           </View>
+          
+          <View style={styles.sensitivityRow}>
+            <Text style={styles.toggleLabel}>Sensitivity</Text>
+            <View style={styles.sensitivityButtons}>
+              {(['low', 'medium', 'high'] as const).map((level) => (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.sensitivityBtn,
+                    protectedSettings.sensitivityLevel === level && styles.sensitivityBtnActive,
+                  ]}
+                  onPress={() => developerModeEnabled && updateProtectedSettings({ sensitivityLevel: level })}
+                  disabled={!developerModeEnabled}
+                >
+                  <Text style={[
+                    styles.sensitivityBtnText,
+                    protectedSettings.sensitivityLevel === level && styles.sensitivityBtnTextActive,
+                  ]}>
+                    {level.charAt(0).toUpperCase() + level.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          
           <Text style={styles.toggleHint}>
-            Placeholder logic only. Toggle this to simulate body detection until your model is ready.
+            {developerModeEnabled 
+              ? 'Settings are editable in developer mode. ML-based body detection will trigger replacement.'
+              : 'Enable developer mode in Protocols to modify settings.'}
           </Text>
         </View>
+        
+        {presentationMode && (
+          <View style={styles.protocolBadge}>
+            <FlaskConical size={14} color="#ffcc00" />
+            <Text style={styles.protocolBadgeText}>Protocol 3: Protected Preview</Text>
+            {mlSafetyEnabled && (
+              <View style={styles.mlBadge}>
+                <Shield size={10} color="#00aaff" />
+                <Text style={styles.mlBadgeText}>ML SAFE</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Settings Card */}
         <View style={styles.settingsCard}>
@@ -426,6 +477,64 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 6,
+  },
+  sensitivityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  sensitivityButtons: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  sensitivityBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  sensitivityBtnActive: {
+    backgroundColor: '#ff6b35',
+  },
+  sensitivityBtnText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  sensitivityBtnTextActive: {
+    color: '#ffffff',
+  },
+  protocolBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 204, 0, 0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.3)',
+  },
+  protocolBadgeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#ffcc00',
+  },
+  mlBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 170, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  mlBadgeText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: '#00aaff',
   },
   selectorCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',
