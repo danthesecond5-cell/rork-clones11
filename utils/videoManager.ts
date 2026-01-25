@@ -13,6 +13,13 @@ export interface VideoMetadata {
   isVertical: boolean;
 }
 
+export interface VideoCompatibilitySummary {
+  overallStatus: 'perfect' | 'compatible' | 'warning' | 'incompatible';
+  score: number;
+  readyForSimulation: boolean;
+  checkedAt: string;
+}
+
 export interface SavedVideo {
   id: string;
   name: string;
@@ -24,6 +31,7 @@ export interface SavedVideo {
   createdAt: string;
   thumbnailUri?: string;
   metadata?: VideoMetadata;
+  compatibility?: VideoCompatibilitySummary;
 }
 
 export interface DownloadProgress {

@@ -7,25 +7,14 @@ import {
 } from 'react-native';
 import {
   Camera,
-  Upload,
   FileVideo,
   Trash2,
   Info,
 } from 'lucide-react-native';
 import type { CaptureDevice } from '@/types/device';
-import type { VideoSourceType } from '@/types/browser';
 
 interface DeviceCardProps {
   device: CaptureDevice;
-  isSelected: boolean;
-  videoSourceType: VideoSourceType;
-  videoUrlInput: string;
-  onSelect: () => void;
-  onCancel: () => void;
-  onSourceTypeChange: (type: VideoSourceType) => void;
-  onUrlChange: (url: string) => void;
-  onApplyUrl: () => void;
-  onPickVideo: () => void;
   onToggleSimulation: () => void;
   onClearVideo: () => void;
   onShowInfo: () => void;
@@ -33,15 +22,6 @@ interface DeviceCardProps {
 
 export default function DeviceCard({
   device,
-  isSelected,
-  videoSourceType,
-  videoUrlInput,
-  onSelect,
-  onCancel,
-  onSourceTypeChange,
-  onUrlChange,
-  onApplyUrl,
-  onPickVideo,
   onToggleSimulation,
   onClearVideo,
   onShowInfo,
@@ -97,13 +77,9 @@ export default function DeviceCard({
         </View>
       ) : (
         <View style={styles.videoAssignSection}>
-          <TouchableOpacity
-            style={styles.assignVideoBtn}
-            onPress={onPickVideo}
-          >
-            <Upload size={14} color="#00ff88" />
-            <Text style={styles.assignVideoBtnText}>Upload Video from My Videos</Text>
-          </TouchableOpacity>
+          <Text style={styles.noVideoHint}>
+            Assign a compatible video from the toolbar below.
+          </Text>
         </View>
       )}
     </View>
@@ -197,92 +173,10 @@ const styles = StyleSheet.create({
   videoAssignSection: {
     marginTop: 10,
   },
-  assignVideoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,255,136,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,255,136,0.3)',
-    borderStyle: 'dashed',
-  },
-  assignVideoBtnText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#00ff88',
-  },
-  videoSourceToggle: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 8,
-  },
-  sourceBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  sourceBtnActive: {
-    backgroundColor: '#00ff88',
-  },
-  sourceBtnText: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-    color: '#ffffff',
-  },
-  sourceBtnTextActive: {
-    color: '#0a0a0a',
-  },
-  uploadVideoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,255,136,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,255,136,0.3)',
-  },
-  uploadVideoBtnText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#00ff88',
-  },
-  urlInputRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  videoUrlInputSmall: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 12,
-    color: '#ffffff',
-  },
-  applyUrlBtn: {
-    backgroundColor: '#00ff88',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtn: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    marginTop: 6,
-  },
-  cancelBtnText: {
+  noVideoHint: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center' as const,
+    paddingVertical: 8,
   },
 });

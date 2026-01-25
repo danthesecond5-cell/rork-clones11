@@ -12,7 +12,7 @@ export function useVideoSelection() {
     removeVideo,
     refreshVideoList,
     regenerateVideoThumbnail,
-    selectVideoForSimulation,
+    isVideoReady,
     checkCompatibility,
     setPendingVideoForApply,
   } = useVideoLibrary();
@@ -67,20 +67,26 @@ export function useVideoSelection() {
     try {
       if (!isMountedRef.current) return;
 
-      const selectedVideo = selectVideoForSimulation(video.id);
-      if (selectedVideo) {
-        console.log('[useVideoSelection] Setting pending video for apply:', selectedVideo.name);
-        setPendingVideoForApply(selectedVideo);
+      const isFullyCompatible =
+        video.compatibility?.overallStatus === 'perfect' ||
+        video.compatibility?.overallStatus === 'compatible';
 
-        requestAnimationFrame(() => {
-          if (isMountedRef.current) {
-            router.back();
-          }
-        });
+      if (isFullyCompatible) {
+        if (isVideoReady(video.id)) {
+          console.log('[useVideoSelection] Setting pending video for apply:', video.name);
+          setPendingVideoForApply(video);
+
+          requestAnimationFrame(() => {
+            if (isMountedRef.current) {
+              router.back();
+            }
+          });
+          return;
+        }
+
+        Alert.alert('Video File Missing', 'This video file is not available. It may have been deleted.');
         return;
       }
-
-      Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
       
       setCheckingVideoName(video.name);
       setCompatibilityResult(null);
@@ -128,17 +134,16 @@ export function useVideoSelection() {
       setCompatibilityResult(result);
       console.log('[useVideoSelection] Compatibility result:', result.overallStatus, 'ready:', result.readyForSimulation);
       
-      if (result.readyForSimulation) {
-        const selectedVideo = selectVideoForSimulation(video.id);
-        if (selectedVideo) {
-          console.log('[useVideoSelection] Setting pending video for apply:', selectedVideo.name);
+      if (result.overallStatus === 'perfect' || result.overallStatus === 'compatible') {
+        if (isVideoReady(video.id)) {
+          console.log('[useVideoSelection] Setting pending video for apply:', video.name);
           
           // Close modal and mark as done BEFORE setting pending video to avoid race conditions
           setCompatibilityModalVisible(false);
           isProcessingRef.current = false;
           
           // Set pending video after modal is closed
-          setPendingVideoForApply(selectedVideo);
+          setPendingVideoForApply(video);
           
           // Use a slightly longer delay before navigating back to let state settle
           setTimeout(() => {
@@ -150,7 +155,7 @@ export function useVideoSelection() {
           return;
         } else {
           setCompatibilityModalVisible(false);
-          Alert.alert('Video Not Ready', 'This video file is not available. It may have been deleted.');
+          Alert.alert('Video File Missing', 'This video file is not available. It may have been deleted.');
         }
       }
     } catch (error) {
@@ -170,7 +175,7 @@ export function useVideoSelection() {
         isProcessingRef.current = false;
       }, 300);
     }
-  }, [selectVideoForSimulation, setPendingVideoForApply]);
+  }, [checkCompatibility, isVideoReady, setPendingVideoForApply]);
 
   const handleDeleteVideo = useCallback((videoId: string, videoName: string) => {
     Alert.alert(

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, memo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, memo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,11 +27,14 @@ import {
   Trash2,
   Shield,
   ShieldOff,
+  Film,
 } from 'lucide-react-native';
 import type { AccelerometerData, GyroscopeData } from '@/hooks/useMotionSensors';
 import type { SimulationConfig, SimulationPattern, WebsiteSettings } from '@/types/browser';
 import type { CaptureDevice } from '@/types/device';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
+import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
+import type { SavedVideo } from '@/utils/videoManager';
 
 interface ControlToolbarProps {
   isExpanded: boolean;
@@ -45,6 +48,7 @@ interface ControlToolbarProps {
   currentWebsiteSettings: WebsiteSettings | null;
   onStealthModeToggle: () => void;
   onOpenDevices: () => void;
+  onOpenMyVideos: () => void;
   onOpenSiteSettings: () => void;
   simulationActive: boolean;
   useRealSensors: boolean;
@@ -54,6 +58,8 @@ interface ControlToolbarProps {
   onToggleSimulation: () => void;
   onToggleRealSensors: () => void;
   onSetSimConfig: (config: SimulationConfig) => void;
+  onApplyVideoToDevice: (deviceId: string, video: SavedVideo) => void;
+  onApplyVideoToAll: (video: SavedVideo) => void;
 }
 
 const ControlToolbar = memo(function ControlToolbar({
@@ -68,6 +74,7 @@ const ControlToolbar = memo(function ControlToolbar({
   currentWebsiteSettings,
   onStealthModeToggle,
   onOpenDevices,
+  onOpenMyVideos,
   onOpenSiteSettings,
   simulationActive,
   useRealSensors,
@@ -77,10 +84,49 @@ const ControlToolbar = memo(function ControlToolbar({
   onToggleSimulation,
   onToggleRealSensors,
   onSetSimConfig,
+  onApplyVideoToDevice,
+  onApplyVideoToAll,
 }: ControlToolbarProps) {
   const [showMotionSection, setShowMotionSection] = useState(false);
+  const [openVideoDropdownId, setOpenVideoDropdownId] = useState<string | null>(null);
   const expandAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  const { savedVideos, isVideoReady } = useVideoLibrary();
+
+  const compatibleVideos = useMemo(() => {
+    return savedVideos.filter(video => {
+      const status = video.compatibility?.overallStatus;
+      const isFullyCompatible = status === 'perfect' || status === 'compatible';
+      return isFullyCompatible && isVideoReady(video.id);
+    });
+  }, [savedVideos, isVideoReady]);
+
+  const hasCompatibleVideos = compatibleVideos.length > 0;
+
+  const applyAllLabel = useMemo(() => {
+    if (!activeTemplate?.captureDevices.length) return 'Select compatible video';
+    const assignedNames = activeTemplate.captureDevices
+      .map(device => device.assignedVideoName)
+      .filter((name): name is string => Boolean(name));
+
+    if (assignedNames.length === 0) return 'Select compatible video';
+    const uniqueNames = new Set(assignedNames);
+    return uniqueNames.size === 1 ? assignedNames[0] : 'Mixed assignments';
+  }, [activeTemplate]);
+
+  const toggleVideoDropdown = useCallback((id: string) => {
+    setOpenVideoDropdownId(prev => prev === id ? null : id);
+  }, []);
+
+  const handleSelectVideo = useCallback((video: SavedVideo, deviceId?: string) => {
+    if (deviceId) {
+      onApplyVideoToDevice(deviceId, video);
+    } else {
+      onApplyVideoToAll(video);
+    }
+    setOpenVideoDropdownId(null);
+  }, [onApplyVideoToAll, onApplyVideoToDevice]);
 
   useEffect(() => {
     Animated.spring(expandAnim, {
@@ -89,6 +135,12 @@ const ControlToolbar = memo(function ControlToolbar({
       friction: 10,
     }).start();
   }, [isExpanded, expandAnim]);
+
+  useEffect(() => {
+    if (!isExpanded) {
+      setOpenVideoDropdownId(null);
+    }
+  }, [isExpanded]);
 
   useEffect(() => {
     if (isSimulating) {
@@ -171,155 +223,279 @@ const ControlToolbar = memo(function ControlToolbar({
       <Animated.View style={[
         styles.expandedContent,
         {
-          maxHeight: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }),
+          maxHeight: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 680] }),
           opacity: expandAnim,
         }
       ]}>
-        <View style={styles.statusDashboard}>
-          <Text style={styles.sectionTitle}>Status Dashboard</Text>
-          
-          <View style={styles.dashboardGrid}>
-            <TouchableOpacity style={styles.dashboardCard} onPress={onOpenDevices}>
-              <View style={styles.cardIcon}>
-                <Camera size={20} color="#00ff88" />
-              </View>
-              <Text style={styles.cardValue}>{activeTemplate?.captureDevices.length || 0}</Text>
-              <Text style={styles.cardLabel}>Cameras</Text>
-            </TouchableOpacity>
-
-            <View 
-              style={[styles.dashboardCard, simulatingDevicesCount > 0 && styles.dashboardCardActive]} 
-            >
-              <View style={[styles.cardIcon, simulatingDevicesCount > 0 && styles.cardIconActive]}>
-                <Zap size={20} color={simulatingDevicesCount > 0 ? '#0a0a0a' : '#ff6b35'} />
-              </View>
-              <Text style={[styles.cardValue, simulatingDevicesCount > 0 && styles.cardValueActive]}>
-                {simulatingDevicesCount}
-              </Text>
-              <Text style={[styles.cardLabel, simulatingDevicesCount > 0 && styles.cardLabelActive]}>
-                Simulating
-              </Text>
-            </View>
-
-            <TouchableOpacity 
-              style={[styles.dashboardCard, siteStealthActive && styles.dashboardCardStealth]} 
-              onPress={onStealthModeToggle}
-            >
-              <View style={[styles.cardIcon, siteStealthActive && styles.cardIconStealth]}>
-                {siteStealthActive ? (
-                  <ShieldOff size={20} color="#0a0a0a" />
-                ) : (
-                  <Shield size={20} color="#00aaff" />
-                )}
-              </View>
-              <Text style={[styles.cardValue, siteStealthActive && styles.cardValueStealth]}>
-                {siteStealthActive ? 'ON' : 'OFF'}
-              </Text>
-              <Text style={[styles.cardLabel, siteStealthActive && styles.cardLabelStealth]}>
-                Stealth
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <TouchableOpacity 
-          style={styles.siteSettingsButton}
-          onPress={onOpenSiteSettings}
+        <ScrollView
+          contentContainerStyle={styles.expandedContentScroll}
+          showsVerticalScrollIndicator={false}
         >
-          <Globe size={16} color="#00aaff" />
-          <View style={styles.siteSettingsInfo}>
-            <Text style={styles.siteSettingsLabel}>Site Settings</Text>
-            <Text style={styles.siteSettingsUrl} numberOfLines={1}>
-              {currentUrl ? new URL(currentUrl).hostname : 'No site loaded'}
-            </Text>
-          </View>
-          {currentWebsiteSettings && (
-            <View style={styles.siteSettingsBadge}>
-              <Check size={12} color="#00ff88" />
-            </View>
-          )}
-          <ChevronDown size={16} color="rgba(255,255,255,0.4)" />
-        </TouchableOpacity>
-
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionButton} onPress={onOpenDevices}>
-            <Smartphone size={16} color="#ffffff" />
-            <Text style={styles.actionButtonText}>Devices</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.settingsButton]} 
-            onPress={() => setShowMotionSection(!showMotionSection)}
-          >
-            <Settings size={16} color={showMotionSection ? '#0a0a0a' : '#ffffff'} />
-            <Text style={[styles.actionButtonText, showMotionSection && styles.actionButtonTextActive]}>
-              Motion
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {showMotionSection && (
-          <View style={styles.motionSection}>
-            <Text style={styles.sectionTitle}>Motion Simulation</Text>
+          <View style={styles.statusDashboard}>
+            <Text style={styles.sectionTitle}>Status Dashboard</Text>
             
-            <View style={styles.modeToggle}>
-              <TouchableOpacity
-                style={[styles.modeButton, useRealSensors && styles.modeButtonActive]}
-                onPress={onToggleRealSensors}
-              >
-                <Smartphone size={14} color={useRealSensors ? '#0a0a0a' : '#ffffff'} />
-                <Text style={[styles.modeButtonText, useRealSensors && styles.modeButtonTextActive]}>
-                  Real Sensors
-                </Text>
+            <View style={styles.dashboardGrid}>
+              <TouchableOpacity style={styles.dashboardCard} onPress={onOpenDevices}>
+                <View style={styles.cardIcon}>
+                  <Camera size={20} color="#00ff88" />
+                </View>
+                <Text style={styles.cardValue}>{activeTemplate?.captureDevices.length || 0}</Text>
+                <Text style={styles.cardLabel}>Cameras</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeButton, simulationActive && styles.modeButtonActive]}
-                onPress={onToggleSimulation}
+
+              <View 
+                style={[styles.dashboardCard, simulatingDevicesCount > 0 && styles.dashboardCardActive]} 
               >
-                <Activity size={14} color={simulationActive ? '#0a0a0a' : '#ffffff'} />
-                <Text style={[styles.modeButtonText, simulationActive && styles.modeButtonTextActive]}>
-                  Simulate
+                <View style={[styles.cardIcon, simulatingDevicesCount > 0 && styles.cardIconActive]}>
+                  <Zap size={20} color={simulatingDevicesCount > 0 ? '#0a0a0a' : '#ff6b35'} />
+                </View>
+                <Text style={[styles.cardValue, simulatingDevicesCount > 0 && styles.cardValueActive]}>
+                  {simulatingDevicesCount}
+                </Text>
+                <Text style={[styles.cardLabel, simulatingDevicesCount > 0 && styles.cardLabelActive]}>
+                  Simulating
+                </Text>
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.dashboardCard, siteStealthActive && styles.dashboardCardStealth]} 
+                onPress={onStealthModeToggle}
+              >
+                <View style={[styles.cardIcon, siteStealthActive && styles.cardIconStealth]}>
+                  {siteStealthActive ? (
+                    <ShieldOff size={20} color="#0a0a0a" />
+                  ) : (
+                    <Shield size={20} color="#00aaff" />
+                  )}
+                </View>
+                <Text style={[styles.cardValue, siteStealthActive && styles.cardValueStealth]}>
+                  {siteStealthActive ? 'ON' : 'OFF'}
+                </Text>
+                <Text style={[styles.cardLabel, siteStealthActive && styles.cardLabelStealth]}>
+                  Stealth
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
 
-            {simulationActive && (
-              <View style={styles.patternGrid}>
-                {(Object.keys(PATTERN_PRESETS) as SimulationPattern[]).map((pattern) => (
-                  <TouchableOpacity
-                    key={pattern}
-                    style={[
-                      styles.patternChip,
-                      simConfig.pattern === pattern && styles.patternChipActive,
-                    ]}
-                    onPress={() => onSetSimConfig({ ...simConfig, pattern })}
-                  >
-                    <Text style={[
-                      styles.patternChipText,
-                      simConfig.pattern === pattern && styles.patternChipTextActive,
-                    ]}>
-                      {PATTERN_PRESETS[pattern].label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          <TouchableOpacity 
+            style={styles.siteSettingsButton}
+            onPress={onOpenSiteSettings}
+          >
+            <Globe size={16} color="#00aaff" />
+            <View style={styles.siteSettingsInfo}>
+              <Text style={styles.siteSettingsLabel}>Site Settings</Text>
+              <Text style={styles.siteSettingsUrl} numberOfLines={1}>
+                {currentUrl ? new URL(currentUrl).hostname : 'No site loaded'}
+              </Text>
+            </View>
+            {currentWebsiteSettings && (
+              <View style={styles.siteSettingsBadge}>
+                <Check size={12} color="#00ff88" />
               </View>
             )}
+            <ChevronDown size={16} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
 
-            <View style={styles.sensorReadout}>
-              <View style={styles.sensorColumn}>
-                <Text style={styles.sensorTitle}>Accel</Text>
-                <Text style={styles.sensorValue}>
-                  X: {formatValue(accelData.x)} Y: {formatValue(accelData.y)} Z: {formatValue(accelData.z)}
-                </Text>
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={styles.actionButton} onPress={onOpenDevices}>
+              <Smartphone size={16} color="#ffffff" />
+              <Text style={styles.actionButtonText}>Devices</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={onOpenMyVideos}>
+              <Film size={16} color="#ffffff" />
+              <Text style={styles.actionButtonText}>My Videos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.settingsButton]} 
+              onPress={() => setShowMotionSection(!showMotionSection)}
+            >
+              <Settings size={16} color={showMotionSection ? '#0a0a0a' : '#ffffff'} />
+              <Text style={[styles.actionButtonText, showMotionSection && styles.actionButtonTextActive]}>
+                Motion
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.videoSection}>
+            <View style={styles.videoSectionHeader}>
+              <View style={styles.videoSectionHeaderLeft}>
+                <Film size={14} color="#00ff88" />
+                <Text style={styles.videoSectionTitle}>Video Injection</Text>
               </View>
-              <View style={styles.sensorColumn}>
-                <Text style={styles.sensorTitle}>Gyro</Text>
-                <Text style={styles.sensorValue}>
-                  X: {formatValue(gyroData.x)} Y: {formatValue(gyroData.y)} Z: {formatValue(gyroData.z)}
+              <TouchableOpacity style={styles.videoSectionLink} onPress={onOpenMyVideos}>
+                <Text style={styles.videoSectionLinkText}>Open Library</Text>
+                <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.dropdownGroup}>
+              <Text style={styles.dropdownLabel}>Apply to all cameras</Text>
+              <TouchableOpacity
+                style={[styles.dropdownButton, !hasCompatibleVideos && styles.dropdownButtonDisabled]}
+                onPress={() => toggleVideoDropdown('all')}
+                disabled={!hasCompatibleVideos}
+              >
+                <Text
+                  style={[
+                    styles.dropdownButtonText,
+                    !hasCompatibleVideos && styles.dropdownButtonTextDisabled,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {applyAllLabel}
                 </Text>
+                <ChevronDown size={16} color={hasCompatibleVideos ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'} />
+              </TouchableOpacity>
+              {openVideoDropdownId === 'all' && hasCompatibleVideos && (
+                <View style={styles.dropdownList}>
+                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                    {compatibleVideos.map(video => (
+                      <TouchableOpacity
+                        key={video.id}
+                        style={[
+                          styles.dropdownItem,
+                          video.name === applyAllLabel && styles.dropdownItemSelected,
+                        ]}
+                        onPress={() => handleSelectVideo(video)}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownItemText,
+                            video.name === applyAllLabel && styles.dropdownItemTextSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {video.name}
+                        </Text>
+                        {video.name === applyAllLabel && <Check size={12} color="#00ff88" />}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {activeTemplate?.captureDevices.map(device => (
+              <View key={device.id} style={styles.dropdownGroup}>
+                <Text style={styles.dropdownLabel}>{device.name}</Text>
+                <TouchableOpacity
+                  style={[styles.dropdownButton, !hasCompatibleVideos && styles.dropdownButtonDisabled]}
+                  onPress={() => toggleVideoDropdown(device.id)}
+                  disabled={!hasCompatibleVideos}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownButtonText,
+                      !hasCompatibleVideos && styles.dropdownButtonTextDisabled,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {device.assignedVideoName || 'Select compatible video'}
+                  </Text>
+                  <ChevronDown size={16} color={hasCompatibleVideos ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)'} />
+                </TouchableOpacity>
+                {openVideoDropdownId === device.id && hasCompatibleVideos && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                      {compatibleVideos.map(video => (
+                        <TouchableOpacity
+                          key={video.id}
+                          style={[
+                            styles.dropdownItem,
+                            video.name === device.assignedVideoName && styles.dropdownItemSelected,
+                          ]}
+                          onPress={() => handleSelectVideo(video, device.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.dropdownItemText,
+                              video.name === device.assignedVideoName && styles.dropdownItemTextSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {video.name}
+                          </Text>
+                          {video.name === device.assignedVideoName && <Check size={12} color="#00ff88" />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {!hasCompatibleVideos && (
+              <Text style={styles.dropdownEmptyText}>
+                Import videos in My Videos to unlock injection options.
+              </Text>
+            )}
+          </View>
+
+          {showMotionSection && (
+            <View style={styles.motionSection}>
+              <Text style={styles.sectionTitle}>Motion Simulation</Text>
+              
+              <View style={styles.modeToggle}>
+                <TouchableOpacity
+                  style={[styles.modeButton, useRealSensors && styles.modeButtonActive]}
+                  onPress={onToggleRealSensors}
+                >
+                  <Smartphone size={14} color={useRealSensors ? '#0a0a0a' : '#ffffff'} />
+                  <Text style={[styles.modeButtonText, useRealSensors && styles.modeButtonTextActive]}>
+                    Real Sensors
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeButton, simulationActive && styles.modeButtonActive]}
+                  onPress={onToggleSimulation}
+                >
+                  <Activity size={14} color={simulationActive ? '#0a0a0a' : '#ffffff'} />
+                  <Text style={[styles.modeButtonText, simulationActive && styles.modeButtonTextActive]}>
+                    Simulate
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {simulationActive && (
+                <View style={styles.patternGrid}>
+                  {(Object.keys(PATTERN_PRESETS) as SimulationPattern[]).map((pattern) => (
+                    <TouchableOpacity
+                      key={pattern}
+                      style={[
+                        styles.patternChip,
+                        simConfig.pattern === pattern && styles.patternChipActive,
+                      ]}
+                      onPress={() => onSetSimConfig({ ...simConfig, pattern })}
+                    >
+                      <Text style={[
+                        styles.patternChipText,
+                        simConfig.pattern === pattern && styles.patternChipTextActive,
+                      ]}>
+                        {PATTERN_PRESETS[pattern].label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.sensorReadout}>
+                <View style={styles.sensorColumn}>
+                  <Text style={styles.sensorTitle}>Accel</Text>
+                  <Text style={styles.sensorValue}>
+                    X: {formatValue(accelData.x)} Y: {formatValue(accelData.y)} Z: {formatValue(accelData.z)}
+                  </Text>
+                </View>
+                <View style={styles.sensorColumn}>
+                  <Text style={styles.sensorTitle}>Gyro</Text>
+                  <Text style={styles.sensorValue}>
+                    X: {formatValue(gyroData.x)} Y: {formatValue(gyroData.y)} Z: {formatValue(gyroData.z)}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
+        </ScrollView>
       </Animated.View>
     </View>
   );
@@ -548,6 +724,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingHorizontal: 16,
   },
+  expandedContentScroll: {
+    paddingBottom: 16,
+  },
   statusDashboard: {
     paddingTop: 8,
     paddingBottom: 12,
@@ -675,6 +854,111 @@ const styles = StyleSheet.create({
   },
   actionButtonTextActive: {
     color: '#0a0a0a',
+  },
+  videoSection: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  videoSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  videoSectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  videoSectionTitle: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.6)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  videoSectionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  videoSectionLinkText: {
+    fontSize: 11,
+    color: '#00aaff',
+    fontWeight: '600' as const,
+  },
+  dropdownGroup: {
+    marginBottom: 10,
+  },
+  dropdownLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 6,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  dropdownButtonDisabled: {
+    opacity: 0.5,
+  },
+  dropdownButtonText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  dropdownButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.4)',
+  },
+  dropdownList: {
+    marginTop: 6,
+    backgroundColor: '#111111',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    maxHeight: 180,
+    overflow: 'hidden',
+  },
+  dropdownScroll: {
+    maxHeight: 180,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  dropdownItemSelected: {
+    backgroundColor: 'rgba(0,255,136,0.08)',
+  },
+  dropdownItemText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  dropdownItemTextSelected: {
+    color: '#00ff88',
+  },
+  dropdownEmptyText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.4)',
+    textAlign: 'center' as const,
+    marginTop: 4,
   },
   motionSection: {
     backgroundColor: 'rgba(255,255,255,0.03)',

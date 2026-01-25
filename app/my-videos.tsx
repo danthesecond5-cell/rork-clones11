@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,18 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { ChevronLeft, Grid3X3, List } from 'lucide-react-native';
+import { ChevronLeft, Grid3X3, List, Download, Upload } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useVideoSelection } from '@/hooks/useVideoSelection';
+import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
+import ImportProgressModal, { ImportProgress } from '@/components/browser/modals/ImportProgressModal';
+import { isKnownCorsBlockingSite } from '@/utils/videoServing';
 import { CompatibilityCheckModal } from '@/components/browser/modals';
 import {
   VideoGridItem,
@@ -48,8 +55,127 @@ export default function MyVideosScreen() {
     toggleVideoSelection,
   } = useVideoSelection();
 
+  const {
+    downloadAndSaveVideo,
+    saveLocalVideo,
+    processingState,
+    clearProcessingState,
+  } = useVideoLibrary();
+
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
+  const [importUrl, setImportUrl] = useState('');
+  const [importingVideoName, setImportingVideoName] = useState('');
+
+  useEffect(() => {
+    if (processingState.stage === 'error' && !processingState.isProcessing) {
+      Alert.alert('Import Failed', processingState.error || 'Unable to import video.');
+      clearProcessingState();
+    }
+  }, [processingState, clearProcessingState]);
+
+  const executeDownload = useCallback(async (url: string) => {
+    const result = await downloadAndSaveVideo(url);
+    if (!result) return;
+
+    setImportUrl('');
+    Keyboard.dismiss();
+
+    setTimeout(() => {
+      clearProcessingState();
+    }, 500);
+
+    handleCheckCompatibility(result);
+  }, [downloadAndSaveVideo, clearProcessingState, handleCheckCompatibility]);
+
+  const handleDownloadAndSave = useCallback(async () => {
+    if (!importUrl.trim()) return;
+
+    const url = importUrl.trim();
+
+    if (isKnownCorsBlockingSite(url)) {
+      Alert.alert(
+        'Download Recommended',
+        'This video source often blocks direct playback. The video will be downloaded to your device for reliable simulation.',
+        [{ text: 'Continue', onPress: async () => await executeDownload(url) }]
+      );
+      return;
+    }
+
+    await executeDownload(url);
+  }, [importUrl, executeDownload]);
+
+  const handlePickFromPhotos = useCallback(async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please grant media library access to upload files.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const media = result.assets[0];
+        const mediaUri = media.uri;
+        const isVideo = media.type === 'video';
+        const defaultExt = isVideo ? 'mp4' : 'jpg';
+        const fileName = media.fileName || mediaUri.split('/').pop() || `uploaded_file.${defaultExt}`;
+
+        setImportingVideoName(fileName);
+        const savedVideo = await saveLocalVideo(mediaUri, fileName);
+
+        setImportingVideoName('');
+        clearProcessingState();
+
+        if (!savedVideo) {
+          Alert.alert('Error', 'Failed to save video to library. Please try again.');
+          return;
+        }
+
+        handleCheckCompatibility(savedVideo);
+      }
+    } catch (error) {
+      console.error('[MyVideos] Error picking file from photos:', error);
+      Alert.alert('Error', 'Failed to pick file. Please try again.');
+    }
+  }, [saveLocalVideo, clearProcessingState, handleCheckCompatibility]);
+
+  const handlePickFromFiles = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['video/*', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        const fileUri = file.uri;
+        const fileName = file.name || fileUri.split('/').pop() || 'uploaded_file';
+
+        setImportingVideoName(fileName);
+        const savedVideo = await saveLocalVideo(fileUri, fileName);
+
+        setImportingVideoName('');
+        clearProcessingState();
+
+        if (!savedVideo) {
+          Alert.alert('Error', 'Failed to save video to library. Please try again.');
+          return;
+        }
+
+        handleCheckCompatibility(savedVideo);
+      }
+    } catch (error) {
+      console.error('[MyVideos] Error picking file from files:', error);
+      Alert.alert('Error', 'Failed to pick file. Please try again.');
+    }
+  }, [saveLocalVideo, clearProcessingState, handleCheckCompatibility]);
 
   const filteredVideos = useMemo(() => {
     if (!searchQuery.trim()) return savedVideos;
@@ -155,6 +281,87 @@ export default function MyVideosScreen() {
             onSearchChange={setSearchQuery}
           />
 
+          <View style={styles.importSection}>
+            <View style={styles.importHeader}>
+              <Download size={16} color="#00aaff" />
+              <Text style={styles.importTitle}>Import Videos</Text>
+            </View>
+            <View style={styles.importRow}>
+              <TextInput
+                style={styles.importInput}
+                value={importUrl}
+                onChangeText={setImportUrl}
+                placeholder="Paste direct video URL (.mp4, .mov)..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.importButton,
+                  (!importUrl.trim() || processingState.isProcessing) && styles.importButtonDisabled,
+                ]}
+                onPress={handleDownloadAndSave}
+                disabled={!importUrl.trim() || processingState.isProcessing}
+              >
+                <Download size={14} color={importUrl.trim() ? '#ffffff' : 'rgba(255,255,255,0.4)'} />
+                <Text
+                  style={[
+                    styles.importButtonText,
+                    (!importUrl.trim() || processingState.isProcessing) && styles.importButtonTextDisabled,
+                  ]}
+                >
+                  {Platform.OS === 'web' ? 'Add URL' : 'Import URL'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.importActionsRow}>
+              {Platform.OS === 'web' ? (
+                <TouchableOpacity
+                  style={[
+                    styles.importActionButton,
+                    processingState.isProcessing && styles.importActionButtonDisabled,
+                  ]}
+                  onPress={handlePickFromFiles}
+                  disabled={processingState.isProcessing}
+                >
+                  <Upload size={14} color="#00ff88" />
+                  <Text style={styles.importActionButtonText}>Upload Video</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.importActionButton,
+                      processingState.isProcessing && styles.importActionButtonDisabled,
+                    ]}
+                    onPress={handlePickFromPhotos}
+                    disabled={processingState.isProcessing}
+                  >
+                    <Upload size={14} color="#00ff88" />
+                    <Text style={styles.importActionButtonText}>Photos</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.importActionButton,
+                      processingState.isProcessing && styles.importActionButtonDisabled,
+                    ]}
+                    onPress={handlePickFromFiles}
+                    disabled={processingState.isProcessing}
+                  >
+                    <Upload size={14} color="#00ff88" />
+                    <Text style={styles.importActionButtonText}>Files</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+            <Text style={styles.importHint}>
+              Imported videos are compatibility checked before they appear in injection dropdowns.
+            </Text>
+          </View>
+
           {filteredVideos.length === 0 ? (
             <EmptyVideosState searchQuery={searchQuery} />
           ) : viewMode === 'grid' ? (
@@ -220,6 +427,16 @@ export default function MyVideosScreen() {
           result={compatibilityResult}
           isChecking={isCheckingCompatibility}
           videoName={checkingVideoName}
+        />
+
+        <ImportProgressModal
+          visible={processingState.isProcessing && processingState.stage !== 'complete'}
+          progress={{
+            progress: processingState.progress,
+            stage: processingState.stage as ImportProgress['stage'],
+            message: processingState.message,
+          }}
+          videoName={importingVideoName}
         />
       </SafeAreaView>
     </View>

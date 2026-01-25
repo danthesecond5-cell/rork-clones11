@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
 import { Film, Search, Download, Upload } from 'lucide-react-native';
-import { router } from 'expo-router';
 import { styles } from './styles';
 
 interface EmptyVideosStateProps {
@@ -26,7 +25,7 @@ export const EmptyVideosState = React.memo(function EmptyVideosState({
       <Text style={styles.emptySubtitle}>
         {searchQuery 
           ? `No videos matching "${searchQuery}"`
-          : 'Download videos from URLs or upload from your device'
+          : 'Use the import tools above to add videos'
         }
       </Text>
       
@@ -42,9 +41,6 @@ export const EmptyVideosState = React.memo(function EmptyVideosState({
               <Text style={styles.hintText}>Upload from Photos or Files app</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.goBackBtn} onPress={() => router.back()}>
-            <Text style={styles.goBackBtnText}>Go Back to Add Videos</Text>
-          </TouchableOpacity>
         </>
       )}
     </View>

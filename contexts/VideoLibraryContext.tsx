@@ -110,6 +110,25 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     }
   }, []);
 
+  const persistCompatibilityResult = useCallback((videoId: string, result: CompatibilityResult) => {
+    const compatibility = {
+      overallStatus: result.overallStatus,
+      score: result.score,
+      readyForSimulation: result.readyForSimulation,
+      checkedAt: new Date().toISOString(),
+    };
+
+    setSavedVideos(prev => {
+      const updated = prev.map(video =>
+        video.id === videoId
+          ? { ...video, compatibility }
+          : video
+      );
+      void saveVideosMetadata(updated);
+      return updated;
+    });
+  }, [saveVideosMetadata]);
+
   const syncWithFileSystem = useCallback(async (): Promise<SavedVideo[]> => {
     if (Platform.OS === 'web') {
       return await loadVideosMetadata();
@@ -431,6 +450,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return undefined;
     }
 
+    if (!video.compatibility?.readyForSimulation) {
+      console.warn('[VideoLibrary] Video not compatible for simulation:', video.name);
+      return undefined;
+    }
+
     if (!isVideoReadyForSimulation(video)) {
       console.warn('[VideoLibrary] Video file not ready:', video.name);
       return undefined;
@@ -479,6 +503,8 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
         itemCount: result.items?.length,
         summary: result.summary,
       });
+
+      persistCompatibilityResult(video.id, result);
       
       console.log('[VideoLibrary] ========== COMPATIBILITY CHECK END ==========');
       return result;
