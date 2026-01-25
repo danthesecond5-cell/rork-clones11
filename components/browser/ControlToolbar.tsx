@@ -1149,7 +1149,7 @@ export function ProtocolSettingsModal({
                   <View style={protocolStyles.settingRow}>
                     <View style={protocolStyles.settingInfo}>
                       <Text style={protocolStyles.settingLabel}>Show Overlay Label</Text>
-                      <Text style={protocolStyles.settingHint}>Display "Protected" indicator</Text>
+                      <Text style={protocolStyles.settingHint}>Display &quot;Protected&quot; indicator</Text>
                     </View>
                     <Switch
                       value={protocolSettings.protected.showOverlayLabel}

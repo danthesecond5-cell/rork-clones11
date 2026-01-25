@@ -550,7 +550,7 @@ export default function ProtocolSettingsModal({
               <View style={styles.settingRow}>
                 <View style={styles.settingInfo}>
                   <Text style={styles.settingLabel}>Testing Watermark</Text>
-                  <Text style={styles.settingHint}>Show "Testing Prototype" overlay</Text>
+                  <Text style={styles.settingHint}>Show &quot;Testing Prototype&quot; overlay</Text>
                 </View>
                 <Switch
                   value={showTestingWatermark}
