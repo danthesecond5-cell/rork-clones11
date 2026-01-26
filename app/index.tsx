@@ -32,7 +32,9 @@ import {
   MOTION_INJECTION_SCRIPT,
   CONSOLE_CAPTURE_SCRIPT,
   VIDEO_SIMULATION_TEST_SCRIPT,
+  BULLETPROOF_INJECTION_SCRIPT,
   createMediaInjectionScript,
+  createSimplifiedInjectionScript,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { formatVideoUriForWebView } from '@/utils/videoServing';
@@ -533,12 +535,44 @@ export default function MotionBrowserScreen() {
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
     const shouldInjectMedia = !allowlistEnabled || isAllowlisted;
+    
+    // Find the first device with an assigned video for the bulletproof script
+    const firstAssignedVideo = devices.find(d => d.simulationEnabled && d.assignedVideoUri);
+    const videoUrl = firstAssignedVideo?.assignedVideoUri;
+    
+    // Use BULLETPROOF injection first (always works), then the complex one as enhancement
+    // The bulletproof script provides a guaranteed working test pattern
+    // The complex script adds video loading capabilities on top
+    let injectionScript = '';
+    if (shouldInjectMedia) {
+      // Start with bulletproof script (guaranteed to work)
+      injectionScript = BULLETPROOF_INJECTION_SCRIPT;
+      
+      // If we have a video URL, try to load it via the bulletproof config
+      if (videoUrl) {
+        injectionScript += `
+(function() {
+  // Configure bulletproof with assigned video
+  if (window.__bulletproofConfig && window.__bulletproofConfig.setVideoUrl) {
+    window.__bulletproofConfig.setVideoUrl(${JSON.stringify(videoUrl)});
+    console.log('[App] Bulletproof configured with video:', ${JSON.stringify(videoUrl).substring(0, 50)});
+  }
+})();
+true;
+`;
+      }
+      
+      // Also inject the full media simulation for additional features
+      injectionScript += createMediaInjectionScript(devices, effectiveStealthMode);
+    }
+    
     const script =
       CONSOLE_CAPTURE_SCRIPT +
       spoofScript +
-      (shouldInjectMedia ? createMediaInjectionScript(devices, effectiveStealthMode) : '') +
+      injectionScript +
       VIDEO_SIMULATION_TEST_SCRIPT;
-    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode, 'allowlisted:', shouldInjectMedia);
+      
+    console.log('[App] Preparing before-load script with', devices.length, 'devices, stealth:', effectiveStealthMode, 'allowlisted:', shouldInjectMedia, 'videoUrl:', videoUrl ? 'yes' : 'test pattern');
     return script;
   }, [activeTemplate, safariModeEnabled, effectiveStealthMode, allowlistEnabled, isAllowlisted]);
 
