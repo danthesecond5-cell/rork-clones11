@@ -187,7 +187,14 @@ export function useVideoSelection() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await removeVideo(videoId);
+            const removed = await removeVideo(videoId);
+            if (!removed) {
+              Alert.alert(
+                'Protected Video',
+                'The built-in sample video cannot be deleted.'
+              );
+              return;
+            }
             if (selectedVideoId === videoId) {
               setSelectedVideoId(null);
             }

@@ -45,10 +45,18 @@ export default function ProtectedPreviewScreen() {
   }, [savedVideos, isVideoReady]);
 
   useEffect(() => {
-    if (!selectedVideoId && compatibleVideos.length > 0) {
-      setSelectedVideoId(compatibleVideos[0].id);
+    if (selectedVideoId || compatibleVideos.length === 0) return;
+    const preferred = protectedSettings.replacementVideoId
+      ? compatibleVideos.find(video => video.id === protectedSettings.replacementVideoId)
+      : null;
+    setSelectedVideoId(preferred?.id || compatibleVideos[0].id);
+  }, [selectedVideoId, compatibleVideos, protectedSettings.replacementVideoId]);
+
+  useEffect(() => {
+    if (selectedVideoId && selectedVideoId !== protectedSettings.replacementVideoId) {
+      updateProtectedSettings({ replacementVideoId: selectedVideoId });
     }
-  }, [selectedVideoId, compatibleVideos]);
+  }, [selectedVideoId, protectedSettings.replacementVideoId, updateProtectedSettings]);
 
   const selectedVideo = compatibleVideos.find(video => video.id === selectedVideoId) || null;
   const showCamera = permission?.granted && Platform.OS !== 'web';

@@ -20,6 +20,7 @@ import {
   checkVideoCompatibilityWithPlayback,
   type CompatibilityResult,
 } from '@/utils/videoCompatibilityChecker';
+import { ensureBundledSampleVideo, isBundledSampleVideo } from '@/utils/sampleVideo';
 
 interface ProcessingState {
   isProcessing: boolean;
@@ -130,21 +131,39 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
   }, [saveVideosMetadata]);
 
   const syncWithFileSystem = useCallback(async (): Promise<SavedVideo[]> => {
+    const storedMetadata = await loadVideosMetadata();
+    const existingSample = storedMetadata.find(isBundledSampleVideo) || null;
+    const sampleVideo = await ensureBundledSampleVideo(existingSample);
+
     if (Platform.OS === 'web') {
-      return await loadVideosMetadata();
+      const filtered = storedMetadata.filter(video => !isBundledSampleVideo(video));
+      const allVideos = sampleVideo ? [sampleVideo, ...filtered] : filtered;
+      const shouldSave = Boolean(sampleVideo && (!existingSample || existingSample.uri !== sampleVideo.uri));
+
+      if (shouldSave) {
+        await saveVideosMetadata(allVideos);
+      }
+
+      return allVideos;
     }
 
     console.log('[VideoLibrary] Syncing with file system...');
     ensureVideosDirectory();
 
-    const storedMetadata = await loadVideosMetadata();
     const actualFiles = listSavedVideos();
-
     const actualUris = new Set(actualFiles.map(f => f.uri));
-    const validMetadata = storedMetadata.filter(v => actualUris.has(v.uri));
+    const fallbackSample = existingSample && actualUris.has(existingSample.uri) ? existingSample : null;
+    const sampleToUse = sampleVideo || fallbackSample;
+    const sampleUri = sampleToUse?.uri;
 
-    const metadataUris = new Set(storedMetadata.map(v => v.uri));
-    const newFiles = actualFiles.filter(f => !metadataUris.has(f.uri));
+    const validMetadata = storedMetadata.filter(v =>
+      actualUris.has(v.uri) && !isBundledSampleVideo(v)
+    );
+
+    const metadataUris = new Set(validMetadata.map(v => v.uri));
+    const newFiles = actualFiles.filter(f =>
+      !metadataUris.has(f.uri) && (!sampleUri || f.uri !== sampleUri)
+    );
 
     const newVideosPromises = newFiles.map(async (file) => {
       const info = getVideoFileInfo(file);
@@ -161,11 +180,22 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     const newVideos = await Promise.all(newVideosPromises);
-    const allVideos = [...validMetadata, ...newVideos];
+    let allVideos = [...validMetadata, ...newVideos];
+
+    if (sampleToUse) {
+      allVideos = [
+        sampleToUse,
+        ...allVideos.filter(video => !isBundledSampleVideo(video)),
+      ];
+    }
 
     allVideos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    if (validMetadata.length !== storedMetadata.length || newVideos.length > 0) {
+    const baseChanged = validMetadata.length !== storedMetadata.filter(v => !isBundledSampleVideo(v)).length;
+    const sampleChanged = Boolean(sampleToUse && (!existingSample || existingSample.uri !== sampleToUse.uri));
+    const shouldSave = baseChanged || newVideos.length > 0 || sampleChanged;
+
+    if (shouldSave) {
       await saveVideosMetadata(allVideos);
     }
 
@@ -390,6 +420,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     const video = savedVideos.find(v => v.id === id);
     if (!video) {
       console.warn('[VideoLibrary] Video not found:', id);
+      return false;
+    }
+    if (isBundledSampleVideo(video)) {
+      console.warn('[VideoLibrary] Attempted to delete bundled sample video');
       return false;
     }
 

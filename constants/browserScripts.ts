@@ -587,7 +587,33 @@ export const CONSOLE_CAPTURE_SCRIPT = `
 true;
 `;
 
-export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode: boolean = true): string => {
+export interface MediaInjectionOptions {
+  stealthMode?: boolean;
+  fallbackVideoUri?: string | null;
+  forceSimulation?: boolean;
+  protocolId?: string;
+  protocolLabel?: string;
+  showOverlayLabel?: boolean;
+  loopVideo?: boolean;
+  mirrorVideo?: boolean;
+  debugEnabled?: boolean;
+}
+
+export const createMediaInjectionScript = (
+  devices: CaptureDevice[],
+  options: MediaInjectionOptions = {}
+): string => {
+  const {
+    stealthMode = true,
+    fallbackVideoUri = null,
+    forceSimulation = false,
+    protocolId = 'standard',
+    protocolLabel = '',
+    showOverlayLabel = false,
+    loopVideo = true,
+    mirrorVideo = false,
+    debugEnabled,
+  } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
   
@@ -601,7 +627,15 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     if (window.__updateMediaConfig) {
       window.__updateMediaConfig({
         devices: ${JSON.stringify(devices)},
-        stealthMode: ${stealthMode}
+        stealthMode: ${stealthMode},
+        fallbackVideoUri: ${JSON.stringify(fallbackVideoUri)},
+        forceSimulation: ${forceSimulation ? 'true' : 'false'},
+        protocolId: ${JSON.stringify(protocolId)},
+        overlayLabelText: ${JSON.stringify(protocolLabel)},
+        showOverlayLabel: ${showOverlayLabel ? 'true' : 'false'},
+        loopVideo: ${loopVideo ? 'true' : 'false'},
+        mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
+        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)}
       });
     }
     return;
@@ -610,7 +644,14 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
   
   // ============ CONFIGURATION ============
   const CONFIG = {
-    DEBUG_ENABLED: true,
+    DEBUG_ENABLED: ${debugEnabled === undefined ? 'true' : JSON.stringify(debugEnabled)},
+    FALLBACK_VIDEO_URI: ${JSON.stringify(fallbackVideoUri)},
+    FORCE_SIMULATION: ${forceSimulation ? 'true' : 'false'},
+    PROTOCOL_ID: ${JSON.stringify(protocolId)},
+    PROTOCOL_LABEL: ${JSON.stringify(protocolLabel)},
+    SHOW_OVERLAY_LABEL: ${showOverlayLabel ? 'true' : 'false'},
+    LOOP_VIDEO: ${loopVideo ? 'true' : 'false'},
+    MIRROR_VIDEO: ${mirrorVideo ? 'true' : 'false'},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
     TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
@@ -655,9 +696,24 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       this.enabled = enabled;
     }
   };
+
+  function notifyReady(source) {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'mediaInjectionReady',
+        payload: {
+          protocol: CONFIG.PROTOCOL_ID,
+          source: source,
+          fallback: CONFIG.FALLBACK_VIDEO_URI,
+          forceSimulation: CONFIG.FORCE_SIMULATION,
+          timestamp: Date.now()
+        }
+      }));
+    }
+  }
   
   Logger.log('======== WEBCAM SIMULATION INIT ========');
-  Logger.log('Devices:', ${devices.length}, '| Stealth:', ${stealthMode});
+  Logger.log('Protocol:', CONFIG.PROTOCOL_ID, '| Devices:', ${devices.length}, '| Stealth:', ${stealthMode}, '| ForceSim:', CONFIG.FORCE_SIMULATION);
   
   // ============ METRICS TRACKING ============
   const Metrics = {
@@ -1027,7 +1083,53 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     placeholderWidth: ${placeholderWidth},
     placeholderHeight: ${placeholderHeight},
     activeStreams: new Map(),
-    debugEnabled: CONFIG.DEBUG_ENABLED
+    debugEnabled: CONFIG.DEBUG_ENABLED,
+    fallbackVideoUri: CONFIG.FALLBACK_VIDEO_URI,
+    forceSimulation: CONFIG.FORCE_SIMULATION,
+    loopVideo: CONFIG.LOOP_VIDEO,
+    mirrorVideo: CONFIG.MIRROR_VIDEO,
+    protocolId: CONFIG.PROTOCOL_ID,
+    overlayLabelText: CONFIG.PROTOCOL_LABEL,
+    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
+  };
+
+  // ============ PROTOCOL OVERLAY BADGE ============
+  const OverlayBadge = {
+    element: null,
+    ensure: function() {
+      if (this.element || typeof document === 'undefined') return;
+      if (!document.body) return;
+      const badge = document.createElement('div');
+      badge.id = '__mediaSimOverlayBadge';
+      badge.style.cssText = [
+        'position:fixed',
+        'top:12px',
+        'right:12px',
+        'z-index:2147483647',
+        'background:rgba(0,0,0,0.6)',
+        'color:#00ff88',
+        'padding:4px 8px',
+        'border-radius:8px',
+        'font-size:10px',
+        'font-family:-apple-system,system-ui,sans-serif',
+        'letter-spacing:0.3px',
+        'pointer-events:none'
+      ].join(';');
+      badge.textContent = 'Media Overlay Active';
+      document.body.appendChild(badge);
+      this.element = badge;
+    },
+    update: function() {
+      const cfg = window.__mediaSimConfig || {};
+      if (!cfg.showOverlayLabel) {
+        if (this.element) this.element.style.display = 'none';
+        return;
+      }
+      this.ensure();
+      if (!this.element) return;
+      this.element.style.display = 'block';
+      this.element.textContent = cfg.overlayLabelText || 'Media Overlay Active';
+    }
   };
   
   window.__updateMediaConfig = function(config) {
@@ -1036,6 +1138,14 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
     }
+    if (
+      config.loopVideo !== undefined ||
+      config.protocolId !== undefined ||
+      config.showOverlayLabel !== undefined ||
+      config.overlayLabelText !== undefined
+    ) {
+      OverlayBadge.update();
+    }
     if (config.devices) {
       config.devices.forEach(function(d) {
         if (d.simulationEnabled && d.assignedVideoUri) {
@@ -1043,6 +1153,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         }
       });
     }
+    notifyReady('update');
   };
   
   window.__getSimulationMetrics = function() {
@@ -1111,6 +1222,28 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     const preferred = devices.find(function(d) { return d.isDefault || d.isPrimary; });
     return preferred || devices[0];
   }
+
+  function normalizeDevice(device) {
+    if (device) return device;
+    return {
+      id: 'sim_default_camera',
+      name: 'Simulated Camera',
+      type: 'camera',
+      facing: 'front',
+      simulationEnabled: true
+    };
+  }
+
+  function getFallbackVideoUri() {
+    const cfg = window.__mediaSimConfig || {};
+    return cfg.fallbackVideoUri || null;
+  }
+
+  function resolveVideoUri(device) {
+    if (device && device.assignedVideoUri) return device.assignedVideoUri;
+    const fallback = getFallbackVideoUri();
+    return fallback || 'canvas:default';
+  }
   
   function buildSimulatedDevices(devices) {
     return (devices || []).map(function(d) {
@@ -1161,13 +1294,16 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
   const _origEnumDevices = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
   
   // ============ DEVICE ENUMERATION OVERRIDE ============
+  if (!navigator.mediaDevices) {
+    navigator.mediaDevices = {};
+  }
   if (navigator.mediaDevices) {
     navigator.mediaDevices.enumerateDevices = async function() {
       const cfg = window.__mediaSimConfig || {};
       const devices = cfg.devices || [];
       const hasSimDevices = devices.length > 0;
       
-      if (cfg.stealthMode && hasSimDevices) {
+      if ((cfg.stealthMode || cfg.forceSimulation) && hasSimDevices) {
         const simDevices = buildSimulatedDevices(devices);
         Logger.log('enumerateDevices ->', simDevices.length, 'devices (simulated)');
         return simDevices;
@@ -1207,23 +1343,33 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         reqFacing = normalizeFacingMode(getConstraintValue(constraints.video.facingMode));
       }
       
-      const device = selectDevice(cfg.devices, reqDeviceId, reqFacing);
+      const selectedDevice = selectDevice(cfg.devices, reqDeviceId, reqFacing);
+      const device = normalizeDevice(selectedDevice);
+      const resolvedUri = resolveVideoUri(device);
+      const hasVideoUri = resolvedUri && !resolvedUri.startsWith('canvas:');
+      const forceSimulation = !!cfg.forceSimulation;
       
       Logger.log(
         'Device:', device?.name || 'none',
         '| ReqId:', reqDeviceId || 'none',
         '| Facing:', reqFacing || 'any',
         '| SimEnabled:', device?.simulationEnabled,
-        '| URI:', device?.assignedVideoUri?.substring(0, 40) || 'none'
+        '| ForceSim:', forceSimulation,
+        '| URI:', resolvedUri ? resolvedUri.substring(0, 40) : 'none'
       );
       
-      const shouldSimulate = cfg.stealthMode || (device?.simulationEnabled && device?.assignedVideoUri);
+      const shouldSimulate = forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri);
       
       if (shouldSimulate && wantsVideo) {
-        if (device?.assignedVideoUri && device?.simulationEnabled) {
+        if (hasVideoUri) {
           Logger.log('Creating simulated stream from video');
           try {
-            const stream = await createVideoStream(device, !!wantsAudio);
+            const deviceForSim = {
+              ...device,
+              assignedVideoUri: resolvedUri,
+              simulationEnabled: true
+            };
+            const stream = await createVideoStream(deviceForSim, !!wantsAudio);
             Logger.log('SUCCESS - tracks:', stream.getTracks().length);
             return stream;
           } catch (err) {
@@ -1236,7 +1382,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         return await createCanvasStream(device, !!wantsAudio, 'default');
       }
       
-      if (_origGetUserMedia && !cfg.stealthMode) {
+      if (_origGetUserMedia && !cfg.stealthMode && !forceSimulation) {
         Logger.log('Using real getUserMedia');
         return _origGetUserMedia(constraints);
       }
@@ -1244,6 +1390,24 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       Logger.log('No simulation, returning canvas pattern');
       return await createCanvasStream(device, !!wantsAudio, 'default');
     };
+
+    const overrideEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+    const overrideGetUserMedia = navigator.mediaDevices.getUserMedia;
+    const overrideWatchdog = setInterval(function() {
+      try {
+        if (navigator.mediaDevices) {
+          if (navigator.mediaDevices.enumerateDevices !== overrideEnumerateDevices) {
+            navigator.mediaDevices.enumerateDevices = overrideEnumerateDevices;
+            Logger.warn('enumerateDevices override restored');
+          }
+          if (navigator.mediaDevices.getUserMedia !== overrideGetUserMedia) {
+            navigator.mediaDevices.getUserMedia = overrideGetUserMedia;
+            Logger.warn('getUserMedia override restored');
+          }
+        }
+      } catch (e) {}
+    }, 2000);
+    StreamRegistry.cleanupCallbacks.push(function() { clearInterval(overrideWatchdog); });
   }
   
   // ============ VIDEO LOADING WITH RETRY ============
@@ -1323,7 +1487,7 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
     return new Promise(function(resolve, reject) {
       const video = document.createElement('video');
       video.muted = true;
-      video.loop = true;
+      video.loop = window.__mediaSimConfig?.loopVideo !== false;
       video.playsInline = true;
       video.setAttribute('playsinline', 'true');
       video.setAttribute('webkit-playsinline', 'true');
@@ -1443,8 +1607,9 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
   
   // ============ VIDEO STREAM CREATION ============
   async function createVideoStream(device, wantsAudio) {
-    const videoUri = device.assignedVideoUri;
-    Logger.log('Loading video:', videoUri.substring(0, 60));
+    const fallbackUri = getFallbackVideoUri();
+    const videoUri = device.assignedVideoUri || fallbackUri || 'canvas:default';
+    Logger.log('Loading video:', videoUri ? videoUri.substring(0, 60) : 'none');
     
     // Handle canvas patterns - always use green screen
     if (videoUri.startsWith('canvas:')) {
@@ -1475,7 +1640,23 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
       
       return stream;
     } catch (err) {
-      Logger.warn('Video load failed, using green screen fallback:', err.message);
+      Logger.warn('Video load failed:', err.message);
+      if (fallbackUri && fallbackUri !== videoUri) {
+        Logger.log('Retrying with fallback video');
+        try {
+          const fallbackDevice = { ...device, assignedVideoUri: fallbackUri, simulationEnabled: true };
+          const fallbackVideo = await loadVideoWithRetry(fallbackUri);
+          await fallbackVideo.play();
+          await new Promise(function(r) { setTimeout(r, 100); });
+          const res = getPortraitRes(device);
+          const fallbackStream = await createCanvasStreamFromVideo(fallbackVideo, res, wantsAudio, fallbackDevice);
+          setupStreamHealthCheck(fallbackStream, fallbackVideo, fallbackDevice);
+          return fallbackStream;
+        } catch (fallbackErr) {
+          Logger.warn('Fallback video failed:', fallbackErr.message);
+        }
+      }
+      Logger.warn('Using green screen fallback');
       return createGreenScreenStream(device, wantsAudio);
     }
   }
@@ -1703,7 +1884,15 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
         const sy = crop.sy + NaturalVariations.microShakeY;
         
         try {
-          ctx.drawImage(video, sx, sy, crop.sw, crop.sh, 0, 0, cw, ch);
+          const mirror = window.__mediaSimConfig && window.__mediaSimConfig.mirrorVideo;
+          if (mirror) {
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, sx, sy, crop.sw, crop.sh, -cw, 0, cw, ch);
+            ctx.restore();
+          } else {
+            ctx.drawImage(video, sx, sy, crop.sw, crop.sh, 0, 0, cw, ch);
+          }
         } catch (e) {
           ctx.fillStyle = '#1a1a2e';
           ctx.fillRect(0, 0, cw, ch);
@@ -2139,6 +2328,8 @@ export const createMediaInjectionScript = (devices: CaptureDevice[], stealthMode
   }
   
   // ============ INIT COMPLETE ============
+  setTimeout(function() { OverlayBadge.update(); }, 0);
+  notifyReady('init');
   Logger.log('======== INIT COMPLETE ========');
   Logger.log('Portrait mode enforced: 9:16');
   Logger.log('GREEN SCREEN MODE: ALWAYS ACTIVE');
