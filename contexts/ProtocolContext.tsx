@@ -144,7 +144,7 @@ const DEFAULT_PROTECTED_SETTINGS: ProtectedProtocolSettings = {
 };
 
 const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
-  overlayEnabled: false,
+  overlayEnabled: true,
   showDebugInfo: true,
   captureFrameRate: 30,
   enableAudioPassthrough: false,
