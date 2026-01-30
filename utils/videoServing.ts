@@ -43,14 +43,33 @@ export const getVideoMimeType = (uri: string): string => {
 };
 
 export const isLocalFileUri = (uri: string): boolean => {
-  return (
-    uri.startsWith('file://') ||
-    uri.startsWith('/') ||
-    uri.startsWith('ph://') ||
-    uri.startsWith('content://') ||
-    uri.includes('Documents/') ||
-    uri.includes('saved_videos/')
-  );
+  if (!uri) return false;
+  const trimmed = uri.trim();
+
+  if (
+    trimmed.startsWith('file://') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('ph://') ||
+    trimmed.startsWith('content://')
+  ) {
+    return true;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return false;
+  }
+
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
+  if (!hasScheme && (trimmed.includes('Documents/') || trimmed.includes('saved_videos/'))) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'file:' || parsed.protocol === 'content:' || parsed.protocol === 'ph:';
+  } catch {
+    return false;
+  }
 };
 
 export const isExternalUrl = (uri: string): boolean => {

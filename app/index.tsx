@@ -151,8 +151,14 @@ export default function MotionBrowserScreen() {
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
 
-  // Use protocol context for allowlist
-  const allowlistEnabled = allowlistSettings.enabled;
+  const isProtocolEnabled = useMemo(
+    () => protocols[activeProtocol]?.enabled ?? true,
+    [protocols, activeProtocol]
+  );
+
+  // Use protocol context for allowlist (only when allowlist protocol is active/enabled)
+  const allowlistModeActive = activeProtocol === 'allowlist' && (protocols.allowlist?.enabled ?? true);
+  const allowlistEnabled = allowlistModeActive && allowlistSettings.enabled;
   const allowedDomains = allowlistSettings.domains;
 
   const compatibleVideos = useMemo(() => {
@@ -212,7 +218,8 @@ export default function MotionBrowserScreen() {
   }, [checkIsAllowlisted, currentHostname]);
 
   const allowlistStatusLabel = useMemo(() => {
-    if (!allowlistEnabled) return 'Allowlist: Off';
+    if (!allowlistModeActive) return 'Allowlist: Off';
+    if (!allowlistSettings.enabled) return 'Allowlist: Disabled';
     if (allowedDomains.length === 0) {
       return allowlistSettings.blockUnlisted
         ? 'Allowlist: On (no domains)'
@@ -222,7 +229,13 @@ export default function MotionBrowserScreen() {
     return allowlistSettings.blockUnlisted
       ? 'Allowlist: On (site blocked)'
       : 'Allowlist: On (site not listed)';
-  }, [allowlistEnabled, allowedDomains.length, isAllowlisted, allowlistSettings.blockUnlisted]);
+  }, [
+    allowlistModeActive,
+    allowlistSettings.enabled,
+    allowedDomains.length,
+    isAllowlisted,
+    allowlistSettings.blockUnlisted,
+  ]);
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
 
@@ -230,15 +243,32 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
       return true;
     }
-    return standardSettings.stealthByDefault && shouldUseStealthForUrl(url);
-  }, [activeProtocol, standardSettings.stealthByDefault, shouldUseStealthForUrl, url]);
+    if (!standardSettings.stealthByDefault) {
+      return false;
+    }
+    if (!standardSettings.respectSiteSettings) {
+      return true;
+    }
+    return shouldUseStealthForUrl(url);
+  }, [
+    activeProtocol,
+    standardSettings.stealthByDefault,
+    standardSettings.respectSiteSettings,
+    shouldUseStealthForUrl,
+    url,
+  ]);
 
-  const protocolForceSimulation = activeProtocol === 'protected'
-    || (activeProtocol === 'harness' && harnessSettings.overlayEnabled);
+  const protocolForceSimulation = isProtocolEnabled && (
+    activeProtocol === 'protected'
+    || (activeProtocol === 'harness' && harnessSettings.overlayEnabled)
+  );
 
-  const protocolMirrorVideo = activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
 
   const protocolOverlayLabel = useMemo(() => {
+    if (!isProtocolEnabled) {
+      return '';
+    }
     if (activeProtocol === 'protected') {
       return 'Protected Replacement Active';
     }
@@ -249,9 +279,12 @@ export default function MotionBrowserScreen() {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
     return '';
-  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked]);
+  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
 
   const showProtocolOverlayLabel = useMemo(() => {
+    if (!isProtocolEnabled) {
+      return false;
+    }
     if (activeProtocol === 'protected') {
       return protectedSettings.showProtectedBadge;
     }
@@ -259,11 +292,19 @@ export default function MotionBrowserScreen() {
       return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
     }
     return false;
-  }, [activeProtocol, protectedSettings.showProtectedBadge, harnessSettings.showDebugInfo, harnessSettings.overlayEnabled]);
+  }, [
+    activeProtocol,
+    protectedSettings.showProtectedBadge,
+    harnessSettings.showDebugInfo,
+    harnessSettings.overlayEnabled,
+    isProtocolEnabled,
+  ]);
 
-  const autoInjectEnabled = (activeProtocol === 'standard' || activeProtocol === 'allowlist')
-    ? standardSettings.autoInject
-    : true;
+  const autoInjectEnabled = isProtocolEnabled && (
+    (activeProtocol === 'standard' || activeProtocol === 'allowlist')
+      ? standardSettings.autoInject
+      : true
+  );
 
   const simulatingDevicesCount = useMemo(() =>
     activeTemplate?.captureDevices.filter(d => d.simulationEnabled).length || 0,
@@ -299,6 +340,11 @@ export default function MotionBrowserScreen() {
         hasTemplate: !!activeTemplate,
         isMounted: isMountedRef.current,
       });
+      return;
+    }
+
+    if (!isProtocolEnabled) {
+      console.log('[App] Protocol disabled - injection skipped:', activeProtocol);
       return;
     }
 
@@ -375,6 +421,7 @@ export default function MotionBrowserScreen() {
     fallbackVideo?.name,
     protocolForceSimulation,
     activeProtocol,
+    isProtocolEnabled,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
@@ -486,11 +533,14 @@ export default function MotionBrowserScreen() {
   }, [simulationActive, simConfig, injectMotionData, standardSettings.injectMotionData]);
 
   useEffect(() => {
+    if (!allowlistModeActive) {
+      return;
+    }
     if (webViewRef.current) {
       console.log('[App] Allowlist settings changed, reloading WebView');
       webViewRef.current.reload();
     }
-  }, [allowlistSettings.enabled, allowlistSettings.domains]);
+  }, [allowlistModeActive, allowlistSettings.enabled, allowlistSettings.domains]);
 
   useEffect(() => {
     if (!standardSettings.injectMotionData) return;
@@ -615,11 +665,14 @@ export default function MotionBrowserScreen() {
   }, [activeTemplate, clearVideoFromDevice]);
 
   const forceHttps = useCallback((urlString: string): string => {
+    if (!httpsEnforced) {
+      return urlString;
+    }
     if (urlString.toLowerCase().startsWith('http://')) {
       return 'https://' + urlString.substring(7);
     }
     return urlString;
-  }, []);
+  }, [httpsEnforced]);
 
   const normalizeUrl = useCallback((input: string): string => {
     let normalized = input.trim();
@@ -645,6 +698,14 @@ export default function MotionBrowserScreen() {
     UIManager.getViewManagerConfig?.('RNCWebView') ||
     UIManager.getViewManagerConfig?.('RCTWebView')
   );
+  const webViewOriginWhitelist = useMemo(() => {
+    const origins = httpsEnforced ? ['https://*'] : ['https://*', 'http://*'];
+    return [...origins, 'about:blank', 'blob:*', 'data:*'];
+  }, [httpsEnforced]);
+  const allowLocalFileAccess = Platform.OS === 'android' && isProtocolEnabled && !allowlistBlocked;
+  const mixedContentMode = Platform.OS === 'android'
+    ? (httpsEnforced ? 'never' : 'always')
+    : undefined;
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -661,7 +722,7 @@ export default function MotionBrowserScreen() {
       };
     });
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
-    const shouldInjectMedia = !allowlistBlocked;
+    const shouldInjectMedia = isProtocolEnabled && !allowlistBlocked;
     const injectionOptions = {
       stealthMode: effectiveStealthMode,
       fallbackVideoUri,
@@ -700,6 +761,7 @@ export default function MotionBrowserScreen() {
     standardSettings.loopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
+    isProtocolEnabled,
   ]);
 
   const getAfterLoadScript = useCallback(() => {
@@ -830,10 +892,10 @@ export default function MotionBrowserScreen() {
                   setCanGoForward(navState.canGoForward);
                   
                   if (navState.url) {
-                    const httpsUrl = forceHttps(navState.url);
-                    setInputUrl(httpsUrl);
-                    if (navState.url !== httpsUrl) {
-                      setUrl(httpsUrl);
+                    const normalizedUrl = httpsEnforced ? forceHttps(navState.url) : navState.url;
+                    setInputUrl(normalizedUrl);
+                    if (httpsEnforced && navState.url !== normalizedUrl) {
+                      setUrl(normalizedUrl);
                     }
                   }
                 }}
@@ -880,7 +942,7 @@ export default function MotionBrowserScreen() {
                   console.error('[WebView HTTP Error]', nativeEvent.statusCode, nativeEvent.url);
                 }}
                 onShouldStartLoadWithRequest={(request) => {
-                  if (request.url.toLowerCase().startsWith('http://')) {
+                  if (httpsEnforced && request.url.toLowerCase().startsWith('http://')) {
                     const httpsUrl = forceHttps(request.url);
                     setUrl(httpsUrl);
                     setInputUrl(httpsUrl);
@@ -892,7 +954,7 @@ export default function MotionBrowserScreen() {
                 javaScriptEnabled
                 domStorageEnabled
                 startInLoadingState
-                originWhitelist={['*']}
+                originWhitelist={webViewOriginWhitelist}
                 mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
@@ -901,10 +963,10 @@ export default function MotionBrowserScreen() {
                 allowsBackForwardNavigationGestures
                 contentMode="mobile"
                 applicationNameForUserAgent="Safari/604.1"
-                allowFileAccess={Platform.OS === 'android'}
-                allowFileAccessFromFileURLs={Platform.OS === 'android'}
-                allowUniversalAccessFromFileURLs={Platform.OS === 'android'}
-                mixedContentMode={Platform.OS === 'android' ? 'always' : undefined}
+                allowFileAccess={allowLocalFileAccess}
+                allowFileAccessFromFileURLs={allowLocalFileAccess}
+                allowUniversalAccessFromFileURLs={allowLocalFileAccess}
+                mixedContentMode={mixedContentMode}
               />
             )}
           </View>
@@ -927,6 +989,7 @@ export default function MotionBrowserScreen() {
             onOpenSiteSettings={() => setShowSiteSettingsModal(true)}
             allowlistStatusLabel={allowlistStatusLabel}
             allowlistBlocked={allowlistBlocked}
+            protocolEnabled={isProtocolEnabled}
             simulationActive={simulationActive}
             useRealSensors={useRealSensors}
             accelData={accelData}

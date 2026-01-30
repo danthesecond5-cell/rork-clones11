@@ -355,6 +355,10 @@ export function useDeviceEnumeration() {
       });
     }
 
+    if (!isMountedRef.current) {
+      return devices;
+    }
+
     setEnumerationDetails(details);
     setCaptureDevices(devices);
     console.log('[DeviceCheck] Total cameras found:', devices.length);
@@ -370,6 +374,10 @@ export function useDeviceEnumeration() {
     setShowCameraPreview(true);
 
     await new Promise(resolve => setTimeout(resolve, 2000));
+
+    if (!isMountedRef.current) {
+      return;
+    }
 
     setCaptureDevices(prev => prev.map(d =>
       d.id === device.id ? { ...d, tested: true, testResult: 'success' } : d

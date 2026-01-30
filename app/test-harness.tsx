@@ -15,7 +15,7 @@ import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity, Shi
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
-import { formatVideoUriForWebView } from '@/utils/videoServing';
+import { formatVideoUriForWebView, isLocalFileUri } from '@/utils/videoServing';
 import TestingWatermark from '@/components/TestingWatermark';
 
 const TEST_HARNESS_HTML = `
@@ -150,6 +150,9 @@ export default function TestHarnessScreen() {
       return isFullyCompatible && isVideoReady(video.id);
     });
   }, [savedVideos, isVideoReady]);
+
+  const webViewOriginWhitelist = useMemo(() => ['about:blank'], []);
+  const allowLocalFileAccess = Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   useEffect(() => {
     if (!selectedVideoId && compatibleVideos.length > 0) {
@@ -329,7 +332,7 @@ export default function TestHarnessScreen() {
           ) : (
             <WebView
               ref={webViewRef}
-              originWhitelist={['*']}
+              originWhitelist={webViewOriginWhitelist}
               source={{ html: TEST_HARNESS_HTML }}
               style={styles.webView}
               onLoadEnd={applyOverlaySettings}
@@ -337,9 +340,9 @@ export default function TestHarnessScreen() {
               domStorageEnabled
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
-              allowFileAccess
-              allowFileAccessFromFileURLs
-              allowUniversalAccessFromFileURLs
+              allowFileAccess={allowLocalFileAccess}
+              allowFileAccessFromFileURLs={allowLocalFileAccess}
+              allowUniversalAccessFromFileURLs={allowLocalFileAccess}
             />
           )}
         </View>
