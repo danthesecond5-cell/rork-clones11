@@ -317,9 +317,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       message: 'Saving to library...',
     });
 
-    const updatedVideos = [videoWithMetadata, ...savedVideos];
-    setSavedVideos(updatedVideos);
-    await saveVideosMetadata(updatedVideos);
+    setSavedVideos(prev => {
+      const updatedVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
+      void saveVideosMetadata(updatedVideos);
+      return updatedVideos;
+    });
 
     setProcessingState({
       isProcessing: false,
@@ -330,7 +332,7 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
 
     console.log('[VideoLibrary] Video saved:', videoWithMetadata.name);
     return videoWithMetadata;
-  }, [savedVideos, saveVideosMetadata]);
+  }, [saveVideosMetadata]);
 
   const saveLocalVideo = useCallback(async (uri: string, name: string): Promise<SavedVideo | null> => {
     console.log('[VideoLibrary] Saving local video:', uri);
@@ -401,9 +403,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       message: 'Saving to library...',
     });
 
-    const updatedVideos = [videoWithMetadata, ...savedVideos];
-    setSavedVideos(updatedVideos);
-    await saveVideosMetadata(updatedVideos);
+    setSavedVideos(prev => {
+      const updatedVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
+      void saveVideosMetadata(updatedVideos);
+      return updatedVideos;
+    });
 
     setProcessingState({
       isProcessing: false,
@@ -414,7 +418,7 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
 
     console.log('[VideoLibrary] Local video saved:', videoWithMetadata.name);
     return videoWithMetadata;
-  }, [savedVideos, saveVideosMetadata]);
+  }, [saveVideosMetadata]);
 
   const removeVideo = useCallback(async (id: string): Promise<boolean> => {
     const video = savedVideos.find(v => v.id === id);
@@ -432,9 +436,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       console.error('[VideoLibrary] Failed to delete file');
     }
 
-    const updatedVideos = savedVideos.filter(v => v.id !== id);
-    setSavedVideos(updatedVideos);
-    await saveVideosMetadata(updatedVideos);
+    setSavedVideos(prev => {
+      const updatedVideos = prev.filter(v => v.id !== id);
+      void saveVideosMetadata(updatedVideos);
+      return updatedVideos;
+    });
 
     console.log('[VideoLibrary] Video removed:', id);
     return true;
@@ -461,11 +467,13 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return false;
     }
 
-    const updatedVideos = savedVideos.map(v => 
-      v.id === id ? { ...v, thumbnailUri: newThumbnailUri } : v
-    );
-    setSavedVideos(updatedVideos);
-    await saveVideosMetadata(updatedVideos);
+    setSavedVideos(prev => {
+      const updatedVideos = prev.map(v =>
+        v.id === id ? { ...v, thumbnailUri: newThumbnailUri } : v
+      );
+      void saveVideosMetadata(updatedVideos);
+      return updatedVideos;
+    });
 
     console.log('[VideoLibrary] Thumbnail regenerated for:', video.name);
     return true;

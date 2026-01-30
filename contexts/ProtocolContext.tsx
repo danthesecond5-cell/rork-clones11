@@ -236,7 +236,15 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (pin) setDeveloperPinState(pin);
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
-        if (activeProto) setActiveProtocolState(activeProto as ProtocolType);
+        if (activeProto) {
+          if (activeProto in DEFAULT_PROTOCOLS) {
+            setActiveProtocolState(activeProto as ProtocolType);
+          } else {
+            console.warn('[Protocol] Invalid active protocol found:', activeProto);
+            setActiveProtocolState('standard');
+            await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, 'standard');
+          }
+        }
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);

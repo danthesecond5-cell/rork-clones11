@@ -21,7 +21,6 @@ import { router } from 'expo-router';
 import { useAccelerometer, useGyroscope, useOrientation, AccelerometerData, GyroscopeData, OrientationData } from '@/hooks/useMotionSensors';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
@@ -35,7 +34,7 @@ import {
   createMediaInjectionScript,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
-import { formatVideoUriForWebView } from '@/utils/videoServing';
+import { formatVideoUriForWebView, isBase64VideoUri, isBlobUri, isLocalFileUri } from '@/utils/videoServing';
 import { isBundledSampleVideo } from '@/utils/sampleVideo';
 import { APP_CONFIG } from '@/constants/app';
 import type { SimulationConfig } from '@/types/browser';
@@ -92,11 +91,6 @@ export default function MotionBrowserScreen() {
     setPendingVideoForApply,
   } = useVideoLibrary();
 
-  const { developerMode, isAllowlistEditable } = useDeveloperMode();
-
-  
-
-  
   // Protocol Context for allowlist and presentation mode
   const {
     developerModeEnabled,
@@ -111,9 +105,6 @@ export default function MotionBrowserScreen() {
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
-    addAllowlistDomain,
-    removeAllowlistDomain,
-    updateAllowlistSettings,
   } = useProtocol();
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
@@ -186,14 +177,6 @@ export default function MotionBrowserScreen() {
   const accelData = simulationActive ? simAccelData : realAccelData;
   const gyroData = simulationActive ? simGyroData : realGyroData;
 
-  const handleAddAllowlistDomain = useCallback((value: string) => {
-    addAllowlistDomain(value);
-  }, [addAllowlistDomain]);
-
-  const handleRemoveAllowlistDomain = useCallback((domain: string) => {
-    removeAllowlistDomain(domain);
-  }, [removeAllowlistDomain]);
-
   const currentWebsiteSettings = useMemo(() => 
     getWebsiteSettings(url),
     [getWebsiteSettings, url]
@@ -206,6 +189,26 @@ export default function MotionBrowserScreen() {
       return '';
     }
   }, [url]);
+
+  const originWhitelist = useMemo(() => {
+    const whitelist = ['https://*', 'file://*', 'blob:*', 'data:*', 'about:blank'];
+    if (!httpsEnforced) {
+      whitelist.unshift('http://*');
+    }
+    return whitelist;
+  }, [httpsEnforced]);
+
+  const requiresFileAccess = useMemo(() => {
+    if (Platform.OS !== 'android') return false;
+    const deviceUris = activeTemplate?.captureDevices
+      .map(device => device.assignedVideoUri)
+      .filter((assignedUri): assignedUri is string => Boolean(assignedUri)) || [];
+    const candidateUris = [fallbackVideoUri, ...deviceUris].filter((uri): uri is string => Boolean(uri));
+
+    return candidateUris.some(uri => (
+      isLocalFileUri(uri) && !isBase64VideoUri(uri) && !isBlobUri(uri)
+    ));
+  }, [activeTemplate, fallbackVideoUri]);
 
   const isAllowlisted = useMemo(() => {
     return checkIsAllowlisted(currentHostname);
@@ -615,11 +618,14 @@ export default function MotionBrowserScreen() {
   }, [activeTemplate, clearVideoFromDevice]);
 
   const forceHttps = useCallback((urlString: string): string => {
+    if (!httpsEnforced) {
+      return urlString;
+    }
     if (urlString.toLowerCase().startsWith('http://')) {
       return 'https://' + urlString.substring(7);
     }
     return urlString;
-  }, []);
+  }, [httpsEnforced]);
 
   const normalizeUrl = useCallback((input: string): string => {
     let normalized = input.trim();
@@ -706,6 +712,36 @@ export default function MotionBrowserScreen() {
     return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
   }, [standardSettings.injectMotionData]);
 
+  const isNavigationAllowed = useCallback((requestUrl: string): boolean => {
+    if (!requestUrl) return false;
+    const lowerUrl = requestUrl.toLowerCase();
+
+    if (lowerUrl.startsWith('about:')) return true;
+    if (isBase64VideoUri(requestUrl) || isBlobUri(requestUrl)) return true;
+    if (
+      lowerUrl.startsWith('data:') ||
+      lowerUrl.startsWith('file:') ||
+      lowerUrl.startsWith('content:') ||
+      lowerUrl.startsWith('ph:')
+    ) {
+      return true;
+    }
+
+    if (allowlistEnabled && allowlistSettings.blockUnlisted) {
+      try {
+        const hostname = new URL(requestUrl).hostname.toLowerCase();
+        if (hostname && !checkIsAllowlisted(hostname)) {
+          console.warn('[App] Navigation blocked by allowlist:', hostname);
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
+  }, [allowlistEnabled, allowlistSettings.blockUnlisted, checkIsAllowlisted]);
+
   const toggleSafariMode = useCallback(() => {
     setSafariModeEnabled(prev => !prev);
     setTimeout(() => {
@@ -762,7 +798,7 @@ export default function MotionBrowserScreen() {
       
       {/* Testing Watermark */}
       <TestingWatermark 
-        visible={developerMode.showWatermark}
+        visible={showTestingWatermark}
         position="top-right"
         variant="minimal"
         showPulse={true}
@@ -813,6 +849,7 @@ export default function MotionBrowserScreen() {
                 source={{ uri: url }}
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
+                originWhitelist={originWhitelist}
                 injectedJavaScriptBeforeContentLoaded={getBeforeLoadScript()}
                 injectedJavaScript={getAfterLoadScript()}
                 onLoadStart={() => setIsLoading(true)}
@@ -830,10 +867,10 @@ export default function MotionBrowserScreen() {
                   setCanGoForward(navState.canGoForward);
                   
                   if (navState.url) {
-                    const httpsUrl = forceHttps(navState.url);
-                    setInputUrl(httpsUrl);
-                    if (navState.url !== httpsUrl) {
-                      setUrl(httpsUrl);
+                    const normalizedUrl = forceHttps(navState.url);
+                    setInputUrl(normalizedUrl);
+                    if (navState.url !== normalizedUrl) {
+                      setUrl(normalizedUrl);
                     }
                   }
                 }}
@@ -880,19 +917,27 @@ export default function MotionBrowserScreen() {
                   console.error('[WebView HTTP Error]', nativeEvent.statusCode, nativeEvent.url);
                 }}
                 onShouldStartLoadWithRequest={(request) => {
-                  if (request.url.toLowerCase().startsWith('http://')) {
-                    const httpsUrl = forceHttps(request.url);
+                  const requestUrl = request.url || '';
+                  const lowerUrl = requestUrl.toLowerCase();
+                  const isTopFrame = request.isTopFrame !== false;
+
+                  if (!isTopFrame) {
+                    return true;
+                  }
+
+                  if (lowerUrl.startsWith('http://') && httpsEnforced) {
+                    const httpsUrl = forceHttps(requestUrl);
                     setUrl(httpsUrl);
                     setInputUrl(httpsUrl);
                     return false;
                   }
-                  return true;
+
+                  return isNavigationAllowed(requestUrl);
                 }}
                 allowsInlineMediaPlayback
                 javaScriptEnabled
                 domStorageEnabled
                 startInLoadingState
-                originWhitelist={['*']}
                 mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
@@ -901,10 +946,10 @@ export default function MotionBrowserScreen() {
                 allowsBackForwardNavigationGestures
                 contentMode="mobile"
                 applicationNameForUserAgent="Safari/604.1"
-                allowFileAccess={Platform.OS === 'android'}
-                allowFileAccessFromFileURLs={Platform.OS === 'android'}
-                allowUniversalAccessFromFileURLs={Platform.OS === 'android'}
-                mixedContentMode={Platform.OS === 'android' ? 'always' : undefined}
+                allowFileAccess={Platform.OS === 'android' && requiresFileAccess}
+                allowFileAccessFromFileURLs={false}
+                allowUniversalAccessFromFileURLs={false}
+                mixedContentMode={Platform.OS === 'android' ? (httpsEnforced ? 'never' : 'always') : undefined}
               />
             )}
           </View>
