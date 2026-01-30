@@ -490,7 +490,7 @@ export default function MotionBrowserScreen() {
       console.log('[App] Allowlist settings changed, reloading WebView');
       webViewRef.current.reload();
     }
-  }, [allowlistSettings.enabled, allowlistSettings.domains]);
+  }, [allowlistSettings.enabled, allowlistSettings.domains, allowlistSettings.blockUnlisted]);
 
   useEffect(() => {
     if (!standardSettings.injectMotionData) return;
@@ -615,11 +615,14 @@ export default function MotionBrowserScreen() {
   }, [activeTemplate, clearVideoFromDevice]);
 
   const forceHttps = useCallback((urlString: string): string => {
+    if (!httpsEnforced) {
+      return urlString;
+    }
     if (urlString.toLowerCase().startsWith('http://')) {
       return 'https://' + urlString.substring(7);
     }
     return urlString;
-  }, []);
+  }, [httpsEnforced]);
 
   const normalizeUrl = useCallback((input: string): string => {
     let normalized = input.trim();
@@ -880,7 +883,7 @@ export default function MotionBrowserScreen() {
                   console.error('[WebView HTTP Error]', nativeEvent.statusCode, nativeEvent.url);
                 }}
                 onShouldStartLoadWithRequest={(request) => {
-                  if (request.url.toLowerCase().startsWith('http://')) {
+                  if (httpsEnforced && request.url.toLowerCase().startsWith('http://')) {
                     const httpsUrl = forceHttps(request.url);
                     setUrl(httpsUrl);
                     setInputUrl(httpsUrl);
