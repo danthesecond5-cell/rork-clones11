@@ -65,6 +65,14 @@ interface ControlToolbarProps {
   onApplyVideoToAll: (video: SavedVideo) => void;
 }
 
+const getHostnameFromUrl = (url: string): string => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+};
+
 const ControlToolbar = memo(function ControlToolbar({
   isExpanded,
   onToggleExpanded,
@@ -299,7 +307,7 @@ const ControlToolbar = memo(function ControlToolbar({
             <View style={styles.siteSettingsInfo}>
               <Text style={styles.siteSettingsLabel}>Site Settings</Text>
               <Text style={styles.siteSettingsUrl} numberOfLines={1}>
-                {currentUrl ? new URL(currentUrl).hostname : 'No site loaded'}
+                {currentUrl ? getHostnameFromUrl(currentUrl) : 'No site loaded'}
               </Text>
             </View>
             {currentWebsiteSettings && (
@@ -558,13 +566,7 @@ export function SiteSettingsModal({
     }
   }, [currentSettings]);
 
-  const hostname = useMemo(() => {
-    try {
-      return new URL(currentUrl).hostname;
-    } catch {
-      return currentUrl;
-    }
-  }, [currentUrl]);
+  const hostname = useMemo(() => getHostnameFromUrl(currentUrl), [currentUrl]);
 
   const handleSave = () => {
     onSave(currentUrl, { useStealthByDefault, applyToSubdomains });
