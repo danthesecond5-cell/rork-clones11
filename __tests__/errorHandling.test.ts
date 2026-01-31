@@ -1,3 +1,9 @@
+// Mock react-native before importing
+jest.mock('react-native', () => ({
+  Alert: { alert: jest.fn() },
+  Platform: { OS: 'ios', select: jest.fn((obj) => obj.ios || obj.default) },
+}));
+
 import { Alert, Platform } from 'react-native';
 import {
   ErrorCode,
@@ -18,15 +24,6 @@ import {
   validateVideoUrl,
   withErrorLogging,
 } from '@/utils/errorHandling';
-
-jest.mock('react-native', () => {
-  const actual = jest.requireActual('react-native');
-  return {
-    ...actual,
-    Alert: { alert: jest.fn() },
-    Platform: { ...actual.Platform, OS: 'ios' },
-  };
-});
 
 const setPlatformOS = (os: string) => {
   (Platform as { OS: string }).OS = os;

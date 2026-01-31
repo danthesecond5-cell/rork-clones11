@@ -2772,3 +2772,734 @@ export const VIDEO_SIMULATION_TEST_SCRIPT = `
 })();
 true;
 `;
+
+// ============ CLAUDE PROTOCOL INJECTION SCRIPT ============
+// Protocol 5: Claude Protocol - The most advanced AI-driven injection system
+// Named after Claude (Anthropic's AI) - representing the pinnacle of injection technology
+export interface ClaudeProtocolOptions {
+  // AI Core Features
+  adaptiveQuality?: boolean;
+  qualityOptimizationLevel?: 'conservative' | 'balanced' | 'aggressive';
+  neuralFingerprintEnabled?: boolean;
+  fingerprintVarianceLevel?: number;
+  temporalCoherenceEnabled?: boolean;
+  frameBlendingStrength?: number;
+  motionPredictionEnabled?: boolean;
+  
+  // Behavioral Mimicry
+  behavioralMimicryEnabled?: boolean;
+  microMovementSimulation?: boolean;
+  blinkPatternSynthesis?: boolean;
+  breathingMotionEnabled?: boolean;
+  
+  // Stealth Features
+  antiDetectionLevel?: 'minimal' | 'standard' | 'maximum' | 'paranoid';
+  dynamicTimingJitter?: boolean;
+  canvasFingerprintMutation?: boolean;
+  webglSignatureRandomization?: boolean;
+  audioContextObfuscation?: boolean;
+  
+  // Context-Aware
+  contextAwareEnabled?: boolean;
+  automaticOrientationMatching?: boolean;
+  lightingConditionAdaptation?: boolean;
+  backgroundBlurMatching?: boolean;
+  
+  // Performance
+  gpuAccelerationEnabled?: boolean;
+  predictivePrefetching?: boolean;
+  memoryOptimizationLevel?: 'low' | 'medium' | 'high';
+  streamPoolingEnabled?: boolean;
+  maxConcurrentStreams?: number;
+  
+  // Analytics
+  performanceMetricsEnabled?: boolean;
+  detailedLogging?: boolean;
+  anomalyDetectionEnabled?: boolean;
+  healthCheckInterval?: number;
+  
+  // Fallback
+  intelligentFallbackEnabled?: boolean;
+  fallbackChainOrder?: ('video' | 'greenscreen' | 'blur' | 'placeholder')[];
+  
+  // Video config
+  videoUri?: string | null;
+  loopVideo?: boolean;
+  mirrorVideo?: boolean;
+}
+
+export const createClaudeProtocolScript = (
+  devices: CaptureDevice[],
+  options: ClaudeProtocolOptions = {}
+): string => {
+  const {
+    adaptiveQuality = true,
+    qualityOptimizationLevel = 'balanced',
+    neuralFingerprintEnabled = true,
+    fingerprintVarianceLevel = 15,
+    temporalCoherenceEnabled = true,
+    frameBlendingStrength = 25,
+    motionPredictionEnabled = true,
+    behavioralMimicryEnabled = true,
+    microMovementSimulation = true,
+    blinkPatternSynthesis = true,
+    breathingMotionEnabled = true,
+    antiDetectionLevel = 'maximum',
+    dynamicTimingJitter = true,
+    canvasFingerprintMutation = true,
+    webglSignatureRandomization = true,
+    audioContextObfuscation = true,
+    contextAwareEnabled = true,
+    automaticOrientationMatching = true,
+    lightingConditionAdaptation = true,
+    backgroundBlurMatching = true,
+    gpuAccelerationEnabled = true,
+    predictivePrefetching = true,
+    memoryOptimizationLevel = 'high',
+    streamPoolingEnabled = true,
+    maxConcurrentStreams = 3,
+    performanceMetricsEnabled = true,
+    detailedLogging = false,
+    anomalyDetectionEnabled = true,
+    healthCheckInterval = 5000,
+    intelligentFallbackEnabled = true,
+    fallbackChainOrder = ['video', 'greenscreen', 'blur', 'placeholder'],
+    videoUri = null,
+    loopVideo = true,
+    mirrorVideo = false,
+  } = options;
+
+  return `
+(function() {
+  if (typeof window === 'undefined') return;
+  if (window.__claudeProtocolInitialized) {
+    console.log('[Claude Protocol] Already initialized, updating config');
+    if (window.__updateClaudeConfig) {
+      window.__updateClaudeConfig(${JSON.stringify(options)});
+    }
+    return;
+  }
+  window.__claudeProtocolInitialized = true;
+  
+  // ============ CLAUDE PROTOCOL CONFIGURATION ============
+  const CLAUDE_CONFIG = {
+    VERSION: '1.0.0',
+    PROTOCOL_NAME: 'Claude Protocol',
+    AI_CORE: {
+      adaptiveQuality: ${adaptiveQuality},
+      qualityOptimizationLevel: '${qualityOptimizationLevel}',
+      neuralFingerprintEnabled: ${neuralFingerprintEnabled},
+      fingerprintVarianceLevel: ${fingerprintVarianceLevel},
+      temporalCoherenceEnabled: ${temporalCoherenceEnabled},
+      frameBlendingStrength: ${frameBlendingStrength},
+      motionPredictionEnabled: ${motionPredictionEnabled},
+    },
+    BEHAVIORAL: {
+      enabled: ${behavioralMimicryEnabled},
+      microMovements: ${microMovementSimulation},
+      blinkSynthesis: ${blinkPatternSynthesis},
+      breathingMotion: ${breathingMotionEnabled},
+      blinkInterval: { min: 2000, max: 6000 },
+      breathingCycle: 4000,
+      microMovementAmplitude: 0.3,
+    },
+    STEALTH: {
+      antiDetectionLevel: '${antiDetectionLevel}',
+      dynamicTimingJitter: ${dynamicTimingJitter},
+      canvasMutation: ${canvasFingerprintMutation},
+      webglRandomization: ${webglSignatureRandomization},
+      audioObfuscation: ${audioContextObfuscation},
+      timingJitterRange: { min: 1, max: 50 },
+    },
+    CONTEXT: {
+      enabled: ${contextAwareEnabled},
+      autoOrientation: ${automaticOrientationMatching},
+      lightingAdaptation: ${lightingConditionAdaptation},
+      blurMatching: ${backgroundBlurMatching},
+    },
+    PERFORMANCE: {
+      gpuAcceleration: ${gpuAccelerationEnabled},
+      predictivePrefetch: ${predictivePrefetching},
+      memoryLevel: '${memoryOptimizationLevel}',
+      streamPooling: ${streamPoolingEnabled},
+      maxStreams: ${maxConcurrentStreams},
+      targetFps: 30,
+      qualityLevels: [
+        { name: 'ultra', scale: 1.0, fps: 30, bitrate: 'high' },
+        { name: 'high', scale: 0.85, fps: 30, bitrate: 'medium' },
+        { name: 'medium', scale: 0.7, fps: 24, bitrate: 'low' },
+        { name: 'low', scale: 0.5, fps: 20, bitrate: 'minimal' },
+        { name: 'adaptive', scale: 'auto', fps: 'auto', bitrate: 'auto' },
+      ],
+    },
+    ANALYTICS: {
+      metricsEnabled: ${performanceMetricsEnabled},
+      detailedLogging: ${detailedLogging},
+      anomalyDetection: ${anomalyDetectionEnabled},
+      healthInterval: ${healthCheckInterval},
+    },
+    FALLBACK: {
+      intelligent: ${intelligentFallbackEnabled},
+      chain: ${JSON.stringify(fallbackChainOrder)},
+    },
+    VIDEO: {
+      uri: ${JSON.stringify(videoUri)},
+      loop: ${loopVideo},
+      mirror: ${mirrorVideo},
+    },
+    DEVICES: ${JSON.stringify(devices)},
+  };
+  
+  // ============ LOGGING SYSTEM ============
+  const Logger = {
+    enabled: CLAUDE_CONFIG.ANALYTICS.detailedLogging,
+    prefix: '[Claude]',
+    
+    log: function(...args) { if (this.enabled) console.log(this.prefix, ...args); },
+    warn: function(...args) { if (this.enabled) console.warn(this.prefix, ...args); },
+    error: function(...args) { console.error(this.prefix, ...args); },
+    info: function(...args) { console.log(this.prefix + ' [INFO]', ...args); },
+    metric: function(name, value, unit) {
+      if (this.enabled) console.log(this.prefix, '[METRIC]', name + ':', value, unit || '');
+    },
+  };
+  
+  Logger.info('======== CLAUDE PROTOCOL INITIALIZING ========');
+  Logger.info('Version:', CLAUDE_CONFIG.VERSION);
+  Logger.info('Devices:', CLAUDE_CONFIG.DEVICES.length);
+  
+  // ============ NEURAL FINGERPRINT SYNTHESIZER ============
+  const NeuralFingerprint = {
+    seed: Date.now() % 1000000,
+    variance: CLAUDE_CONFIG.AI_CORE.fingerprintVarianceLevel,
+    
+    generateDeviceProfile: function() {
+      // Generate a consistent but unique device fingerprint
+      const baseProfile = {
+        hardwareConcurrency: this.varyInt(6, 2),
+        deviceMemory: this.varyInt(8, 2),
+        maxTouchPoints: 5,
+        colorDepth: 24,
+        pixelRatio: this.varyFloat(3.0, 0.5),
+      };
+      return baseProfile;
+    },
+    
+    varyInt: function(base, range) {
+      const variance = (this.variance / 100) * range;
+      return Math.round(base + (this.pseudoRandom() - 0.5) * 2 * variance);
+    },
+    
+    varyFloat: function(base, range) {
+      const variance = (this.variance / 100) * range;
+      return base + (this.pseudoRandom() - 0.5) * 2 * variance;
+    },
+    
+    pseudoRandom: function() {
+      this.seed = (this.seed * 16807) % 2147483647;
+      return this.seed / 2147483647;
+    },
+    
+    getConsistentNoise: function(x, y) {
+      const n = Math.sin(this.seed * 12.9898 + x * 78.233 + y * 43.1234) * 43758.5453;
+      return (n - Math.floor(n)) * 2 - 1;
+    },
+  };
+  
+  // ============ TEMPORAL COHERENCE ENGINE ============
+  const TemporalCoherence = {
+    enabled: CLAUDE_CONFIG.AI_CORE.temporalCoherenceEnabled,
+    blendStrength: CLAUDE_CONFIG.AI_CORE.frameBlendingStrength / 100,
+    previousFrame: null,
+    motionVector: { x: 0, y: 0 },
+    
+    blendFrames: function(currentCtx, width, height) {
+      if (!this.enabled || !this.previousFrame) {
+        this.captureFrame(currentCtx, width, height);
+        return;
+      }
+      
+      // Apply temporal blending for smooth transitions
+      try {
+        currentCtx.globalAlpha = 1 - this.blendStrength;
+        currentCtx.drawImage(this.previousFrame, 0, 0);
+        currentCtx.globalAlpha = 1;
+      } catch (e) {
+        Logger.warn('Temporal blend failed:', e.message);
+      }
+      
+      this.captureFrame(currentCtx, width, height);
+    },
+    
+    captureFrame: function(ctx, width, height) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const tempCtx = canvas.getContext('2d');
+        if (tempCtx) {
+          tempCtx.drawImage(ctx.canvas, 0, 0);
+          this.previousFrame = canvas;
+        }
+      } catch (e) {}
+    },
+    
+    predictMotion: function() {
+      if (!CLAUDE_CONFIG.AI_CORE.motionPredictionEnabled) return { x: 0, y: 0 };
+      
+      // Simple motion prediction based on previous vectors
+      const decay = 0.8;
+      this.motionVector.x *= decay;
+      this.motionVector.y *= decay;
+      return this.motionVector;
+    },
+  };
+  
+  // ============ BEHAVIORAL MIMICRY SYSTEM ============
+  const BehavioralMimicry = {
+    enabled: CLAUDE_CONFIG.BEHAVIORAL.enabled,
+    lastBlinkTime: Date.now(),
+    nextBlinkTime: Date.now() + 3000,
+    isBlinking: false,
+    blinkProgress: 0,
+    breathingPhase: 0,
+    microOffset: { x: 0, y: 0 },
+    
+    update: function(timestamp) {
+      if (!this.enabled) return;
+      
+      // Blink synthesis
+      if (CLAUDE_CONFIG.BEHAVIORAL.blinkSynthesis) {
+        this.updateBlink(timestamp);
+      }
+      
+      // Breathing motion
+      if (CLAUDE_CONFIG.BEHAVIORAL.breathingMotion) {
+        this.updateBreathing(timestamp);
+      }
+      
+      // Micro movements
+      if (CLAUDE_CONFIG.BEHAVIORAL.microMovements) {
+        this.updateMicroMovements(timestamp);
+      }
+    },
+    
+    updateBlink: function(timestamp) {
+      const now = Date.now();
+      if (now >= this.nextBlinkTime && !this.isBlinking) {
+        this.isBlinking = true;
+        this.blinkProgress = 0;
+      }
+      
+      if (this.isBlinking) {
+        this.blinkProgress += 0.15;
+        if (this.blinkProgress >= 1) {
+          this.isBlinking = false;
+          this.blinkProgress = 0;
+          this.lastBlinkTime = now;
+          const { min, max } = CLAUDE_CONFIG.BEHAVIORAL.blinkInterval;
+          this.nextBlinkTime = now + min + Math.random() * (max - min);
+        }
+      }
+    },
+    
+    updateBreathing: function(timestamp) {
+      const cycle = CLAUDE_CONFIG.BEHAVIORAL.breathingCycle;
+      this.breathingPhase = (timestamp % cycle) / cycle;
+    },
+    
+    updateMicroMovements: function(timestamp) {
+      const amp = CLAUDE_CONFIG.BEHAVIORAL.microMovementAmplitude;
+      const freq = 0.5;
+      this.microOffset.x = Math.sin(timestamp * 0.001 * freq) * amp;
+      this.microOffset.y = Math.cos(timestamp * 0.0013 * freq) * amp;
+    },
+    
+    getBlinkOverlay: function() {
+      if (!this.isBlinking) return 0;
+      // Smooth blink curve
+      return Math.sin(this.blinkProgress * Math.PI) * 0.5;
+    },
+    
+    getBreathingScale: function() {
+      // Subtle breathing expansion
+      return 1 + Math.sin(this.breathingPhase * Math.PI * 2) * 0.003;
+    },
+    
+    getMicroOffset: function() {
+      return this.microOffset;
+    },
+  };
+  
+  // ============ ANTI-DETECTION SYSTEM ============
+  const AntiDetection = {
+    level: CLAUDE_CONFIG.STEALTH.antiDetectionLevel,
+    
+    getTimingJitter: function() {
+      if (!CLAUDE_CONFIG.STEALTH.dynamicTimingJitter) return 0;
+      const { min, max } = CLAUDE_CONFIG.STEALTH.timingJitterRange;
+      
+      // Apply level-based multiplier
+      const multiplier = {
+        minimal: 0.25,
+        standard: 0.5,
+        maximum: 1.0,
+        paranoid: 2.0,
+      }[this.level] || 1.0;
+      
+      return (min + Math.random() * (max - min)) * multiplier;
+    },
+    
+    applyCanvasMutation: function(imageData) {
+      if (!CLAUDE_CONFIG.STEALTH.canvasMutation) return imageData;
+      
+      const data = imageData.data;
+      const intensity = {
+        minimal: 0.001,
+        standard: 0.003,
+        maximum: 0.005,
+        paranoid: 0.008,
+      }[this.level] || 0.005;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const noise = (NeuralFingerprint.pseudoRandom() - 0.5) * intensity * 255;
+        data[i] = Math.max(0, Math.min(255, data[i] + noise));
+        data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise * 0.9));
+        data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise * 1.1));
+      }
+      
+      return imageData;
+    },
+    
+    wrapWithJitter: function(fn, context) {
+      const jitter = this.getTimingJitter();
+      return new Promise((resolve) => {
+        setTimeout(async () => {
+          const result = await fn.call(context);
+          resolve(result);
+        }, jitter);
+      });
+    },
+  };
+  
+  // ============ QUALITY OPTIMIZER ============
+  const QualityOptimizer = {
+    currentLevel: 0,
+    fpsHistory: [],
+    lastOptimization: 0,
+    optimizationInterval: 3000,
+    
+    recordFps: function(fps) {
+      this.fpsHistory.push(fps);
+      if (this.fpsHistory.length > 60) this.fpsHistory.shift();
+    },
+    
+    getAverageFps: function() {
+      if (this.fpsHistory.length === 0) return 30;
+      return this.fpsHistory.reduce((a, b) => a + b, 0) / this.fpsHistory.length;
+    },
+    
+    optimize: function() {
+      if (!CLAUDE_CONFIG.AI_CORE.adaptiveQuality) return;
+      
+      const now = Date.now();
+      if (now - this.lastOptimization < this.optimizationInterval) return;
+      if (this.fpsHistory.length < 30) return;
+      
+      const avgFps = this.getAverageFps();
+      const targetFps = CLAUDE_CONFIG.PERFORMANCE.targetFps;
+      const levels = CLAUDE_CONFIG.PERFORMANCE.qualityLevels;
+      
+      const aggressiveness = {
+        conservative: { up: 0.9, down: 0.7 },
+        balanced: { up: 0.85, down: 0.6 },
+        aggressive: { up: 0.8, down: 0.5 },
+      }[CLAUDE_CONFIG.AI_CORE.qualityOptimizationLevel] || { up: 0.85, down: 0.6 };
+      
+      const prevLevel = this.currentLevel;
+      
+      if (avgFps < targetFps * aggressiveness.down && this.currentLevel < levels.length - 2) {
+        this.currentLevel++;
+      } else if (avgFps > targetFps * aggressiveness.up && this.currentLevel > 0) {
+        this.currentLevel--;
+      }
+      
+      if (prevLevel !== this.currentLevel) {
+        this.lastOptimization = now;
+        Logger.log('Quality adapted:', levels[this.currentLevel].name, '| FPS:', avgFps.toFixed(1));
+      }
+    },
+    
+    getCurrentSettings: function() {
+      const level = CLAUDE_CONFIG.PERFORMANCE.qualityLevels[this.currentLevel];
+      return {
+        scale: typeof level.scale === 'number' ? level.scale : 1.0,
+        fps: typeof level.fps === 'number' ? level.fps : 30,
+        name: level.name,
+      };
+    },
+  };
+  
+  // ============ STREAM POOL MANAGER ============
+  const StreamPool = {
+    enabled: CLAUDE_CONFIG.PERFORMANCE.streamPooling,
+    pool: new Map(),
+    maxSize: CLAUDE_CONFIG.PERFORMANCE.maxStreams,
+    
+    acquire: function(key) {
+      if (!this.enabled) return null;
+      const entry = this.pool.get(key);
+      if (entry && entry.stream && entry.stream.active) {
+        entry.lastUsed = Date.now();
+        return entry.stream;
+      }
+      return null;
+    },
+    
+    release: function(key, stream, cleanup) {
+      if (!this.enabled) {
+        if (cleanup) cleanup();
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+      
+      if (this.pool.size >= this.maxSize) {
+        this.evictOldest();
+      }
+      
+      this.pool.set(key, {
+        stream,
+        cleanup,
+        lastUsed: Date.now(),
+      });
+    },
+    
+    evictOldest: function() {
+      let oldest = null;
+      let oldestTime = Infinity;
+      
+      this.pool.forEach((entry, key) => {
+        if (entry.lastUsed < oldestTime) {
+          oldestTime = entry.lastUsed;
+          oldest = key;
+        }
+      });
+      
+      if (oldest) {
+        const entry = this.pool.get(oldest);
+        if (entry) {
+          if (entry.cleanup) entry.cleanup();
+          if (entry.stream) entry.stream.getTracks().forEach(t => t.stop());
+        }
+        this.pool.delete(oldest);
+      }
+    },
+    
+    cleanup: function() {
+      this.pool.forEach((entry) => {
+        if (entry.cleanup) entry.cleanup();
+        if (entry.stream) entry.stream.getTracks().forEach(t => t.stop());
+      });
+      this.pool.clear();
+    },
+  };
+  
+  // ============ ANOMALY DETECTOR ============
+  const AnomalyDetector = {
+    enabled: CLAUDE_CONFIG.ANALYTICS.anomalyDetection,
+    fpsThreshold: 10,
+    consecutiveLowFps: 0,
+    maxConsecutive: 5,
+    lastAnomalyReport: 0,
+    anomalyCooldown: 10000,
+    
+    check: function(fps) {
+      if (!this.enabled) return;
+      
+      if (fps < this.fpsThreshold) {
+        this.consecutiveLowFps++;
+        if (this.consecutiveLowFps >= this.maxConsecutive) {
+          this.reportAnomaly('fps_drop', { fps, threshold: this.fpsThreshold });
+        }
+      } else {
+        this.consecutiveLowFps = 0;
+      }
+    },
+    
+    reportAnomaly: function(type, data) {
+      const now = Date.now();
+      if (now - this.lastAnomalyReport < this.anomalyCooldown) return;
+      
+      this.lastAnomalyReport = now;
+      Logger.warn('Anomaly detected:', type, data);
+      
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'claudeAnomaly',
+          payload: { anomalyType: type, data, timestamp: now },
+        }));
+      }
+    },
+  };
+  
+  // ============ METRICS COLLECTOR ============
+  const MetricsCollector = {
+    enabled: CLAUDE_CONFIG.ANALYTICS.metricsEnabled,
+    frameCount: 0,
+    lastFrameTime: 0,
+    startTime: Date.now(),
+    
+    recordFrame: function() {
+      if (!this.enabled) return;
+      
+      const now = performance.now();
+      if (this.lastFrameTime > 0) {
+        const delta = now - this.lastFrameTime;
+        const fps = 1000 / delta;
+        QualityOptimizer.recordFps(fps);
+        AnomalyDetector.check(fps);
+      }
+      this.lastFrameTime = now;
+      this.frameCount++;
+      
+      // Run quality optimization every 60 frames
+      if (this.frameCount % 60 === 0) {
+        QualityOptimizer.optimize();
+      }
+    },
+    
+    getSummary: function() {
+      const avgFps = QualityOptimizer.getAverageFps();
+      const uptime = Date.now() - this.startTime;
+      return {
+        frameCount: this.frameCount,
+        avgFps: avgFps.toFixed(1),
+        uptime: (uptime / 1000).toFixed(1) + 's',
+        qualityLevel: QualityOptimizer.getCurrentSettings().name,
+        poolSize: StreamPool.pool.size,
+      };
+    },
+  };
+  
+  // ============ INTELLIGENT FALLBACK ============
+  const IntelligentFallback = {
+    enabled: CLAUDE_CONFIG.FALLBACK.intelligent,
+    chain: CLAUDE_CONFIG.FALLBACK.chain,
+    currentIndex: 0,
+    failureCount: {},
+    
+    next: function() {
+      if (!this.enabled) return 'placeholder';
+      
+      this.currentIndex++;
+      if (this.currentIndex >= this.chain.length) {
+        this.currentIndex = this.chain.length - 1;
+      }
+      
+      const fallback = this.chain[this.currentIndex];
+      Logger.log('Fallback:', fallback);
+      return fallback;
+    },
+    
+    recordFailure: function(type) {
+      this.failureCount[type] = (this.failureCount[type] || 0) + 1;
+    },
+    
+    reset: function() {
+      this.currentIndex = 0;
+    },
+    
+    getCurrent: function() {
+      return this.chain[this.currentIndex];
+    },
+  };
+  
+  // ============ GLOBAL STATE ============
+  window.__claudeConfig = CLAUDE_CONFIG;
+  
+  window.__updateClaudeConfig = function(config) {
+    Object.assign(CLAUDE_CONFIG, config);
+    Logger.log('Claude config updated');
+  };
+  
+  window.__getClaudeMetrics = function() {
+    return {
+      ...MetricsCollector.getSummary(),
+      behavioral: {
+        blinkActive: BehavioralMimicry.isBlinking,
+        breathingPhase: BehavioralMimicry.breathingPhase.toFixed(2),
+      },
+      quality: QualityOptimizer.getCurrentSettings(),
+      antiDetection: {
+        level: AntiDetection.level,
+        jitterEnabled: CLAUDE_CONFIG.STEALTH.dynamicTimingJitter,
+      },
+    };
+  };
+  
+  window.__cleanupClaudeProtocol = function() {
+    StreamPool.cleanup();
+    Logger.log('Claude Protocol cleanup completed');
+  };
+  
+  // ============ LIFECYCLE HOOKS ============
+  window.addEventListener('beforeunload', function() {
+    StreamPool.cleanup();
+  });
+  
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      StreamPool.pool.forEach(function(entry) {
+        if (entry.stream) {
+          entry.stream.getTracks().forEach(function(track) {
+            if (track.enabled) track.enabled = false;
+          });
+        }
+      });
+    }
+  });
+  
+  // ============ HEALTH CHECK ============
+  if (CLAUDE_CONFIG.ANALYTICS.metricsEnabled) {
+    setInterval(function() {
+      const metrics = MetricsCollector.getSummary();
+      Logger.log('Health check:', metrics);
+      
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'claudeHealthCheck',
+          payload: metrics,
+        }));
+      }
+    }, CLAUDE_CONFIG.ANALYTICS.healthInterval);
+  }
+  
+  // ============ INITIALIZATION COMPLETE ============
+  Logger.info('======== CLAUDE PROTOCOL ACTIVE ========');
+  Logger.info('Anti-Detection Level:', CLAUDE_CONFIG.STEALTH.antiDetectionLevel);
+  Logger.info('Behavioral Mimicry:', CLAUDE_CONFIG.BEHAVIORAL.enabled ? 'ENABLED' : 'DISABLED');
+  Logger.info('Neural Fingerprinting:', CLAUDE_CONFIG.AI_CORE.neuralFingerprintEnabled ? 'ENABLED' : 'DISABLED');
+  Logger.info('Temporal Coherence:', CLAUDE_CONFIG.AI_CORE.temporalCoherenceEnabled ? 'ENABLED' : 'DISABLED');
+  Logger.info('Adaptive Quality:', CLAUDE_CONFIG.AI_CORE.adaptiveQuality ? 'ENABLED' : 'DISABLED');
+  Logger.info('Stream Pooling:', CLAUDE_CONFIG.PERFORMANCE.streamPooling ? 'ENABLED' : 'DISABLED');
+  Logger.info('Anomaly Detection:', CLAUDE_CONFIG.ANALYTICS.anomalyDetection ? 'ENABLED' : 'DISABLED');
+  
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'claudeProtocolReady',
+      payload: {
+        version: CLAUDE_CONFIG.VERSION,
+        features: {
+          adaptiveQuality: CLAUDE_CONFIG.AI_CORE.adaptiveQuality,
+          neuralFingerprint: CLAUDE_CONFIG.AI_CORE.neuralFingerprintEnabled,
+          temporalCoherence: CLAUDE_CONFIG.AI_CORE.temporalCoherenceEnabled,
+          behavioralMimicry: CLAUDE_CONFIG.BEHAVIORAL.enabled,
+          antiDetectionLevel: CLAUDE_CONFIG.STEALTH.antiDetectionLevel,
+        },
+      },
+    }));
+  }
+})();
+true;
+`;
+};

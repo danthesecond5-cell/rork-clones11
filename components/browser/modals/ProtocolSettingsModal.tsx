@@ -29,6 +29,11 @@ import {
   AlertTriangle,
   Globe,
   Cpu,
+  Brain,
+  Fingerprint,
+  Activity,
+  Gauge,
+  Sparkles,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
@@ -61,10 +66,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    claudeSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateClaudeSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -447,6 +454,349 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'claude':
+        return (
+          <View style={styles.settingsGroup}>
+            {/* Section: AI Core Features */}
+            <View style={styles.claudeSectionHeader}>
+              <Brain size={14} color="#a855f7" />
+              <Text style={styles.claudeSectionTitle}>AI Core Features</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Adaptive Quality</Text>
+                <Text style={styles.settingHint}>AI optimizes quality based on conditions</Text>
+              </View>
+              <Switch
+                value={claudeSettings.adaptiveQuality}
+                onValueChange={(v) => updateClaudeSettings({ adaptiveQuality: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#a855f7' }}
+                thumbColor={claudeSettings.adaptiveQuality ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Neural Fingerprinting</Text>
+                <Text style={styles.settingHint}>Generate realistic device fingerprints</Text>
+              </View>
+              <Switch
+                value={claudeSettings.neuralFingerprintEnabled}
+                onValueChange={(v) => updateClaudeSettings({ neuralFingerprintEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#a855f7' }}
+                thumbColor={claudeSettings.neuralFingerprintEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Temporal Coherence</Text>
+                <Text style={styles.settingHint}>Ensure natural frame transitions</Text>
+              </View>
+              <Switch
+                value={claudeSettings.temporalCoherenceEnabled}
+                onValueChange={(v) => updateClaudeSettings({ temporalCoherenceEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#a855f7' }}
+                thumbColor={claudeSettings.temporalCoherenceEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Motion Prediction</Text>
+                <Text style={styles.settingHint}>Predict and smooth motion artifacts</Text>
+              </View>
+              <Switch
+                value={claudeSettings.motionPredictionEnabled}
+                onValueChange={(v) => updateClaudeSettings({ motionPredictionEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#a855f7' }}
+                thumbColor={claudeSettings.motionPredictionEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Section: Behavioral Mimicry */}
+            <View style={[styles.claudeSectionHeader, { marginTop: 16 }]}>
+              <Activity size={14} color="#ec4899" />
+              <Text style={styles.claudeSectionTitle}>Behavioral Mimicry</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Behavioral System</Text>
+                <Text style={styles.settingHint}>Simulate human interaction patterns</Text>
+              </View>
+              <Switch
+                value={claudeSettings.behavioralMimicryEnabled}
+                onValueChange={(v) => updateClaudeSettings({ behavioralMimicryEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ec4899' }}
+                thumbColor={claudeSettings.behavioralMimicryEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Micro Movements</Text>
+                <Text style={styles.settingHint}>Add subtle natural movements</Text>
+              </View>
+              <Switch
+                value={claudeSettings.microMovementSimulation}
+                onValueChange={(v) => updateClaudeSettings({ microMovementSimulation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ec4899' }}
+                thumbColor={claudeSettings.microMovementSimulation ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Blink Synthesis</Text>
+                <Text style={styles.settingHint}>Simulate natural blink patterns</Text>
+              </View>
+              <Switch
+                value={claudeSettings.blinkPatternSynthesis}
+                onValueChange={(v) => updateClaudeSettings({ blinkPatternSynthesis: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ec4899' }}
+                thumbColor={claudeSettings.blinkPatternSynthesis ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Breathing Motion</Text>
+                <Text style={styles.settingHint}>Simulate subtle breathing movements</Text>
+              </View>
+              <Switch
+                value={claudeSettings.breathingMotionEnabled}
+                onValueChange={(v) => updateClaudeSettings({ breathingMotionEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ec4899' }}
+                thumbColor={claudeSettings.breathingMotionEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Section: Stealth & Anti-Detection */}
+            <View style={[styles.claudeSectionHeader, { marginTop: 16 }]}>
+              <Fingerprint size={14} color="#f59e0b" />
+              <Text style={styles.claudeSectionTitle}>Stealth & Anti-Detection</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Anti-Detection Level</Text>
+              </View>
+              <View style={styles.claudeLevelButtons}>
+                {(['minimal', 'standard', 'maximum', 'paranoid'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.claudeLevelBtn,
+                      claudeSettings.antiDetectionLevel === level && styles.claudeLevelBtnActive,
+                    ]}
+                    onPress={() => updateClaudeSettings({ antiDetectionLevel: level })}
+                  >
+                    <Text style={[
+                      styles.claudeLevelBtnText,
+                      claudeSettings.antiDetectionLevel === level && styles.claudeLevelBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Dynamic Timing Jitter</Text>
+                <Text style={styles.settingHint}>Randomize API response times</Text>
+              </View>
+              <Switch
+                value={claudeSettings.dynamicTimingJitter}
+                onValueChange={(v) => updateClaudeSettings({ dynamicTimingJitter: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#f59e0b' }}
+                thumbColor={claudeSettings.dynamicTimingJitter ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Canvas Mutation</Text>
+                <Text style={styles.settingHint}>Mutate canvas fingerprints</Text>
+              </View>
+              <Switch
+                value={claudeSettings.canvasFingerprintMutation}
+                onValueChange={(v) => updateClaudeSettings({ canvasFingerprintMutation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#f59e0b' }}
+                thumbColor={claudeSettings.canvasFingerprintMutation ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>WebGL Randomization</Text>
+                <Text style={styles.settingHint}>Randomize WebGL signatures</Text>
+              </View>
+              <Switch
+                value={claudeSettings.webglSignatureRandomization}
+                onValueChange={(v) => updateClaudeSettings({ webglSignatureRandomization: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#f59e0b' }}
+                thumbColor={claudeSettings.webglSignatureRandomization ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Audio Obfuscation</Text>
+                <Text style={styles.settingHint}>Obfuscate audio context fingerprints</Text>
+              </View>
+              <Switch
+                value={claudeSettings.audioContextObfuscation}
+                onValueChange={(v) => updateClaudeSettings({ audioContextObfuscation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#f59e0b' }}
+                thumbColor={claudeSettings.audioContextObfuscation ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Section: Context-Aware Injection */}
+            <View style={[styles.claudeSectionHeader, { marginTop: 16 }]}>
+              <Sparkles size={14} color="#06b6d4" />
+              <Text style={styles.claudeSectionTitle}>Context-Aware Injection</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Context-Aware System</Text>
+                <Text style={styles.settingHint}>Adapt injection to page context</Text>
+              </View>
+              <Switch
+                value={claudeSettings.contextAwareEnabled}
+                onValueChange={(v) => updateClaudeSettings({ contextAwareEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#06b6d4' }}
+                thumbColor={claudeSettings.contextAwareEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Auto Orientation</Text>
+                <Text style={styles.settingHint}>Match device orientation automatically</Text>
+              </View>
+              <Switch
+                value={claudeSettings.automaticOrientationMatching}
+                onValueChange={(v) => updateClaudeSettings({ automaticOrientationMatching: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#06b6d4' }}
+                thumbColor={claudeSettings.automaticOrientationMatching ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Lighting Adaptation</Text>
+                <Text style={styles.settingHint}>Adapt to lighting conditions</Text>
+              </View>
+              <Switch
+                value={claudeSettings.lightingConditionAdaptation}
+                onValueChange={(v) => updateClaudeSettings({ lightingConditionAdaptation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#06b6d4' }}
+                thumbColor={claudeSettings.lightingConditionAdaptation ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Section: Performance */}
+            <View style={[styles.claudeSectionHeader, { marginTop: 16 }]}>
+              <Gauge size={14} color="#22c55e" />
+              <Text style={styles.claudeSectionTitle}>Performance</Text>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>GPU Acceleration</Text>
+                <Text style={styles.settingHint}>Use GPU for video processing</Text>
+              </View>
+              <Switch
+                value={claudeSettings.gpuAccelerationEnabled}
+                onValueChange={(v) => updateClaudeSettings({ gpuAccelerationEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#22c55e' }}
+                thumbColor={claudeSettings.gpuAccelerationEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Predictive Prefetching</Text>
+                <Text style={styles.settingHint}>Prefetch video frames intelligently</Text>
+              </View>
+              <Switch
+                value={claudeSettings.predictivePrefetching}
+                onValueChange={(v) => updateClaudeSettings({ predictivePrefetching: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#22c55e' }}
+                thumbColor={claudeSettings.predictivePrefetching ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Stream Pooling</Text>
+                <Text style={styles.settingHint}>Reuse streams for efficiency</Text>
+              </View>
+              <Switch
+                value={claudeSettings.streamPoolingEnabled}
+                onValueChange={(v) => updateClaudeSettings({ streamPoolingEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#22c55e' }}
+                thumbColor={claudeSettings.streamPoolingEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Memory Optimization</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.sensitivityBtn,
+                      claudeSettings.memoryOptimizationLevel === level && styles.claudeMemoryBtnActive,
+                    ]}
+                    onPress={() => updateClaudeSettings({ memoryOptimizationLevel: level })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      claudeSettings.memoryOptimizationLevel === level && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Intelligent Fallback</Text>
+                <Text style={styles.settingHint}>Graceful degradation chain</Text>
+              </View>
+              <Switch
+                value={claudeSettings.intelligentFallbackEnabled}
+                onValueChange={(v) => updateClaudeSettings({ intelligentFallbackEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#22c55e' }}
+                thumbColor={claudeSettings.intelligentFallbackEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Claude Protocol Badge */}
+            <View style={styles.claudeBadge}>
+              <Brain size={16} color="#a855f7" />
+              <View style={styles.claudeBadgeContent}>
+                <Text style={styles.claudeBadgeTitle}>Claude Protocol Active</Text>
+                <Text style={styles.claudeBadgeText}>
+                  Most advanced AI-driven injection system
+                </Text>
+              </View>
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +807,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    claude: <Brain size={18} color="#a855f7" />,
   };
 
   return (
@@ -1075,5 +1426,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#00aaff',
+  },
+  // Claude Protocol specific styles
+  claudeSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(168, 85, 247, 0.2)',
+  },
+  claudeSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#a855f7',
+    letterSpacing: 0.3,
+  },
+  claudeLevelButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  claudeLevelBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  claudeLevelBtnActive: {
+    backgroundColor: '#f59e0b',
+  },
+  claudeLevelBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  claudeLevelBtnTextActive: {
+    color: '#ffffff',
+  },
+  claudeMemoryBtnActive: {
+    backgroundColor: '#22c55e',
+  },
+  claudeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+  },
+  claudeBadgeContent: {
+    flex: 1,
+  },
+  claudeBadgeTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#a855f7',
+  },
+  claudeBadgeText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
   },
 });
