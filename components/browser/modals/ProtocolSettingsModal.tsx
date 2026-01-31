@@ -61,10 +61,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    gpt52Settings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateGpt52Settings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -107,7 +109,7 @@ export default function ProtocolSettingsModal({
         'This will lock all protocol settings and the allowlist. Continue?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Disable', style: 'destructive', onPress: toggleDeveloperMode },
+          { text: 'Disable', style: 'destructive', onPress: () => toggleDeveloperMode() },
         ]
       );
     } else {
@@ -186,6 +188,18 @@ export default function ProtocolSettingsModal({
                 onValueChange={(v) => updateStandardSettings({ stealthByDefault: v })}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
                 thumbColor={standardSettings.stealthByDefault ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Respect Site Settings</Text>
+                <Text style={styles.settingHint}>Use per-site stealth preferences</Text>
+              </View>
+              <Switch
+                value={standardSettings.respectSiteSettings}
+                onValueChange={(v) => updateStandardSettings({ respectSiteSettings: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={standardSettings.respectSiteSettings ? '#ffffff' : '#888'}
               />
             </View>
             <View style={styles.settingRow}>
@@ -447,6 +461,108 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'gpt52':
+        return (
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Ultra Stealth</Text>
+                <Text style={styles.settingHint}>Forces maximum stealth + anti-detection behavior</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.ultraStealth}
+                onValueChange={(v) => updateGpt52Settings({ ultraStealth: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={gpt52Settings.ultraStealth ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Force Simulation</Text>
+                <Text style={styles.settingHint}>Always simulate media (even without per-device videos)</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.forceSimulation}
+                onValueChange={(v) => updateGpt52Settings({ forceSimulation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={gpt52Settings.forceSimulation ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Auto Inject</Text>
+                <Text style={styles.settingHint}>Inject automatically on page load</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.autoInject}
+                onValueChange={(v) => updateGpt52Settings({ autoInject: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={gpt52Settings.autoInject ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Respect Site Settings</Text>
+                <Text style={styles.settingHint}>Use per-site stealth defaults when available</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.respectSiteSettings}
+                onValueChange={(v) => updateGpt52Settings({ respectSiteSettings: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={gpt52Settings.respectSiteSettings ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Inject Motion Data</Text>
+                <Text style={styles.settingHint}>Enable accelerometer/gyroscope injection</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.injectMotionData}
+                onValueChange={(v) => updateGpt52Settings({ injectMotionData: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={gpt52Settings.injectMotionData ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Loop Video</Text>
+                <Text style={styles.settingHint}>Loop injected video when it ends</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.loopVideo}
+                onValueChange={(v) => updateGpt52Settings({ loopVideo: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={gpt52Settings.loopVideo ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Mirror Video</Text>
+                <Text style={styles.settingHint}>Flip injected video horizontally</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.mirrorVideo}
+                onValueChange={(v) => updateGpt52Settings({ mirrorVideo: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={gpt52Settings.mirrorVideo ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Overlay Label</Text>
+                <Text style={styles.settingHint}>Display in-page badge text for this protocol</Text>
+              </View>
+              <Switch
+                value={gpt52Settings.showOverlayLabel}
+                onValueChange={(v) => updateGpt52Settings({ showOverlayLabel: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ffcc00' }}
+                thumbColor={gpt52Settings.showOverlayLabel ? '#ffffff' : '#888'}
+              />
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +573,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    gpt52: <Cpu size={18} color="#ffcc00" />,
   };
 
   return (

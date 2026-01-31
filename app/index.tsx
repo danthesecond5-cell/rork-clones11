@@ -21,7 +21,6 @@ import { router } from 'expo-router';
 import { useAccelerometer, useGyroscope, useOrientation, AccelerometerData, GyroscopeData, OrientationData } from '@/hooks/useMotionSensors';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import type { SavedVideo } from '@/utils/videoManager';
 import { PATTERN_PRESETS } from '@/constants/motionPatterns';
@@ -92,11 +91,6 @@ export default function MotionBrowserScreen() {
     setPendingVideoForApply,
   } = useVideoLibrary();
 
-  const { developerMode, isAllowlistEditable } = useDeveloperMode();
-
-  
-
-  
   // Protocol Context for allowlist and presentation mode
   const {
     developerModeEnabled,
@@ -108,6 +102,7 @@ export default function MotionBrowserScreen() {
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    gpt52Settings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
@@ -239,21 +234,33 @@ export default function MotionBrowserScreen() {
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
 
+  const activeInjectMotionData = useMemo(() => {
+    return activeProtocol === 'gpt52' ? gpt52Settings.injectMotionData : standardSettings.injectMotionData;
+  }, [activeProtocol, gpt52Settings.injectMotionData, standardSettings.injectMotionData]);
+
+  const activeLoopVideo = useMemo(() => {
+    return activeProtocol === 'gpt52' ? gpt52Settings.loopVideo : standardSettings.loopVideo;
+  }, [activeProtocol, gpt52Settings.loopVideo, standardSettings.loopVideo]);
+
+  const activeRespectSiteSettings = useMemo(() => {
+    return activeProtocol === 'gpt52' ? gpt52Settings.respectSiteSettings : standardSettings.respectSiteSettings;
+  }, [activeProtocol, gpt52Settings.respectSiteSettings, standardSettings.respectSiteSettings]);
+
   const effectiveStealthMode = useMemo(() => {
-    if (activeProtocol === 'protected' || activeProtocol === 'harness') {
+    if (activeProtocol === 'protected' || activeProtocol === 'harness' || activeProtocol === 'gpt52') {
       return true;
     }
     if (!standardSettings.stealthByDefault) {
       return false;
     }
-    if (!standardSettings.respectSiteSettings) {
+    if (!activeRespectSiteSettings) {
       return true;
     }
     return shouldUseStealthForUrl(url);
   }, [
     activeProtocol,
     standardSettings.stealthByDefault,
-    standardSettings.respectSiteSettings,
+    activeRespectSiteSettings,
     shouldUseStealthForUrl,
     url,
   ]);
@@ -261,9 +268,13 @@ export default function MotionBrowserScreen() {
   const protocolForceSimulation = isProtocolEnabled && (
     activeProtocol === 'protected'
     || (activeProtocol === 'harness' && harnessSettings.overlayEnabled)
+    || (activeProtocol === 'gpt52' && gpt52Settings.forceSimulation)
   );
 
-  const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const protocolMirrorVideo = isProtocolEnabled && (
+    (activeProtocol === 'harness' && harnessSettings.mirrorVideo) ||
+    (activeProtocol === 'gpt52' && gpt52Settings.mirrorVideo)
+  );
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -278,8 +289,18 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'allowlist' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
+    if (activeProtocol === 'gpt52') {
+      return gpt52Settings.ultraStealth ? 'GPT-5.2 Ultra Stealth' : 'GPT-5.2 Advanced';
+    }
     return '';
-  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
+  }, [
+    activeProtocol,
+    harnessSettings.overlayEnabled,
+    allowlistEnabled,
+    allowlistBlocked,
+    isProtocolEnabled,
+    gpt52Settings.ultraStealth,
+  ]);
 
   const showProtocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -291,6 +312,9 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'harness') {
       return harnessSettings.showDebugInfo || harnessSettings.overlayEnabled;
     }
+    if (activeProtocol === 'gpt52') {
+      return gpt52Settings.showOverlayLabel;
+    }
     return false;
   }, [
     activeProtocol,
@@ -298,12 +322,13 @@ export default function MotionBrowserScreen() {
     harnessSettings.showDebugInfo,
     harnessSettings.overlayEnabled,
     isProtocolEnabled,
+    gpt52Settings.showOverlayLabel,
   ]);
 
   const autoInjectEnabled = isProtocolEnabled && (
     (activeProtocol === 'standard' || activeProtocol === 'allowlist')
       ? standardSettings.autoInject
-      : true
+      : (activeProtocol === 'gpt52' ? gpt52Settings.autoInject : true)
   );
 
   const simulatingDevicesCount = useMemo(() =>
@@ -312,7 +337,7 @@ export default function MotionBrowserScreen() {
   );
 
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
-    if (!standardSettings.injectMotionData) return;
+    if (!activeInjectMotionData) return;
     if (!webViewRef.current) return;
     
     const message = JSON.stringify({
@@ -331,7 +356,7 @@ export default function MotionBrowserScreen() {
       window.__updateMotionData && window.__updateMotionData(${message}.payload);
       true;
     `);
-  }, [standardSettings.injectMotionData]);
+  }, [activeInjectMotionData]);
 
   const injectMediaConfigImmediate = useCallback(() => {
     if (!webViewRef.current || !activeTemplate || !isMountedRef.current) {
@@ -373,7 +398,7 @@ export default function MotionBrowserScreen() {
       protocolId: activeProtocol,
       overlayLabelText: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
+      loopVideo: activeLoopVideo,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
     };
@@ -395,7 +420,7 @@ export default function MotionBrowserScreen() {
       protocolId: activeProtocol,
       protocolLabel: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
+      loopVideo: activeLoopVideo,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
     });
@@ -424,7 +449,7 @@ export default function MotionBrowserScreen() {
     isProtocolEnabled,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
-    standardSettings.loopVideo,
+    activeLoopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
   ]);
@@ -492,7 +517,7 @@ export default function MotionBrowserScreen() {
   }, []);
 
   useEffect(() => {
-    if (!standardSettings.injectMotionData) return;
+    if (!activeInjectMotionData) return;
     if (!simulationActive) return;
 
     const preset = PATTERN_PRESETS[simConfig.pattern];
@@ -530,7 +555,7 @@ export default function MotionBrowserScreen() {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationActive, simConfig, injectMotionData, standardSettings.injectMotionData]);
+  }, [simulationActive, simConfig, injectMotionData, activeInjectMotionData]);
 
   useEffect(() => {
     if (!allowlistModeActive) {
@@ -543,11 +568,11 @@ export default function MotionBrowserScreen() {
   }, [allowlistModeActive, allowlistSettings.enabled, allowlistSettings.domains]);
 
   useEffect(() => {
-    if (!standardSettings.injectMotionData) return;
+    if (!activeInjectMotionData) return;
     if (useRealSensors && !simulationActive) {
       injectMotionData(realAccelData, realGyroData, realOrientData, true);
     }
-  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, standardSettings.injectMotionData]);
+  }, [useRealSensors, simulationActive, realAccelData, realGyroData, realOrientData, injectMotionData, activeInjectMotionData]);
 
   const toggleToolbar = useCallback(() => {
     setToolbarExpanded(prev => !prev);
@@ -730,7 +755,7 @@ export default function MotionBrowserScreen() {
       protocolId: activeProtocol,
       protocolLabel: protocolOverlayLabel,
       showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
+      loopVideo: activeLoopVideo,
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
     };
@@ -758,15 +783,15 @@ export default function MotionBrowserScreen() {
     activeProtocol,
     protocolOverlayLabel,
     showProtocolOverlayLabel,
-    standardSettings.loopVideo,
+    activeLoopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
     isProtocolEnabled,
   ]);
 
   const getAfterLoadScript = useCallback(() => {
-    return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
-  }, [standardSettings.injectMotionData]);
+    return activeInjectMotionData ? MOTION_INJECTION_SCRIPT : '';
+  }, [activeInjectMotionData]);
 
   const toggleSafariMode = useCallback(() => {
     setSafariModeEnabled(prev => !prev);
@@ -824,7 +849,7 @@ export default function MotionBrowserScreen() {
       
       {/* Testing Watermark */}
       <TestingWatermark 
-        visible={developerMode.showWatermark}
+        visible={showTestingWatermark}
         position="top-right"
         variant="minimal"
         showPulse={true}
