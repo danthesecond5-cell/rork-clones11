@@ -29,9 +29,10 @@ import {
   AlertTriangle,
   Globe,
   Cpu,
+  Sparkles,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
+import { useProtocol, ProtocolType, SonnetProtocolSettings } from '@/contexts/ProtocolContext';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -61,10 +62,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    sonnetSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateSonnetSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -447,6 +450,165 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'sonnet':
+        return (
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>AI Adaptive Quality</Text>
+                <Text style={styles.settingHint}>Neural network quality optimization</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.aiAdaptiveQuality}
+                onValueChange={(v) => updateSonnetSettings({ aiAdaptiveQuality: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.aiAdaptiveQuality ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Behavioral Mimicry</Text>
+                <Text style={styles.settingHint}>Simulate natural camera usage patterns</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.behavioralMimicry}
+                onValueChange={(v) => updateSonnetSettings({ behavioralMimicry: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={sonnetSettings.behavioralMimicry ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Predictive Frame Optimization</Text>
+                <Text style={styles.settingHint}>AI-powered frame prediction</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.predictiveFrameOptimization}
+                onValueChange={(v) => updateSonnetSettings({ predictiveFrameOptimization: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={sonnetSettings.predictiveFrameOptimization ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Quantum Timing Randomness</Text>
+                <Text style={styles.settingHint}>True randomness for timing patterns</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.quantumTimingRandomness}
+                onValueChange={(v) => updateSonnetSettings({ quantumTimingRandomness: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={sonnetSettings.quantumTimingRandomness ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Biometric Simulation</Text>
+                <Text style={styles.settingHint}>Eye movement, blink patterns</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.biometricSimulation}
+                onValueChange={(v) => updateSonnetSettings({ biometricSimulation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.biometricSimulation ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Adaptive Stealth</Text>
+                <Text style={styles.settingHint}>Respond to detection attempts</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.adaptiveStealth}
+                onValueChange={(v) => updateSonnetSettings({ adaptiveStealth: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff4757' }}
+                thumbColor={sonnetSettings.adaptiveStealth ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Real-Time Profiler</Text>
+                <Text style={styles.settingHint}>Performance analysis engine</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.realTimeProfiler}
+                onValueChange={(v) => updateSonnetSettings({ realTimeProfiler: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={sonnetSettings.realTimeProfiler ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Learning Mode</Text>
+                <Text style={styles.settingHint}>Adapt from usage patterns</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.learningMode}
+                onValueChange={(v) => updateSonnetSettings({ learningMode: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ffcc00' }}
+                thumbColor={sonnetSettings.learningMode ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Performance Target</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['quality', 'balanced', 'performance'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.sensitivityBtn,
+                      sonnetSettings.performanceTarget === level && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateSonnetSettings({ performanceTarget: level })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      sonnetSettings.performanceTarget === level && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Stealth Intensity</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['minimal', 'moderate', 'maximum'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.sensitivityBtn,
+                      sonnetSettings.stealthIntensity === level && styles.sensitivityBtnActive,
+                    ]}
+                    onPress={() => updateSonnetSettings({ stealthIntensity: level })}
+                  >
+                    <Text style={[
+                      styles.sensitivityBtnText,
+                      sonnetSettings.stealthIntensity === level && styles.sensitivityBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +619,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    sonnet: <Sparkles size={18} color="#ffcc00" />,
   };
 
   return (

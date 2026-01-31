@@ -2772,3 +2772,6 @@ export const VIDEO_SIMULATION_TEST_SCRIPT = `
 })();
 true;
 `;
+
+// Export Sonnet Protocol
+export { createSonnetProtocolScript } from './sonnetProtocol';
