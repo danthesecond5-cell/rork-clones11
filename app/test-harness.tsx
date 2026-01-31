@@ -17,6 +17,7 @@ import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import { formatVideoUriForWebView, isLocalFileUri } from '@/utils/videoServing';
 import TestingWatermark from '@/components/TestingWatermark';
+import { BULLETPROOF_INJECTION_SCRIPT } from '@/constants/browserScripts';
 
 const TEST_HARNESS_HTML = `
 <!DOCTYPE html>
@@ -24,8 +25,9 @@ const TEST_HARNESS_HTML = `
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Camera Test Harness</title>
+    <title>Protocol 4: Local Test Harness</title>
     <style>
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         background: #0a0a0a;
@@ -35,82 +37,322 @@ const TEST_HARNESS_HTML = `
       .container {
         padding: 12px;
       }
-      .status {
-        font-size: 12px;
+      .status-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        background: rgba(0, 255, 136, 0.1);
+        border-radius: 10px;
+        margin-bottom: 12px;
+        border: 1px solid rgba(0, 255, 136, 0.3);
+      }
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00ff88;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      .status-text {
+        font-size: 13px;
+        font-weight: 600;
+        color: #00ff88;
+        margin-left: 10px;
+        flex: 1;
+      }
+      .status-info {
+        font-size: 11px;
         color: rgba(255, 255, 255, 0.6);
-        margin-bottom: 10px;
       }
       .frame {
         position: relative;
-        border-radius: 12px;
+        border-radius: 16px;
         overflow: hidden;
         background: #111111;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        height: 360px;
+        border: 2px solid rgba(0, 255, 136, 0.3);
+        aspect-ratio: 9/16;
+        max-height: 450px;
       }
-      video {
+      #camera {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        background: #000;
       }
       #overlay {
         position: absolute;
         inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
         display: none;
-        background: #000000;
+        z-index: 10;
       }
       .label {
         position: absolute;
-        bottom: 10px;
-        left: 10px;
-        right: 10px;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
         text-align: center;
-        background: rgba(0, 0, 0, 0.6);
-        padding: 6px 10px;
-        border-radius: 8px;
-        font-size: 12px;
+        background: rgba(0, 0, 0, 0.75);
+        padding: 10px 14px;
+        border-radius: 10px;
+        z-index: 20;
+      }
+      .label-title {
+        font-size: 14px;
+        font-weight: 700;
         color: #00ff88;
+        margin-bottom: 4px;
+      }
+      .label-info {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      .corner-marker {
+        position: absolute;
+        width: 30px;
+        height: 30px;
+        border: 3px solid #00ff88;
+        z-index: 15;
+      }
+      .corner-marker.tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+      .corner-marker.tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+      .corner-marker.bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+      .corner-marker.br { bottom: 0; right: 0; border-left: none; border-top: none; }
+      .scan-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(0, 255, 136, 0.5);
+        z-index: 12;
+        animation: scan 2s linear infinite;
+      }
+      @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+      }
+      .fps-counter {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: monospace;
+        color: #00ff88;
+        z-index: 20;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="status" id="status">Requesting camera access...</div>
+      <div class="status-bar">
+        <div class="status-indicator"></div>
+        <div class="status-text" id="status">Initializing...</div>
+        <div class="status-info" id="info">Protocol 4</div>
+      </div>
       <div class="frame">
         <video id="camera" autoplay playsinline muted></video>
         <video id="overlay" autoplay playsinline muted loop></video>
-        <div class="label" id="label">Local Test Harness</div>
+        <div class="corner-marker tl"></div>
+        <div class="corner-marker tr"></div>
+        <div class="corner-marker bl"></div>
+        <div class="corner-marker br"></div>
+        <div class="scan-line" id="scanLine"></div>
+        <div class="fps-counter" id="fps">-- fps</div>
+        <div class="label">
+          <div class="label-title" id="labelTitle">Local Test Harness</div>
+          <div class="label-info" id="labelInfo">Camera feed active</div>
+        </div>
       </div>
     </div>
     <script>
       const statusEl = document.getElementById('status');
+      const infoEl = document.getElementById('info');
       const cameraVideo = document.getElementById('camera');
       const overlayVideo = document.getElementById('overlay');
+      const labelTitle = document.getElementById('labelTitle');
+      const labelInfo = document.getElementById('labelInfo');
+      const fpsEl = document.getElementById('fps');
+      const scanLine = document.getElementById('scanLine');
+      
+      let overlayEnabled = false;
+      let lastFrameTime = performance.now();
+      let frameCount = 0;
+      let currentFps = 0;
 
+      // FPS Counter
+      function updateFps() {
+        frameCount++;
+        const now = performance.now();
+        const elapsed = now - lastFrameTime;
+        if (elapsed >= 1000) {
+          currentFps = Math.round((frameCount * 1000) / elapsed);
+          fpsEl.textContent = currentFps + ' fps';
+          frameCount = 0;
+          lastFrameTime = now;
+        }
+        requestAnimationFrame(updateFps);
+      }
+      updateFps();
+
+      // Camera initialization with bulletproof fallback
       async function startCamera() {
+        statusEl.textContent = 'Requesting camera...';
+        
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          // This will be intercepted by the bulletproof injection
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: {
+              width: { ideal: 1080 },
+              height: { ideal: 1920 },
+              facingMode: 'user'
+            }, 
+            audio: false 
+          });
+          
           cameraVideo.srcObject = stream;
-          statusEl.textContent = 'Camera stream active.';
+          
+          const track = stream.getVideoTracks()[0];
+          const settings = track.getSettings();
+          
+          statusEl.textContent = 'Camera stream active';
+          infoEl.textContent = settings.width + 'x' + settings.height;
+          labelInfo.textContent = track.label || 'Camera feed active';
+          
+          console.log('[Harness] Camera active:', settings);
+          
+          // Notify RN that we're ready
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'harnessReady',
+              stream: {
+                width: settings.width,
+                height: settings.height,
+                fps: settings.frameRate,
+                label: track.label
+              }
+            }));
+          }
+          
         } catch (error) {
-          statusEl.textContent = 'Camera unavailable. Check permissions.';
+          console.error('[Harness] Camera error:', error);
+          statusEl.textContent = 'Camera unavailable';
+          infoEl.textContent = error.message || 'Check permissions';
+          labelInfo.textContent = 'Error: ' + (error.message || 'Unknown');
+          
+          // Try fallback pattern
+          createFallbackPattern();
         }
       }
 
+      // Fallback animated pattern
+      function createFallbackPattern() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1080;
+        canvas.height = 1920;
+        const ctx = canvas.getContext('2d');
+        let frame = 0;
+        const start = Date.now();
+        
+        function render() {
+          const t = (Date.now() - start) / 1000;
+          const hue = (t * 50) % 360;
+          
+          // Gradient background
+          const grad = ctx.createLinearGradient(0, 0, 0, 1920);
+          grad.addColorStop(0, 'hsl(' + hue + ', 50%, 20%)');
+          grad.addColorStop(1, 'hsl(' + ((hue + 180) % 360) + ', 50%, 20%)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, 1080, 1920);
+          
+          // Moving circles
+          for (let i = 0; i < 5; i++) {
+            const x = 540 + Math.sin(t + i) * 200;
+            const y = 400 + i * 250 + Math.cos(t * 0.8 + i) * 50;
+            ctx.beginPath();
+            ctx.arc(x, y, 40 + i * 10, 0, Math.PI * 2);
+            ctx.fillStyle = 'hsla(' + ((hue + i * 60) % 360) + ', 60%, 50%, 0.8)';
+            ctx.fill();
+          }
+          
+          // Info text
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(20, 1700, 400, 100);
+          ctx.fillStyle = '#00ff88';
+          ctx.font = 'bold 24px sans-serif';
+          ctx.fillText('FALLBACK PATTERN', 40, 1740);
+          ctx.fillStyle = '#fff';
+          ctx.font = '18px monospace';
+          ctx.fillText('Frame: ' + frame, 40, 1775);
+          
+          frame++;
+          requestAnimationFrame(render);
+        }
+        
+        render();
+        
+        try {
+          const stream = canvas.captureStream(30);
+          cameraVideo.srcObject = stream;
+          statusEl.textContent = 'Fallback pattern active';
+          labelInfo.textContent = 'Using generated pattern';
+        } catch (e) {
+          console.error('[Harness] Fallback failed:', e);
+        }
+      }
+
+      // Overlay control functions
       window.__setOverlayVideo = (url) => {
-        if (!url) return;
+        console.log('[Harness] Setting overlay video:', url);
+        if (!url) {
+          overlayVideo.src = '';
+          return;
+        }
+        
         overlayVideo.src = url;
-        overlayVideo.play().catch(() => {});
+        overlayVideo.play().catch(e => {
+          console.warn('[Harness] Overlay play failed:', e);
+        });
       };
 
       window.__toggleOverlay = (enabled) => {
+        console.log('[Harness] Toggle overlay:', enabled);
+        overlayEnabled = enabled;
         overlayVideo.style.display = enabled ? 'block' : 'none';
-        statusEl.textContent = enabled
-          ? 'Overlay replacement active.'
-          : 'Overlay replacement disabled.';
+        scanLine.style.display = enabled ? 'block' : 'none';
+        
+        if (enabled) {
+          statusEl.textContent = 'Overlay replacement active';
+          labelTitle.textContent = 'Video Overlay Active';
+          labelInfo.textContent = 'Replacement video playing';
+        } else {
+          statusEl.textContent = 'Camera stream active';
+          labelTitle.textContent = 'Local Test Harness';
+          labelInfo.textContent = 'Camera feed active';
+        }
       };
 
+      window.__getHarnessStatus = () => {
+        return {
+          overlayEnabled,
+          currentFps,
+          hasCamera: !!cameraVideo.srcObject,
+          hasOverlay: !!overlayVideo.src
+        };
+      };
+
+      // Start
       startCamera();
+      console.log('[Harness] Protocol 4: Test Harness initialized');
     </script>
   </body>
 </html>
@@ -126,8 +368,6 @@ export default function TestHarnessScreen() {
     harnessSettings,
     updateHarnessSettings,
     developerModeEnabled,
-    presentationMode,
-    mlSafetyEnabled,
     protocols,
   } = useProtocol();
 
@@ -152,7 +392,6 @@ export default function TestHarnessScreen() {
   }, [savedVideos, isVideoReady]);
 
   const webViewOriginWhitelist = useMemo(() => ['about:blank'], []);
-  const allowLocalFileAccess = Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   useEffect(() => {
     if (!selectedVideoId && compatibleVideos.length > 0) {
@@ -161,6 +400,8 @@ export default function TestHarnessScreen() {
   }, [selectedVideoId, compatibleVideos]);
 
   const selectedVideo = compatibleVideos.find(video => video.id === selectedVideoId) || null;
+  const allowLocalFileAccess =
+    Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   const applyOverlaySettings = useCallback(() => {
     if (!webViewRef.current) return;
@@ -227,16 +468,15 @@ export default function TestHarnessScreen() {
             </View>
           )}
         </View>
-        {presentationMode && (
+        
+        {developerModeEnabled && (
           <View style={styles.protocolBadge}>
             <FlaskConical size={14} color="#ffcc00" />
-            <Text style={styles.protocolBadgeText}>Protocol 4: Local Test Harness</Text>
-            {mlSafetyEnabled && (
-              <View style={styles.mlBadge}>
-                <Shield size={10} color="#00aaff" />
-                <Text style={styles.mlBadgeText}>ML SAFE</Text>
-              </View>
-            )}
+            <Text style={styles.protocolBadgeText}>Developer Mode Active</Text>
+            <View style={styles.mlBadge}>
+              <Shield size={10} color="#00aaff" />
+              <Text style={styles.mlBadgeText}>ML SAFE</Text>
+            </View>
           </View>
         )}
 
@@ -259,7 +499,6 @@ export default function TestHarnessScreen() {
               onValueChange={setOverlayEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={overlayEnabled ? '#ffffff' : '#888888'}
-              disabled={!developerModeEnabled}
             />
           </View>
 
@@ -267,20 +506,9 @@ export default function TestHarnessScreen() {
             <Text style={styles.toggleLabel}>Show Debug Info</Text>
             <Switch
               value={harnessSettings.showDebugInfo}
-              onValueChange={(v) => updateHarnessSettings({ showDebugInfo: v })}
+              onValueChange={(v) => developerModeEnabled && updateHarnessSettings({ showDebugInfo: v })}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
               thumbColor={harnessSettings.showDebugInfo ? '#ffffff' : '#888888'}
-              disabled={!developerModeEnabled}
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Mirror Video</Text>
-            <Switch
-              value={harnessSettings.mirrorVideo}
-              onValueChange={(v) => updateHarnessSettings({ mirrorVideo: v })}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
-              thumbColor={harnessSettings.mirrorVideo ? '#ffffff' : '#888888'}
               disabled={!developerModeEnabled}
             />
           </View>
@@ -335,7 +563,20 @@ export default function TestHarnessScreen() {
               originWhitelist={webViewOriginWhitelist}
               source={{ html: TEST_HARNESS_HTML }}
               style={styles.webView}
+              injectedJavaScriptBeforeContentLoaded={BULLETPROOF_INJECTION_SCRIPT}
               onLoadEnd={applyOverlaySettings}
+              onMessage={(event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  if (data.type === 'harnessReady') {
+                    console.log('[TestHarness] WebView ready:', data.stream);
+                  } else if (data.type === 'bulletproofReady') {
+                    console.log('[TestHarness] Bulletproof injection active');
+                  }
+                } catch {
+                  console.log('[TestHarness] Message:', event.nativeEvent.data);
+                }
+              }}
               javaScriptEnabled
               domStorageEnabled
               allowsInlineMediaPlayback
@@ -367,7 +608,9 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={harnessSettings.enableAudioPassthrough}
-              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ enableAudioPassthrough: val })}
+              onValueChange={(val) =>
+                developerModeEnabled && updateHarnessSettings({ enableAudioPassthrough: val })
+              }
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={harnessSettings.enableAudioPassthrough ? '#ffffff' : '#888888'}
@@ -381,7 +624,9 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={harnessSettings.testPatternOnNoVideo}
-              onValueChange={(val) => developerModeEnabled && updateHarnessSettings({ testPatternOnNoVideo: val })}
+              onValueChange={(val) =>
+                developerModeEnabled && updateHarnessSettings({ testPatternOnNoVideo: val })
+              }
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={harnessSettings.testPatternOnNoVideo ? '#ffffff' : '#888888'}
@@ -448,14 +693,14 @@ const styles = StyleSheet.create({
   },
   protocolBannerTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
   },
   protocolBannerStatus: {
     fontSize: 10,
     color: '#00ff88',
     marginTop: 2,
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
   benchmarkIndicator: {
     flexDirection: 'row',
@@ -469,7 +714,7 @@ const styles = StyleSheet.create({
   benchmarkText: {
     fontSize: 10,
     color: '#00ff88',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   infoCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -487,7 +732,7 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#ffffff',
   },
   infoText: {
@@ -512,13 +757,13 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 13,
     color: '#ffffff',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   lockedHint: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.4)',
     marginTop: 8,
-    textAlign: 'center' as const,
+    textAlign: 'center',
   },
   protocolBadge: {
     flexDirection: 'row',
@@ -534,7 +779,7 @@ const styles = StyleSheet.create({
   protocolBadgeText: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffcc00',
   },
   mlBadge: {
@@ -548,12 +793,12 @@ const styles = StyleSheet.create({
   },
   mlBadgeText: {
     fontSize: 9,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#00aaff',
   },
   selectorTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
     marginBottom: 8,
   },
@@ -618,7 +863,7 @@ const styles = StyleSheet.create({
   },
   settingsTitle: {
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#ffffff',
     flex: 1,
   },
@@ -634,7 +879,7 @@ const styles = StyleSheet.create({
   settingsLockedText: {
     fontSize: 10,
     color: '#ff6b35',
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
   settingRow: {
     flexDirection: 'row',
@@ -650,7 +895,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 13,
-    fontWeight: '500' as const,
+    fontWeight: '500',
     color: '#ffffff',
   },
   settingHint: {
