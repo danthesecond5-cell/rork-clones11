@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import {
   DeveloperModeSettings,
   DEFAULT_DEVELOPER_MODE,
+  DEFAULT_PROTOCOL_SETTINGS,
 } from '@/types/protocols';
 
 const DEVELOPER_MODE_KEY = '@developer_mode_settings';
@@ -42,6 +43,7 @@ interface DeveloperModeContextValue {
 
 export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<DeveloperModeContextValue>(() => {
   const [developerMode, setDeveloperMode] = useState<DeveloperModeSettings>(DEFAULT_DEVELOPER_MODE);
+  const [, setProtocolSettings] = useState(DEFAULT_PROTOCOL_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load settings on mount

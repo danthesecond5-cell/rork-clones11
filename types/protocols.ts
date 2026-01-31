@@ -114,22 +114,22 @@ export interface HolographicSettings {
 
 // Protocol 3: Protected Preview Settings
 export interface ProtectedPreviewSettings {
-  enabled: boolean;
-  bodyDetectionSensitivity: 'low' | 'medium' | 'high';
-  swapDelayMs: number;
-  showOverlayLabel: boolean;
-  fallbackToPlaceholder: boolean;
-  autoStartCamera: boolean;
+  bodyDetectionEnabled: boolean;
+  sensitivityLevel: 'low' | 'medium' | 'high';
+  replacementVideoId: string | null;
+  showProtectedBadge: boolean;
+  autoTriggerOnFace: boolean;
+  blurFallback: boolean;
 }
 
 // Protocol 4: Test Harness Settings
 export interface TestHarnessSettings {
-  enabled: boolean;
-  autoRequestCamera: boolean;
-  showDebugOverlay: boolean;
-  enableConsoleLogging: boolean;
-  simulateLowBandwidth: boolean;
-  recordTestResults: boolean;
+  overlayEnabled: boolean;
+  showDebugInfo: boolean;
+  captureFrameRate: number;
+  enableAudioPassthrough: boolean;
+  mirrorVideo: boolean;
+  testPatternOnNoVideo: boolean;
 }
 
 // Combined Protocol Settings
@@ -238,21 +238,21 @@ export const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicSettings = {
 };
 
 export const DEFAULT_PROTECTED_SETTINGS: ProtectedPreviewSettings = {
-  enabled: true,
-  bodyDetectionSensitivity: 'medium',
-  swapDelayMs: 150,
-  showOverlayLabel: true,
-  fallbackToPlaceholder: true,
-  autoStartCamera: true,
+  bodyDetectionEnabled: true,
+  sensitivityLevel: 'medium',
+  replacementVideoId: null,
+  showProtectedBadge: true,
+  autoTriggerOnFace: true,
+  blurFallback: true,
 };
 
 export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
-  enabled: true,
-  autoRequestCamera: true,
-  showDebugOverlay: false,
-  enableConsoleLogging: true,
-  simulateLowBandwidth: false,
-  recordTestResults: false,
+  overlayEnabled: true,
+  showDebugInfo: true,
+  captureFrameRate: 30,
+  enableAudioPassthrough: false,
+  mirrorVideo: false,
+  testPatternOnNoVideo: true,
 };
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
