@@ -21,4 +21,21 @@ describe('TestingWatermark', () => {
     const { toJSON } = render(<TestingWatermark visible={false} />);
     expect(toJSON()).toBeNull();
   });
+
+  it('renders fullscreen position with all elements', () => {
+    const { getByText } = render(
+      <TestingWatermark
+        visible={true}
+        position="fullscreen"
+        showPulse={false}
+        mlSafetyEnabled={true}
+        httpsEnforced={true}
+        protocolName="TEST-PROTOCOL"
+      />
+    );
+    expect(getByText('TESTING PROTOTYPE')).toBeTruthy();
+    expect(getByText('HTTPS')).toBeTruthy();
+    expect(getByText('ML SAFETY')).toBeTruthy();
+    expect(getByText('TEST-PROTOCOL')).toBeTruthy();
+  });
 });

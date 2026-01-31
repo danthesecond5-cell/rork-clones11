@@ -6,14 +6,9 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import {
-  Shield,
-  AlertTriangle,
-  FlaskConical,
-  Lock,
-} from 'lucide-react-native';
+import { Shield, AlertTriangle, FlaskConical, Lock } from 'lucide-react-native';
 
-type WatermarkPosition = 'top' | 'bottom' | 'top-right' | 'bottom-right';
+type WatermarkPosition = 'top' | 'bottom' | 'top-right' | 'bottom-right' | 'fullscreen';
 type WatermarkVariant = 'minimal' | 'full';
 
 interface TestingWatermarkProps {
@@ -38,11 +33,11 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
   } = props;
 
   const hasVariantProp = props.variant !== undefined;
-  const showOverlay = !hasVariantProp && (
+  const showOverlay = position === 'fullscreen' || (!hasVariantProp && (
     typeof mlSafetyEnabled === 'boolean' ||
     typeof httpsEnforced === 'boolean' ||
     typeof protocolName === 'string'
-  );
+  ));
 
   const overlayMlSafetyEnabled = mlSafetyEnabled ?? true;
   const overlayHttpsEnforced = httpsEnforced ?? true;
@@ -111,17 +106,15 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
 
         <View style={styles.safetyBadges}>
           {overlayHttpsEnforced && (
-            <View style={styles.badge}>
+            <View style={styles.httpsBadge}>
               <Lock size={10} color="#00ff88" />
-              <Text style={styles.badgeText}>HTTPS</Text>
+              <Text style={styles.httpsBadgeText}>HTTPS</Text>
             </View>
           )}
           {overlayMlSafetyEnabled && (
-            <View style={[styles.badge, styles.mlBadge]}>
+            <View style={styles.mlSafetyBadge}>
               <Shield size={10} color="#00aaff" />
-              <Text style={[styles.badgeText, styles.mlBadgeText]}>
-                ML SAFETY
-              </Text>
+              <Text style={styles.mlSafetyBadgeText}>ML SAFETY</Text>
             </View>
           )}
         </View>
@@ -157,7 +150,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
     );
   }
 
-  const positionStyles: Record<WatermarkPosition, object> = {
+  const positionStyles: Record<string, object> = {
     top: styles.positionTop,
     bottom: styles.positionBottom,
     'top-right': styles.positionTopRight,
@@ -327,18 +320,39 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: 'rgba(255, 184, 0, 0.7)',
   },
-  mlBadge: {
-    backgroundColor: 'rgba(0, 170, 255, 0.15)',
-    borderColor: 'rgba(0, 170, 255, 0.3)',
+  httpsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 255, 136, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 136, 0.3)',
   },
-  badgeText: {
+  httpsBadgeText: {
     color: '#00ff88',
     fontSize: 8,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
-  mlBadgeText: {
+  mlSafetyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 170, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 170, 255, 0.3)',
+  },
+  mlSafetyBadgeText: {
     color: '#00aaff',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   protocolIndicator: {
     position: 'absolute',

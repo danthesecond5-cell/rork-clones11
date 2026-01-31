@@ -1,19 +1,19 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
 import { DeveloperModeProvider, useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_DEVELOPER_MODE } from '@/types/protocols';
-import { Text } from 'react-native';
 
 function Consumer({ onReady }: { onReady?: (ctx: ReturnType<typeof useDeveloperMode>) => void }) {
   const ctx = useDeveloperMode();
-  
+
   React.useEffect(() => {
     if (!ctx.isLoading && onReady) {
       onReady(ctx);
     }
   }, [ctx, onReady]);
-  
+
   return <Text testID="consumer">Consumer</Text>;
 }
 
@@ -72,6 +72,7 @@ describe('DeveloperModeContext', () => {
 
     const result = await ctxRef!.toggleDeveloperMode(DEFAULT_DEVELOPER_MODE.pinCode || '');
     expect(result).toBe(true);
+    expect(ctxRef!.isDeveloperModeEnabled).toBe(true);
     expect(AsyncStorage.setItem).toHaveBeenCalled();
   });
 });

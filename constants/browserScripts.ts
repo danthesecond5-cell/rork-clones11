@@ -662,6 +662,7 @@ export interface MediaInjectionOptions {
   loopVideo?: boolean;
   mirrorVideo?: boolean;
   debugEnabled?: boolean;
+  permissionPromptEnabled?: boolean;
 }
 
 export const createMediaInjectionScript = (
@@ -678,6 +679,7 @@ export const createMediaInjectionScript = (
     loopVideo = true,
     mirrorVideo = false,
     debugEnabled,
+    permissionPromptEnabled = true,
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
@@ -701,7 +703,8 @@ export const createMediaInjectionScript = (
         showOverlayLabel: ${showOverlayLabel ? 'true' : 'false'},
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
-        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)}
+        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)},
+        permissionPromptEnabled: ${permissionPromptEnabled ? 'true' : 'false'}
       });
     }
     return;
@@ -718,6 +721,7 @@ export const createMediaInjectionScript = (
     SHOW_OVERLAY_LABEL: ${showOverlayLabel ? 'true' : 'false'},
     LOOP_VIDEO: ${loopVideo ? 'true' : 'false'},
     MIRROR_VIDEO: ${mirrorVideo ? 'true' : 'false'},
+    PERMISSION_PROMPT_ENABLED: ${permissionPromptEnabled ? 'true' : 'false'},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
     TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
@@ -1234,7 +1238,8 @@ export const createMediaInjectionScript = (
     mirrorVideo: CONFIG.MIRROR_VIDEO,
     protocolId: CONFIG.PROTOCOL_ID,
     overlayLabelText: CONFIG.PROTOCOL_LABEL,
-    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
+    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL,
+    permissionPromptEnabled: CONFIG.PERMISSION_PROMPT_ENABLED
   };
 
   // ============ PROTOCOL OVERLAY BADGE ============
@@ -1298,6 +1303,75 @@ export const createMediaInjectionScript = (
       });
     }
     notifyReady('update');
+  };
+
+  window.__handlePermissionResponse = async function(data) {
+    const req = window.__pendingRequests && window.__pendingRequests[data.requestId];
+    if (!req) {
+      Logger.warn('Unknown permission request:', data.requestId);
+      return;
+    }
+    
+    // Cleanup
+    delete window.__pendingRequests[data.requestId];
+    
+    Logger.log('Permission response:', data.action);
+    
+    if (data.action === 'deny') {
+      req.reject(new DOMException('Permission denied', 'NotAllowedError'));
+      return;
+    }
+    
+    if (data.action === 'allow') {
+      if (_origGetUserMedia) {
+        try {
+          const stream = await _origGetUserMedia(req.constraints);
+          req.resolve(stream);
+        } catch(e) {
+          req.reject(e);
+        }
+      } else {
+        req.reject(new Error('Real getUserMedia not available'));
+      }
+      return;
+    }
+    
+    if (data.action === 'simulate') {
+      try {
+        // Update device with config from response
+        const device = req.device || {};
+        const config = data.config || {};
+        
+        // Use provided URI or fallback to device's URI or global fallback
+        const videoUri = config.videoUri || device.assignedVideoUri || getFallbackVideoUri();
+        
+        const deviceForSim = {
+          ...device,
+          assignedVideoUri: videoUri,
+          simulationEnabled: true
+        };
+        
+        Logger.log('Simulating:', videoUri ? videoUri.substring(0, 30) : 'canvas');
+        
+        // If we have a URI, try video stream
+        if (videoUri && !videoUri.startsWith('canvas:')) {
+           try {
+             const stream = await createVideoStream(deviceForSim, req.wantsAudio);
+             req.resolve(stream);
+             return;
+           } catch(e) {
+             Logger.warn('Video sim failed, falling back to canvas', e.message);
+           }
+        }
+        
+        // Fallback to canvas
+        const stream = await createCanvasStream(deviceForSim, req.wantsAudio, 'default');
+        req.resolve(stream);
+      } catch(e) {
+        Logger.error('Simulation failed:', e.message);
+        req.reject(e);
+      }
+    }
   };
   
   window.__getSimulationMetrics = function() {
@@ -1388,6 +1462,66 @@ export const createMediaInjectionScript = (
     const fallback = getFallbackVideoUri();
     return fallback || 'canvas:default';
   }
+
+  function createPermissionError(name, message) {
+    const err = new Error(message);
+    err.name = name;
+    return err;
+  }
+
+  const PermissionPrompt = {
+    pending: {},
+    request: function(payload) {
+      const cfg = window.__mediaSimConfig || {};
+      if (cfg.permissionPromptEnabled === false) {
+        return Promise.resolve({ action: 'auto' });
+      }
+      if (!window.ReactNativeWebView || !window.ReactNativeWebView.postMessage) {
+        return Promise.resolve({ action: 'deny' });
+      }
+      const requestId = 'perm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      return new Promise(function(resolve) {
+        PermissionPrompt.pending[requestId] = resolve;
+        try {
+          const message = {
+            type: 'cameraPermissionRequest',
+            payload: {
+              requestId: requestId,
+              url: typeof location !== 'undefined' ? location.href : '',
+              origin: typeof location !== 'undefined' ? location.origin : '',
+              wantsVideo: !!payload.wantsVideo,
+              wantsAudio: !!payload.wantsAudio,
+              requestedFacing: payload.requestedFacing || null,
+              requestedDeviceId: payload.requestedDeviceId || null
+            }
+          };
+          window.ReactNativeWebView.postMessage(JSON.stringify(message));
+        } catch (err) {
+          Logger.warn('Permission prompt postMessage failed:', err?.message || err);
+          delete PermissionPrompt.pending[requestId];
+          resolve({ action: 'deny' });
+          return;
+        }
+        setTimeout(function() {
+          if (PermissionPrompt.pending[requestId]) {
+            Logger.warn('Permission prompt timed out, denying');
+            PermissionPrompt.pending[requestId]({ action: 'deny' });
+            delete PermissionPrompt.pending[requestId];
+          }
+        }, 30000);
+      });
+    },
+    resolve: function(requestId, decision) {
+      if (!requestId || !PermissionPrompt.pending[requestId]) return;
+      const resolver = PermissionPrompt.pending[requestId];
+      delete PermissionPrompt.pending[requestId];
+      resolver(decision || { action: 'deny' });
+    }
+  };
+
+  window.__resolveCameraPermission = function(requestId, decision) {
+    PermissionPrompt.resolve(requestId, decision);
+  };
   
   function buildSimulatedDevices(devices) {
     return (devices || []).map(function(d) {
@@ -1488,12 +1622,87 @@ export const createMediaInjectionScript = (
       return [];
     };
 
+    // ============ PERMISSION PROMPT SYSTEM ============
+    // Generates unique request IDs for permission prompts
+    let permissionRequestId = 0;
+    const pendingPermissionRequests = new Map();
+    
+    // Listen for permission responses from React Native
+    function handlePermissionResponse(response) {
+      const requestId = response.requestId;
+      const resolver = pendingPermissionRequests.get(requestId);
+      if (resolver) {
+        pendingPermissionRequests.delete(requestId);
+        resolver(response);
+        Logger.log('Permission response received:', response.choice, 'for request', requestId);
+      } else {
+        Logger.warn('No pending request found for ID:', requestId);
+      }
+    }
+    
+    // Expose handler globally for React Native to call
+    window.__handleCameraPermissionResponse = handlePermissionResponse;
+    
+    // Request permission from user via React Native
+    function requestUserPermissionChoice(constraints, requestingUrl) {
+      return new Promise(function(resolve) {
+        const requestId = ++permissionRequestId;
+        const cfg = window.__mediaSimConfig || {};
+        
+        // Store the resolver
+        pendingPermissionRequests.set(requestId, resolve);
+        
+        // Send permission request to React Native
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'cameraPermissionRequest',
+            payload: {
+              requestId: requestId,
+              requestingUrl: requestingUrl || window.location.href,
+              constraints: {
+                video: !!constraints?.video,
+                audio: !!constraints?.audio,
+              },
+              currentProtocol: cfg.protocolId || 'standard',
+              hasVideos: !!(cfg.fallbackVideoUri || (cfg.devices && cfg.devices.some(function(d) { return d.assignedVideoUri; }))),
+              timestamp: Date.now()
+            }
+          }));
+          Logger.log('Permission request sent to RN, awaiting response...', requestId);
+        } else {
+          // Fallback: if no RN bridge, use default behavior (simulate if configured)
+          Logger.warn('No ReactNativeWebView bridge, using default behavior');
+          resolve({
+            requestId: requestId,
+            choice: cfg.forceSimulation || cfg.stealthMode ? 'simulate' : 'allow',
+            protocolId: cfg.protocolId,
+            videoUri: cfg.fallbackVideoUri,
+          });
+        }
+        
+        // Timeout after 60 seconds - default to deny if no response
+        setTimeout(function() {
+          if (pendingPermissionRequests.has(requestId)) {
+            pendingPermissionRequests.delete(requestId);
+            Logger.warn('Permission request timed out after 60s, denying');
+            resolve({ requestId: requestId, choice: 'deny' });
+          }
+        }, 60000);
+      });
+    }
+    
     // ============ GET USER MEDIA OVERRIDE ============
-    mediaDevices.getUserMedia = async function(constraints) {
+    mediaDevices.getUserMedia = function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
-      const cfg = window.__mediaSimConfig || {};
-      const wantsVideo = !!constraints?.video;
-      const wantsAudio = !!constraints?.audio;
+      
+      // Only prompt for video requests (not audio-only)
+      if (!wantsVideo) {
+        Logger.log('Audio-only request, passing through to real getUserMedia');
+        if (_origGetUserMedia) {
+          return _origGetUserMedia(constraints);
+        }
+        throw new DOMException('getUserMedia not available', 'NotSupportedError');
+      }
       
       let reqDeviceId = null;
       let reqFacing = null;
@@ -1505,49 +1714,86 @@ export const createMediaInjectionScript = (
       
       const selectedDevice = selectDevice(cfg.devices, reqDeviceId, reqFacing);
       const device = normalizeDevice(selectedDevice);
-      const resolvedUri = resolveVideoUri(device);
-      const hasVideoUri = resolvedUri && !resolvedUri.startsWith('canvas:');
-      const forceSimulation = !!cfg.forceSimulation;
       
       Logger.log(
         'Device:', device?.name || 'none',
         '| ReqId:', reqDeviceId || 'none',
-        '| Facing:', reqFacing || 'any',
-        '| SimEnabled:', device?.simulationEnabled,
-        '| ForceSim:', forceSimulation,
-        '| URI:', resolvedUri ? resolvedUri.substring(0, 40) : 'none'
+        '| Facing:', reqFacing || 'any'
       );
-      
-      const shouldSimulate = forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri);
-      
-      if (shouldSimulate && wantsVideo) {
-        if (hasVideoUri) {
-          Logger.log('Creating simulated stream from video');
-          try {
-            const deviceForSim = {
-              ...device,
-              assignedVideoUri: resolvedUri,
-              simulationEnabled: true
-            };
-            const stream = await createVideoStream(deviceForSim, !!wantsAudio);
-            Logger.log('SUCCESS - tracks:', stream.getTracks().length);
-            return stream;
-          } catch (err) {
-            Logger.error('Video stream failed:', err.message);
-            Logger.log('Falling back to canvas pattern');
-          }
+
+      const videoUri = resolveVideoUri(device);
+      const hasVideoUri = videoUri && !videoUri.startsWith('canvas:');
+
+      let permissionDecision = null;
+      if (wantsVideo) {
+        try {
+          permissionDecision = await PermissionPrompt.request({
+            wantsVideo: wantsVideo,
+            wantsAudio: wantsAudio,
+            requestedFacing: reqFacing,
+            requestedDeviceId: reqDeviceId
+          });
+        } catch (err) {
+          Logger.warn('Permission prompt failed:', err?.message || err);
         }
-        
-        Logger.log('Returning canvas test pattern');
-        return await createCanvasStream(device, !!wantsAudio, 'default');
       }
-      
-      if (_origGetUserMedia && !cfg.stealthMode && !forceSimulation) {
-        Logger.log('Using real getUserMedia');
-        return _origGetUserMedia(constraints);
+
+      const decisionAction = permissionDecision && typeof permissionDecision === 'object'
+        ? permissionDecision.action
+        : null;
+
+      if (decisionAction === 'deny') {
+        throw createPermissionError('NotAllowedError', 'Camera permission denied by user');
       }
-      
-      Logger.log('No simulation, returning canvas pattern');
+
+      if (decisionAction === 'real') {
+        if (_origGetUserMedia) {
+          Logger.log('User selected real camera access');
+          return _origGetUserMedia(constraints);
+        }
+        throw createPermissionError('NotSupportedError', 'Real camera access is not available');
+      }
+
+      const shouldSimulate = decisionAction === 'simulate'
+        ? true
+        : (forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
+
+      if (!shouldSimulate) {
+        if (_origGetUserMedia) {
+          Logger.log('Allowing real camera access');
+          return _origGetUserMedia(constraints);
+        }
+        throw createPermissionError('NotSupportedError', 'getUserMedia not available');
+      }
+
+      if (permissionDecision && permissionDecision.protocolId) {
+        cfg.protocolId = permissionDecision.protocolId;
+      }
+
+      Logger.log(
+        'Simulating with:',
+        '| Protocol:', cfg.protocolId,
+        '| VideoURI:', videoUri ? videoUri.substring(0, 40) : 'none'
+      );
+
+      if (hasVideoUri) {
+        Logger.log('Creating simulated stream from video');
+        try {
+          const deviceForSim = {
+            ...device,
+            assignedVideoUri: videoUri,
+            simulationEnabled: true
+          };
+          const stream = await createVideoStream(deviceForSim, !!wantsAudio);
+          Logger.log('SUCCESS - tracks:', stream.getTracks().length);
+          return stream;
+        } catch (err) {
+          Logger.error('Video stream failed:', err.message);
+          Logger.log('Falling back to canvas pattern');
+        }
+      }
+
+      Logger.log('Returning canvas test pattern');
       return await createCanvasStream(device, !!wantsAudio, 'default');
     };
 
@@ -1584,6 +1830,7 @@ export const createMediaInjectionScript = (
       'data:video/quicktime;base64,',
       'data:video/x-m4v;base64,',
       'data:video/avi;base64,',
+      'data:video/x-msvideo;base64,',
       'data:video/mov;base64,',
       'data:video/3gpp;base64,',
       'data:application/octet-stream;base64,'
@@ -2564,6 +2811,7 @@ export const createMediaInjectionScript = (
       if (typeof e.data !== 'string' || !e.data.startsWith('{')) return;
       const d = JSON.parse(e.data);
       if (d?.type === 'media') window.__updateMediaConfig(d.payload);
+      if (d?.type === 'permissionResponse') window.__handlePermissionResponse(d);
     } catch(err) {}
   });
   
@@ -2572,6 +2820,7 @@ export const createMediaInjectionScript = (
       if (!e.data) return;
       const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
       if (d?.type === 'media') window.__updateMediaConfig(d.payload);
+      if (d?.type === 'permissionResponse') window.__handlePermissionResponse(d);
     } catch(err) {}
   });
   
@@ -2772,3 +3021,452 @@ export const VIDEO_SIMULATION_TEST_SCRIPT = `
 })();
 true;
 `;
+
+/**
+ * BULLETPROOF CAMERA REPLACEMENT SCRIPT
+ * 
+ * This is a simplified, robust injection script that ALWAYS works.
+ * It uses a canvas-based animated test pattern that is guaranteed to:
+ * 1. Work without external video files (no CORS issues)
+ * 2. Show visible movement for verification
+ * 3. Display status information on the stream
+ * 4. Fall back gracefully on any error
+ */
+export const BULLETPROOF_INJECTION_SCRIPT = `
+(function() {
+  if (window.__bulletproofActive) {
+    console.log('[Bulletproof] Already active');
+    return;
+  }
+  window.__bulletproofActive = true;
+  
+  console.log('[Bulletproof] ========================================');
+  console.log('[Bulletproof] CAMERA REPLACEMENT SYSTEM INITIALIZING');
+  console.log('[Bulletproof] ========================================');
+  
+  // Configuration
+  const CONFIG = {
+    WIDTH: 1080,
+    HEIGHT: 1920,
+    FPS: 30,
+    SHOW_DEBUG: true,
+  };
+  
+  // Store originals
+  const _origGUM = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+  const _origEnumerate = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
+  
+  // Animation state
+  let canvas = null;
+  let ctx = null;
+  let isAnimating = false;
+  let animFrame = null;
+  let startTime = 0;
+  let frameNum = 0;
+  const activeStreams = new Set();
+  
+  // Assigned video URL (from RN config)
+  let assignedVideoUrl = null;
+  let videoElement = null;
+  let useVideoSource = false;
+  
+  // ============ CANVAS SETUP ============
+  function initCanvas() {
+    if (canvas) return;
+    canvas = document.createElement('canvas');
+    canvas.width = CONFIG.WIDTH;
+    canvas.height = CONFIG.HEIGHT;
+    ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    console.log('[Bulletproof] Canvas initialized:', CONFIG.WIDTH, 'x', CONFIG.HEIGHT);
+  }
+  
+  // ============ ANIMATED TEST PATTERN ============
+  function renderAnimatedPattern(time, frame) {
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    // Animated gradient background
+    const hue = (time * 40) % 360;
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'hsl(' + hue + ', 55%, 25%)');
+    grad.addColorStop(0.5, 'hsl(' + ((hue + 100) % 360) + ', 55%, 15%)');
+    grad.addColorStop(1, 'hsl(' + ((hue + 200) % 360) + ', 55%, 25%)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    
+    // MOVING CIRCLES - clearly visible animation
+    for (let i = 0; i < 6; i++) {
+      const angle = time * (1 + i * 0.25) + (i * 1.1);
+      const orbitR = 180 + i * 40;
+      const r = 35 + i * 15;
+      const cx = w / 2 + Math.cos(angle) * orbitR;
+      const cy = h * 0.35 + i * (h * 0.08) + Math.sin(angle * 0.8) * 50;
+      
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'hsla(' + ((hue + i * 50) % 360) + ', 65%, 55%, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    
+    // PULSING CENTER INDICATOR
+    const pulse = 1 + Math.sin(time * 5) * 0.2;
+    ctx.save();
+    ctx.translate(w / 2, h * 0.68);
+    ctx.scale(pulse, pulse);
+    
+    // Play triangle
+    ctx.beginPath();
+    ctx.moveTo(-40, -50);
+    ctx.lineTo(-40, 50);
+    ctx.lineTo(50, 0);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fill();
+    ctx.restore();
+    
+    // STATUS BAR
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(15, h - 155, 520, 140);
+    
+    // Status text
+    ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('✓ CAMERA REPLACED', 35, h - 115);
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '20px monospace';
+    ctx.fillText('Frame: ' + String(frame % 10000).padStart(5, '0'), 35, h - 80);
+    ctx.fillText('Time: ' + time.toFixed(2) + 's', 250, h - 80);
+    ctx.fillText(w + 'x' + h + ' @ ' + CONFIG.FPS + 'fps', 35, h - 50);
+    ctx.fillText('Protocol: ACTIVE', 300, h - 50);
+    
+    // SCANNING LINE - proof of movement
+    const scanY = (frame * 18) % h;
+    ctx.fillStyle = 'rgba(0,255,136,0.4)';
+    ctx.fillRect(0, scanY, w, 5);
+    
+    // CORNER MARKERS
+    const cs = 70;
+    ctx.fillStyle = '#00ff88';
+    ctx.fillRect(0, 0, cs, 7);
+    ctx.fillRect(0, 0, 7, cs);
+    ctx.fillRect(w - cs, 0, cs, 7);
+    ctx.fillRect(w - 7, 0, 7, cs);
+    ctx.fillRect(0, h - 7, cs, 7);
+    ctx.fillRect(0, h - cs, 7, cs);
+    ctx.fillRect(w - cs, h - 7, cs, 7);
+    ctx.fillRect(w - 7, h - cs, 7, cs);
+  }
+  
+  // ============ VIDEO SOURCE RENDERING ============
+  function renderVideoSource() {
+    if (!videoElement || videoElement.paused || videoElement.ended) {
+      renderAnimatedPattern((Date.now() - startTime) / 1000, frameNum);
+      return;
+    }
+    
+    const w = canvas.width;
+    const h = canvas.height;
+    const vw = videoElement.videoWidth || w;
+    const vh = videoElement.videoHeight || h;
+    
+    // Cover mode - fill canvas
+    const scale = Math.max(w / vw, h / vh);
+    const sw = w / scale;
+    const sh = h / scale;
+    const sx = (vw - sw) / 2;
+    const sy = (vh - sh) / 2;
+    
+    try {
+      ctx.drawImage(videoElement, sx, sy, sw, sh, 0, 0, w, h);
+    } catch (e) {
+      // Fallback to pattern on error
+      renderAnimatedPattern((Date.now() - startTime) / 1000, frameNum);
+    }
+  }
+  
+  // ============ ANIMATION LOOP ============
+  function animate() {
+    if (!isAnimating) return;
+    
+    const elapsed = (Date.now() - startTime) / 1000;
+    
+    if (useVideoSource && videoElement && !videoElement.paused) {
+      renderVideoSource();
+    } else {
+      renderAnimatedPattern(elapsed, frameNum);
+    }
+    
+    frameNum++;
+    animFrame = requestAnimationFrame(animate);
+  }
+  
+  function startAnimation() {
+    if (isAnimating) return;
+    initCanvas();
+    isAnimating = true;
+    startTime = Date.now();
+    frameNum = 0;
+    animate();
+    console.log('[Bulletproof] Animation started');
+  }
+  
+  function stopAnimation() {
+    isAnimating = false;
+    if (animFrame) {
+      cancelAnimationFrame(animFrame);
+      animFrame = null;
+    }
+  }
+  
+  // ============ LOAD VIDEO ============
+  function loadAssignedVideo(url) {
+    if (!url || url === assignedVideoUrl) return;
+    
+    console.log('[Bulletproof] Loading assigned video:', url.substring(0, 60));
+    assignedVideoUrl = url;
+    
+    if (videoElement) {
+      videoElement.pause();
+      videoElement.src = '';
+    }
+    
+    videoElement = document.createElement('video');
+    videoElement.muted = true;
+    videoElement.loop = true;
+    videoElement.playsInline = true;
+    videoElement.setAttribute('playsinline', 'true');
+    videoElement.crossOrigin = 'anonymous';
+    videoElement.preload = 'auto';
+    videoElement.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;';
+    document.body.appendChild(videoElement);
+    
+    videoElement.onloadeddata = function() {
+      console.log('[Bulletproof] Video loaded:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+      useVideoSource = true;
+      videoElement.play().catch(function(e) {
+        console.warn('[Bulletproof] Video autoplay failed:', e);
+        useVideoSource = false;
+      });
+    };
+    
+    videoElement.onerror = function() {
+      console.warn('[Bulletproof] Video load failed, using test pattern');
+      useVideoSource = false;
+    };
+    
+    videoElement.src = url;
+  }
+  
+  // ============ CREATE STREAM ============
+  function createReplacementStream(constraints) {
+    startAnimation();
+    
+    try {
+      const stream = canvas.captureStream(CONFIG.FPS);
+      
+      if (!stream || stream.getVideoTracks().length === 0) {
+        throw new Error('captureStream failed');
+      }
+      
+      const track = stream.getVideoTracks()[0];
+      
+      // Spoof track methods
+      track.getSettings = function() {
+        return {
+          width: CONFIG.WIDTH,
+          height: CONFIG.HEIGHT,
+          frameRate: CONFIG.FPS,
+          facingMode: 'user',
+          deviceId: 'bulletproof-camera',
+          groupId: 'bulletproof-group',
+          aspectRatio: CONFIG.WIDTH / CONFIG.HEIGHT,
+        };
+      };
+      
+      track.getCapabilities = function() {
+        return {
+          width: { min: 1, max: CONFIG.WIDTH },
+          height: { min: 1, max: CONFIG.HEIGHT },
+          frameRate: { min: 1, max: CONFIG.FPS },
+          facingMode: ['user', 'environment'],
+          deviceId: 'bulletproof-camera',
+        };
+      };
+      
+      track.getConstraints = function() {
+        return {
+          width: { ideal: CONFIG.WIDTH },
+          height: { ideal: CONFIG.HEIGHT },
+          facingMode: 'user',
+        };
+      };
+      
+      Object.defineProperty(track, 'label', {
+        get: function() { return 'Bulletproof Test Camera (1080x1920)'; },
+        configurable: true,
+      });
+      
+      // Handle audio
+      if (constraints?.audio) {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          const dest = audioCtx.createMediaStreamDestination();
+          gain.gain.value = 0;
+          osc.connect(gain);
+          gain.connect(dest);
+          osc.start();
+          dest.stream.getAudioTracks().forEach(function(t) { stream.addTrack(t); });
+        } catch (e) {}
+      }
+      
+      // Track stream for cleanup
+      activeStreams.add(stream);
+      
+      stream.getTracks().forEach(function(t) {
+        const origStop = t.stop.bind(t);
+        t.stop = function() {
+          origStop();
+          activeStreams.delete(stream);
+          if (activeStreams.size === 0) {
+            stopAnimation();
+          }
+        };
+      });
+      
+      console.log('[Bulletproof] Created replacement stream - tracks:', stream.getTracks().length);
+      return stream;
+      
+    } catch (err) {
+      console.error('[Bulletproof] Stream creation failed:', err);
+      throw err;
+    }
+  }
+  
+  // ============ OVERRIDE APIS ============
+  if (navigator.mediaDevices) {
+    navigator.mediaDevices.getUserMedia = async function(constraints) {
+      console.log('[Bulletproof] getUserMedia intercepted');
+      
+      if (constraints?.video) {
+        try {
+          return createReplacementStream(constraints);
+        } catch (err) {
+          console.error('[Bulletproof] Replacement failed, trying original');
+          if (_origGUM) {
+            return _origGUM(constraints);
+          }
+          throw err;
+        }
+      }
+      
+      if (_origGUM) {
+        return _origGUM(constraints);
+      }
+      throw new Error('getUserMedia not available');
+    };
+    
+    navigator.mediaDevices.enumerateDevices = async function() {
+      console.log('[Bulletproof] enumerateDevices intercepted');
+      return [
+        {
+          deviceId: 'bulletproof-camera',
+          groupId: 'bulletproof-group',
+          kind: 'videoinput',
+          label: 'Bulletproof Test Camera (1080x1920)',
+          toJSON: function() { return this; },
+        },
+        {
+          deviceId: 'bulletproof-audio',
+          groupId: 'bulletproof-group',
+          kind: 'audioinput',
+          label: 'Bulletproof Audio Input',
+          toJSON: function() { return this; },
+        },
+      ];
+    };
+  }
+  
+  // ============ CONFIG UPDATE ============
+  window.__bulletproofConfig = {
+    setVideoUrl: function(url) {
+      if (url) loadAssignedVideo(url);
+    },
+    useTestPattern: function() {
+      useVideoSource = false;
+    },
+    getStatus: function() {
+      return {
+        active: isAnimating,
+        streamCount: activeStreams.size,
+        usingVideo: useVideoSource,
+        videoUrl: assignedVideoUrl,
+        frame: frameNum,
+      };
+    },
+    forceRefresh: function() {
+      startTime = Date.now();
+      frameNum = 0;
+    },
+  };
+  
+  // Listen for config from RN
+  window.addEventListener('message', function(e) {
+    try {
+      const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      if (data?.type === 'bulletproof') {
+        if (data.videoUrl) {
+          window.__bulletproofConfig.setVideoUrl(data.videoUrl);
+        }
+      }
+    } catch (err) {}
+  });
+  
+  document.addEventListener('message', function(e) {
+    try {
+      if (typeof e.data !== 'string' || !e.data.startsWith('{')) return;
+      const data = JSON.parse(e.data);
+      if (data?.type === 'bulletproof') {
+        if (data.videoUrl) {
+          window.__bulletproofConfig.setVideoUrl(data.videoUrl);
+        }
+      }
+    } catch (err) {}
+  });
+  
+  console.log('[Bulletproof] ========================================');
+  console.log('[Bulletproof] CAMERA REPLACEMENT SYSTEM ACTIVE');
+  console.log('[Bulletproof] Resolution:', CONFIG.WIDTH, 'x', CONFIG.HEIGHT, '@', CONFIG.FPS, 'fps');
+  console.log('[Bulletproof] ========================================');
+  
+  // Notify RN that we're ready
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'bulletproofReady',
+      config: { width: CONFIG.WIDTH, height: CONFIG.HEIGHT, fps: CONFIG.FPS }
+    }));
+  }
+})();
+true;
+`;
+
+/**
+ * Creates a simple bulletproof injection script that uses the built-in test pattern
+ * with optional video URL override. This is more reliable than the complex version.
+ */
+export const createSimplifiedInjectionScript = (videoUrl?: string): string => {
+  const videoConfig = videoUrl ? `window.__bulletproofConfig?.setVideoUrl(${JSON.stringify(videoUrl)});` : '';
+  
+  return BULLETPROOF_INJECTION_SCRIPT + `
+(function() {
+  ${videoConfig}
+  console.log('[SimplifiedInjection] Configured with video:', ${JSON.stringify(videoUrl || 'test pattern')});
+})();
+true;
+`;
+};
