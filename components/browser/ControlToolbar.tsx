@@ -9,6 +9,10 @@ import {
   Platform,
   Modal,
   Switch,
+<<<<<<< HEAD
+=======
+  TextInput,
+>>>>>>> origin/cursor/code-fundamentals-review-73ea
 } from 'react-native';
 import {
   ChevronUp,
@@ -666,6 +670,7 @@ export function SiteSettingsModal({
   );
 }
 
+<<<<<<< HEAD
 interface ProtocolSettingsModalProps {
   visible: boolean;
   allowlistEnabled: boolean;
@@ -1319,6 +1324,8 @@ export function ProtocolSettingsModal({
   );
 }
 
+=======
+>>>>>>> origin/cursor/code-fundamentals-review-73ea
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#151515',

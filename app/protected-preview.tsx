@@ -13,7 +13,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Video, ResizeMode } from 'expo-av';
 import { ChevronLeft, Shield, Film, FlaskConical, Settings, Lock } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import TestingWatermark from '@/components/TestingWatermark';
 
@@ -23,7 +22,6 @@ export default function ProtectedPreviewScreen() {
   const [bodyDetectionActive, setBodyDetectionActive] = useState(false);
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
-  const { developerMode } = useDeveloperMode();
   const {
     protectedSettings,
     updateProtectedSettings,
@@ -61,7 +59,7 @@ export default function ProtectedPreviewScreen() {
   return (
     <View style={styles.container}>
       <TestingWatermark 
-        visible={developerMode.showWatermark}
+        visible={showTestingWatermark}
         position="top-right"
         variant="minimal"
       />

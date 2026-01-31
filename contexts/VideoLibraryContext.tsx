@@ -325,9 +325,9 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     setSavedVideos(prev => {
-      const updated = [videoWithMetadata, ...prev];
-      queueSaveVideos(updated);
-      return updated;
+      const updatedVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
+      queueSaveVideos(updatedVideos);
+      return updatedVideos;
     });
 
     setProcessingState({
@@ -411,9 +411,9 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     setSavedVideos(prev => {
-      const updated = [videoWithMetadata, ...prev];
-      queueSaveVideos(updated);
-      return updated;
+      const updatedVideos = [videoWithMetadata, ...prev.filter(video => video.id !== videoWithMetadata.id)];
+      queueSaveVideos(updatedVideos);
+      return updatedVideos;
     });
 
     setProcessingState({
@@ -443,9 +443,11 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       console.error('[VideoLibrary] Failed to delete file');
     }
 
-    const updatedVideos = savedVideos.filter(v => v.id !== id);
-    setSavedVideos(updatedVideos);
-    await saveVideosMetadata(updatedVideos);
+    setSavedVideos(prev => {
+      const updatedVideos = prev.filter(v => v.id !== id);
+      void saveVideosMetadata(updatedVideos);
+      return updatedVideos;
+    });
 
     console.log('[VideoLibrary] Video removed:', id);
     return true;
@@ -472,11 +474,13 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return false;
     }
 
-    const updatedVideos = savedVideos.map(v => 
-      v.id === id ? { ...v, thumbnailUri: newThumbnailUri } : v
-    );
-    setSavedVideos(updatedVideos);
-    await saveVideosMetadata(updatedVideos);
+    setSavedVideos(prev => {
+      const updatedVideos = prev.map(v =>
+        v.id === id ? { ...v, thumbnailUri: newThumbnailUri } : v
+      );
+      void saveVideosMetadata(updatedVideos);
+      return updatedVideos;
+    });
 
     console.log('[VideoLibrary] Thumbnail regenerated for:', video.name);
     return true;
