@@ -61,10 +61,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    codexSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateCodexSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -277,6 +279,19 @@ export default function ProtocolSettingsModal({
               />
             </View>
 
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Auto-add Current Site</Text>
+                <Text style={styles.settingHint}>Automatically allow sites you visit</Text>
+              </View>
+              <Switch
+                value={allowlistSettings.autoAddCurrentSite}
+                onValueChange={(v) => updateAllowlistSettings({ autoAddCurrentSite: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={allowlistSettings.autoAddCurrentSite ? '#ffffff' : '#888'}
+              />
+            </View>
+
             <View style={styles.domainInputRow}>
               <TextInput
                 style={styles.domainInput}
@@ -447,6 +462,102 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'gpt-5.2-codex-high':
+        return (
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Auto Inject</Text>
+                <Text style={styles.settingHint}>Keep advanced injection active</Text>
+              </View>
+              <Switch
+                value={codexSettings.autoInject}
+                onValueChange={(v) => updateCodexSettings({ autoInject: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#9b59ff' }}
+                thumbColor={codexSettings.autoInject ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Always Stealth</Text>
+                <Text style={styles.settingHint}>Force stealth mode for all sites</Text>
+              </View>
+              <Switch
+                value={codexSettings.alwaysStealth}
+                onValueChange={(v) => updateCodexSettings({ alwaysStealth: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={codexSettings.alwaysStealth ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Force Simulation</Text>
+                <Text style={styles.settingHint}>Prefer simulated streams over real camera</Text>
+              </View>
+              <Switch
+                value={codexSettings.forceSimulation}
+                onValueChange={(v) => updateCodexSettings({ forceSimulation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={codexSettings.forceSimulation ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Adaptive Quality</Text>
+                <Text style={styles.settingHint}>Auto-tune FPS based on performance</Text>
+              </View>
+              <Switch
+                value={codexSettings.adaptiveQuality}
+                onValueChange={(v) => updateCodexSettings({ adaptiveQuality: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ffcc00' }}
+                thumbColor={codexSettings.adaptiveQuality ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Aggressive Tuning</Text>
+                <Text style={styles.settingHint}>Prioritize recovery and resiliency</Text>
+              </View>
+              <Switch
+                value={codexSettings.aggressiveTuning}
+                onValueChange={(v) => updateCodexSettings({ aggressiveTuning: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={codexSettings.aggressiveTuning ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Inject Motion Data</Text>
+                <Text style={styles.settingHint}>Simulate realistic device motion</Text>
+              </View>
+              <Switch
+                value={codexSettings.injectMotionData}
+                onValueChange={(v) => updateCodexSettings({ injectMotionData: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={codexSettings.injectMotionData ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Overlay Label</Text>
+                <Text style={styles.settingHint}>Display protocol status badge</Text>
+              </View>
+              <Switch
+                value={codexSettings.showOverlayLabel}
+                onValueChange={(v) => updateCodexSettings({ showOverlayLabel: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={codexSettings.showOverlayLabel ? '#ffffff' : '#888'}
+              />
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +568,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    'gpt-5.2-codex-high': <Cpu size={18} color="#9b59ff" />,
   };
 
   return (

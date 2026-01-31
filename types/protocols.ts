@@ -1,9 +1,9 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'gpt-5.2-codex-high';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -166,5 +166,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
+  },
+  'gpt-5.2-codex-high': {
+    id: 'gpt-5.2-codex-high',
+    name: 'Protocol 5: GPT-5.2 Codex High',
+    description: 'AI-optimized injection profile for the most advanced attempt at this app so far.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
   },
 };

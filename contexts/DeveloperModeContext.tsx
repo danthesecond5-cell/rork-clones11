@@ -197,6 +197,9 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
       case 'harness':
         updates.harness = { ...protocolSettings.harness, enabled: !protocolSettings.harness.enabled };
         break;
+      case 'gpt-5.2-codex-high':
+        // Protocol settings for Codex High are managed in ProtocolContext.
+        break;
     }
 
     const updated = { ...protocolSettings, ...updates };
@@ -223,6 +226,9 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
           break;
         case 'harness':
           updated.harness = DEFAULT_PROTOCOL_SETTINGS.harness;
+          break;
+        case 'gpt-5.2-codex-high':
+          // Protocol settings for Codex High are managed in ProtocolContext.
           break;
       }
     } else {
