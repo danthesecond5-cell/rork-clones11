@@ -29,9 +29,11 @@ import {
   AlertTriangle,
   Globe,
   Cpu,
+  Brain,
+  Sparkles,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
+import { useProtocol, ProtocolType, ClaudeProtocolSettings } from '@/contexts/ProtocolContext';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -61,10 +63,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    claudeSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateClaudeSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -447,6 +451,221 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'claude':
+        return (
+          <View style={styles.settingsGroup}>
+            {/* Claude Protocol Header */}
+            <View style={styles.claudeHeader}>
+              <Sparkles size={14} color="#ff00ff" />
+              <Text style={styles.claudeHeaderText}>AI-Powered Advanced Features</Text>
+            </View>
+
+            {/* Core Features */}
+            <Text style={styles.settingGroupLabel}>Core Features</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Adaptive Injection</Text>
+                <Text style={styles.settingHint}>Dynamically adjust behavior based on context</Text>
+              </View>
+              <Switch
+                value={claudeSettings.adaptiveInjection}
+                onValueChange={(v) => updateClaudeSettings({ adaptiveInjection: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff00ff' }}
+                thumbColor={claudeSettings.adaptiveInjection ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Context Awareness</Text>
+                <Text style={styles.settingHint}>Adapt to page type automatically</Text>
+              </View>
+              <Switch
+                value={claudeSettings.contextAwareness}
+                onValueChange={(v) => updateClaudeSettings({ contextAwareness: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff00ff' }}
+                thumbColor={claudeSettings.contextAwareness ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Predictive Preloading</Text>
+                <Text style={styles.settingHint}>Preload resources before needed</Text>
+              </View>
+              <Switch
+                value={claudeSettings.predictivePreloading}
+                onValueChange={(v) => updateClaudeSettings({ predictivePreloading: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff00ff' }}
+                thumbColor={claudeSettings.predictivePreloading ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Advanced Stealth */}
+            <Text style={styles.settingGroupLabel}>Advanced Stealth</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Deep Stealth Mode</Text>
+                <Text style={styles.settingHint}>Multi-layered fingerprint protection</Text>
+              </View>
+              <Switch
+                value={claudeSettings.deepStealthMode}
+                onValueChange={(v) => updateClaudeSettings({ deepStealthMode: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={claudeSettings.deepStealthMode ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Behavioral Mimicry</Text>
+                <Text style={styles.settingHint}>Natural human-like timing</Text>
+              </View>
+              <Switch
+                value={claudeSettings.behavioralMimicry}
+                onValueChange={(v) => updateClaudeSettings({ behavioralMimicry: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={claudeSettings.behavioralMimicry ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Fingerprint Morphing</Text>
+                <Text style={styles.settingHint}>Time-varying fingerprint evolution</Text>
+              </View>
+              <Switch
+                value={claudeSettings.fingerprintMorphing}
+                onValueChange={(v) => updateClaudeSettings({ fingerprintMorphing: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={claudeSettings.fingerprintMorphing ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Quality & Performance */}
+            <Text style={styles.settingGroupLabel}>Quality & Performance</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>AI Quality Optimization</Text>
+                <Text style={styles.settingHint}>ML-based quality adjustments</Text>
+              </View>
+              <Switch
+                value={claudeSettings.aiQualityOptimization}
+                onValueChange={(v) => updateClaudeSettings({ aiQualityOptimization: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={claudeSettings.aiQualityOptimization ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>GPU Acceleration</Text>
+                <Text style={styles.settingHint}>Hardware-accelerated rendering</Text>
+              </View>
+              <Switch
+                value={claudeSettings.gpuAcceleration}
+                onValueChange={(v) => updateClaudeSettings({ gpuAcceleration: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={claudeSettings.gpuAcceleration ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Reliability */}
+            <Text style={styles.settingGroupLabel}>Reliability</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Auto Recovery</Text>
+                <Text style={styles.settingHint}>Self-healing from failures</Text>
+              </View>
+              <Switch
+                value={claudeSettings.autoRecovery}
+                onValueChange={(v) => updateClaudeSettings({ autoRecovery: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={claudeSettings.autoRecovery ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Health Monitoring</Text>
+                <Text style={styles.settingHint}>Real-time stream health checks</Text>
+              </View>
+              <Switch
+                value={claudeSettings.healthMonitoring}
+                onValueChange={(v) => updateClaudeSettings({ healthMonitoring: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={claudeSettings.healthMonitoring ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Anomaly Detection</Text>
+                <Text style={styles.settingHint}>Detect and alert unusual behavior</Text>
+              </View>
+              <Switch
+                value={claudeSettings.anomalyDetection}
+                onValueChange={(v) => updateClaudeSettings({ anomalyDetection: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={claudeSettings.anomalyDetection ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            {/* Injection Mode */}
+            <Text style={styles.settingGroupLabel}>Injection Mode</Text>
+            <View style={styles.modeButtons}>
+              {(['aggressive', 'balanced', 'conservative', 'stealth'] as const).map((mode) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[
+                    styles.modeBtn,
+                    claudeSettings.injectionMode === mode && styles.modeBtnActive,
+                  ]}
+                  onPress={() => updateClaudeSettings({ injectionMode: mode })}
+                >
+                  <Text style={[
+                    styles.modeBtnText,
+                    claudeSettings.injectionMode === mode && styles.modeBtnTextActive,
+                  ]}>
+                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Quality Preset */}
+            <Text style={styles.settingGroupLabel}>Quality Preset</Text>
+            <View style={styles.modeButtons}>
+              {(['maximum', 'high', 'balanced', 'performance'] as const).map((preset) => (
+                <TouchableOpacity
+                  key={preset}
+                  style={[
+                    styles.modeBtn,
+                    claudeSettings.qualityPreset === preset && styles.qualityBtnActive,
+                  ]}
+                  onPress={() => updateClaudeSettings({ qualityPreset: preset })}
+                >
+                  <Text style={[
+                    styles.modeBtnText,
+                    claudeSettings.qualityPreset === preset && styles.qualityBtnTextActive,
+                  ]}>
+                    {preset.charAt(0).toUpperCase() + preset.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Claude Protocol Info */}
+            <View style={styles.claudeInfoCard}>
+              <Brain size={16} color="#ff00ff" />
+              <Text style={styles.claudeInfoText}>
+                Claude Protocol is the most advanced injection system, designed by Claude AI. 
+                It combines adaptive intelligence, deep stealth, and self-healing capabilities.
+              </Text>
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +676,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    claude: <Brain size={18} color="#ff00ff" />,
   };
 
   return (
@@ -1075,5 +1295,78 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#00aaff',
+  },
+  claudeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 0, 255, 0.1)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  claudeHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ff00ff',
+  },
+  settingGroupLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modeButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  modeBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modeBtnActive: {
+    backgroundColor: 'rgba(255, 0, 255, 0.2)',
+    borderColor: '#ff00ff',
+  },
+  modeBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  modeBtnTextActive: {
+    color: '#ff00ff',
+  },
+  qualityBtnActive: {
+    backgroundColor: 'rgba(0, 170, 255, 0.2)',
+    borderColor: '#00aaff',
+  },
+  qualityBtnTextActive: {
+    color: '#00aaff',
+  },
+  claudeInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(255, 0, 255, 0.08)',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 255, 0.2)',
+  },
+  claudeInfoText: {
+    flex: 1,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 16,
   },
 });

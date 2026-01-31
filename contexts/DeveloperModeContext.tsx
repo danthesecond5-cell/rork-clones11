@@ -8,6 +8,7 @@ import {
   AllowlistSettings,
   ProtectedPreviewSettings,
   TestHarnessSettings,
+  ClaudeProtocolSettings,
   DEFAULT_DEVELOPER_MODE,
   DEFAULT_PROTOCOL_SETTINGS,
   ProtocolId,
@@ -34,6 +35,7 @@ interface DeveloperModeContextValue {
   updateAllowlistSettings: (updates: Partial<AllowlistSettings>) => Promise<void>;
   updateProtectedSettings: (updates: Partial<ProtectedPreviewSettings>) => Promise<void>;
   updateHarnessSettings: (updates: Partial<TestHarnessSettings>) => Promise<void>;
+  updateClaudeSettings: (updates: Partial<ClaudeProtocolSettings>) => Promise<void>;
   toggleProtocolEnabled: (protocolId: ProtocolId) => Promise<void>;
   resetProtocolSettings: (protocolId?: ProtocolId) => Promise<void>;
   
@@ -180,6 +182,16 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     await saveProtocolSettings(updated);
   }, [protocolSettings, saveProtocolSettings]);
 
+  const updateClaudeSettings = useCallback(async (updates: Partial<ClaudeProtocolSettings>) => {
+    const updated = {
+      ...protocolSettings,
+      claude: { ...protocolSettings.claude, ...updates },
+    };
+    setProtocolSettings(updated);
+    await saveProtocolSettings(updated);
+    console.log('[DeveloperMode] Claude settings updated');
+  }, [protocolSettings, saveProtocolSettings]);
+
   // Toggle protocol enabled status
   const toggleProtocolEnabled = useCallback(async (protocolId: ProtocolId) => {
     const updates: Partial<ProtocolSettings> = {};
@@ -196,6 +208,9 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
         break;
       case 'harness':
         updates.harness = { ...protocolSettings.harness, enabled: !protocolSettings.harness.enabled };
+        break;
+      case 'claude':
+        updates.claude = { ...protocolSettings.claude, enabled: !protocolSettings.claude.enabled };
         break;
     }
 
@@ -223,6 +238,9 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
           break;
         case 'harness':
           updated.harness = DEFAULT_PROTOCOL_SETTINGS.harness;
+          break;
+        case 'claude':
+          updated.claude = DEFAULT_PROTOCOL_SETTINGS.claude;
           break;
       }
     } else {
@@ -253,6 +271,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateClaudeSettings,
     toggleProtocolEnabled,
     resetProtocolSettings,
     isLoading,

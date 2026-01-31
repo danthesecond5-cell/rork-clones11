@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -47,6 +47,50 @@ export interface HarnessProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
+// Claude Protocol Settings - The most advanced AI-driven injection system
+export interface ClaudeProtocolSettings {
+  // Core Features
+  enabled: boolean;
+  adaptiveInjection: boolean;
+  contextAwareness: boolean;
+  predictivePreloading: boolean;
+  
+  // Advanced Stealth
+  deepStealthMode: boolean;
+  behavioralMimicry: boolean;
+  timingRandomization: boolean;
+  
+  // Quality Control
+  aiQualityOptimization: boolean;
+  dynamicResolutionScaling: boolean;
+  frameRateStabilization: boolean;
+  
+  // Detection Evasion
+  fingerprintMorphing: boolean;
+  canvasNoiseAdaptation: boolean;
+  webrtcLeakPrevention: boolean;
+  
+  // Performance
+  memoryOptimization: boolean;
+  gpuAcceleration: boolean;
+  workerThreads: boolean;
+  
+  // Reliability
+  autoRecovery: boolean;
+  redundantStreams: boolean;
+  healthMonitoring: boolean;
+  
+  // Metrics
+  advancedMetrics: boolean;
+  performanceLogging: boolean;
+  anomalyDetection: boolean;
+  
+  // Configuration
+  priorityLevel: number;
+  injectionMode: 'aggressive' | 'balanced' | 'conservative' | 'stealth';
+  qualityPreset: 'maximum' | 'high' | 'balanced' | 'performance';
+}
+
 export interface ProtocolContextValue {
   // Developer Mode
   developerModeEnabled: boolean;
@@ -77,12 +121,14 @@ export interface ProtocolContextValue {
   allowlistSettings: AllowlistProtocolSettings;
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
+  claudeSettings: ClaudeProtocolSettings;
   
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
+  updateClaudeSettings: (settings: Partial<ClaudeProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -112,6 +158,7 @@ const STORAGE_KEYS = {
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
+  CLAUDE_SETTINGS: '@protocol_claude_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -152,6 +199,50 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
+// Claude Protocol defaults - maximally advanced configuration
+const DEFAULT_CLAUDE_SETTINGS: ClaudeProtocolSettings = {
+  // Core Features - all enabled for maximum capability
+  enabled: true,
+  adaptiveInjection: true,
+  contextAwareness: true,
+  predictivePreloading: true,
+  
+  // Advanced Stealth - full stealth mode
+  deepStealthMode: true,
+  behavioralMimicry: true,
+  timingRandomization: true,
+  
+  // Quality Control - intelligent optimization
+  aiQualityOptimization: true,
+  dynamicResolutionScaling: true,
+  frameRateStabilization: true,
+  
+  // Detection Evasion - comprehensive protection
+  fingerprintMorphing: true,
+  canvasNoiseAdaptation: true,
+  webrtcLeakPrevention: true,
+  
+  // Performance - optimized for speed
+  memoryOptimization: true,
+  gpuAcceleration: true,
+  workerThreads: true,
+  
+  // Reliability - maximum uptime
+  autoRecovery: true,
+  redundantStreams: true,
+  healthMonitoring: true,
+  
+  // Metrics - full telemetry
+  advancedMetrics: true,
+  performanceLogging: true,
+  anomalyDetection: true,
+  
+  // Configuration - optimal defaults
+  priorityLevel: 100,
+  injectionMode: 'balanced',
+  qualityPreset: 'maximum',
+};
+
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   standard: {
     id: 'standard',
@@ -181,6 +272,13 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  claude: {
+    id: 'claude',
+    name: 'Protocol 5: Claude Protocol',
+    description: 'The most advanced AI-driven injection system. Features adaptive injection, deep stealth, behavioral mimicry, and intelligent optimization.',
+    enabled: true,
+    settings: {},
+  },
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
@@ -199,6 +297,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
+  const [claudeSettings, setClaudeSettings] = useState<ClaudeProtocolSettings>(DEFAULT_CLAUDE_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -215,6 +314,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           allowlist,
           protected_,
           harness,
+          claude,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -228,6 +328,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.CLAUDE_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -271,6 +372,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setHarnessSettings({ ...DEFAULT_HARNESS_SETTINGS, ...JSON.parse(harness) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse harness settings:', e);
+          }
+        }
+        if (claude) {
+          try {
+            setClaudeSettings({ ...DEFAULT_CLAUDE_SETTINGS, ...JSON.parse(claude) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse claude settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -374,6 +482,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
   }, [harnessSettings]);
 
+  const updateClaudeSettings = useCallback(async (settings: Partial<ClaudeProtocolSettings>) => {
+    const newSettings = { ...claudeSettings, ...settings };
+    setClaudeSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.CLAUDE_SETTINGS, JSON.stringify(newSettings));
+    console.log('[Protocol] Claude settings updated:', Object.keys(settings).join(', '));
+  }, [claudeSettings]);
+
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
     if (!normalized || allowlistSettings.domains.includes(normalized)) return;
@@ -423,10 +538,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    claudeSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateClaudeSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
