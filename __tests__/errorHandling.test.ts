@@ -19,9 +19,13 @@ import {
 } from '@/utils/errorHandling';
 import { Alert, Platform } from 'react-native';
 
-// Mock Alert.alert
-const mockAlert = jest.fn();
-jest.spyOn(Alert, 'alert').mockImplementation(mockAlert);
+// Simplified mock for react-native to avoid TurboModuleRegistry errors
+jest.mock('react-native', () => {
+  return {
+    Alert: { alert: jest.fn() },
+    Platform: { OS: 'ios', select: jest.fn(obj => obj.ios) },
+  };
+});
 
 const setPlatformOS = (os: string) => {
   (Platform as { OS: string }).OS = os;
@@ -36,7 +40,7 @@ describe('errorHandling utilities', () => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    mockAlert.mockClear();
+    (Alert.alert as jest.Mock).mockClear();
     setPlatformOS('ios');
   });
 
@@ -116,12 +120,12 @@ describe('errorHandling utilities', () => {
 
   test('showErrorAlert uses default button and handlers', () => {
     showErrorAlert('Title', 'Message');
-    expect(mockAlert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
+    expect(Alert.alert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
 
     const onRetry = jest.fn();
     const onCancel = jest.fn();
     showErrorAlert('Oops', 'Try again', onRetry, onCancel);
-    expect(mockAlert).toHaveBeenCalledWith('Oops', 'Try again', [
+    expect(Alert.alert).toHaveBeenCalledWith('Oops', 'Try again', [
       { text: 'Cancel', style: 'cancel', onPress: onCancel },
       { text: 'Retry', onPress: onRetry },
     ]);
