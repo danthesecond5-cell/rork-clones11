@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Alert } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { DeveloperModeProvider } from "@/contexts/DeveloperModeContext";
 import { DeviceTemplateProvider } from "@/contexts/DeviceTemplateContext";
 import { VideoLibraryProvider } from "@/contexts/VideoLibraryContext";
 import { ProtocolProvider } from "@/contexts/ProtocolContext";
@@ -78,15 +79,17 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ProtocolProvider>
-        <DeviceTemplateProvider>
-          <VideoLibraryProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <RootLayoutNav />
-            </GestureHandlerRootView>
-          </VideoLibraryProvider>
-        </DeviceTemplateProvider>
-      </ProtocolProvider>
+      <DeveloperModeProvider>
+        <ProtocolProvider>
+          <DeviceTemplateProvider>
+            <VideoLibraryProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <RootLayoutNav />
+              </GestureHandlerRootView>
+            </VideoLibraryProvider>
+          </DeviceTemplateProvider>
+        </ProtocolProvider>
+      </DeveloperModeProvider>
     </QueryClientProvider>
   );
 }
