@@ -13,6 +13,15 @@ export enum ErrorCode {
   TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND',
   DEVICE_NOT_FOUND = 'DEVICE_NOT_FOUND',
   WEBVIEW_ERROR = 'WEBVIEW_ERROR',
+  // Claude Protocol specific error codes
+  PROTOCOL_ERROR = 'PROTOCOL_ERROR',
+  INJECTION_FAILED = 'INJECTION_FAILED',
+  STREAM_ERROR = 'STREAM_ERROR',
+  QUALITY_DEGRADATION = 'QUALITY_DEGRADATION',
+  FINGERPRINT_DETECTION = 'FINGERPRINT_DETECTION',
+  NEURAL_ENGINE_ERROR = 'NEURAL_ENGINE_ERROR',
+  ADAPTIVE_LEARNING_ERROR = 'ADAPTIVE_LEARNING_ERROR',
+  CONTEXT_ANALYSIS_ERROR = 'CONTEXT_ANALYSIS_ERROR',
 }
 
 export interface AppError {
@@ -448,3 +457,252 @@ export function getPlatformSpecificError(error: unknown): string {
   
   return baseMessage;
 }
+
+// ============ PROTOCOL VALIDATION UTILITIES ============
+
+export interface ProtocolValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Validate protocol settings object
+ */
+export function validateProtocolSettings(settings: unknown): ProtocolValidationResult {
+  const result: ProtocolValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  if (!settings || typeof settings !== 'object') {
+    result.valid = false;
+    result.errors.push('Protocol settings must be an object');
+    return result;
+  }
+
+  const settingsObj = settings as Record<string, unknown>;
+
+  // Check for required protocol keys
+  const requiredProtocols = ['standard', 'allowlist', 'protected', 'harness', 'claude'];
+  for (const protocol of requiredProtocols) {
+    if (!(protocol in settingsObj)) {
+      result.warnings.push(`Missing protocol settings for: ${protocol}`);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Validate Claude protocol specific settings
+ */
+export function validateClaudeSettings(settings: unknown): ProtocolValidationResult {
+  const result: ProtocolValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  if (!settings || typeof settings !== 'object') {
+    result.valid = false;
+    result.errors.push('Claude settings must be an object');
+    return result;
+  }
+
+  const claudeSettings = settings as Record<string, unknown>;
+
+  // Validate anti-detection level
+  const validAntiDetectionLevels = ['standard', 'enhanced', 'maximum', 'paranoid'];
+  if (claudeSettings.antiDetectionLevel && 
+      !validAntiDetectionLevels.includes(claudeSettings.antiDetectionLevel as string)) {
+    result.errors.push(`Invalid antiDetectionLevel: ${claudeSettings.antiDetectionLevel}. Must be one of: ${validAntiDetectionLevels.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Validate noise reduction level
+  const validNoiseReductionLevels = ['off', 'light', 'moderate', 'aggressive'];
+  if (claudeSettings.noiseReductionLevel && 
+      !validNoiseReductionLevels.includes(claudeSettings.noiseReductionLevel as string)) {
+    result.errors.push(`Invalid noiseReductionLevel: ${claudeSettings.noiseReductionLevel}. Must be one of: ${validNoiseReductionLevels.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Validate error recovery mode
+  const validErrorRecoveryModes = ['graceful', 'aggressive', 'silent'];
+  if (claudeSettings.errorRecoveryMode && 
+      !validErrorRecoveryModes.includes(claudeSettings.errorRecoveryMode as string)) {
+    result.errors.push(`Invalid errorRecoveryMode: ${claudeSettings.errorRecoveryMode}. Must be one of: ${validErrorRecoveryModes.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Validate priority level
+  const validPriorityLevels = ['background', 'normal', 'high', 'realtime'];
+  if (claudeSettings.priorityLevel && 
+      !validPriorityLevels.includes(claudeSettings.priorityLevel as string)) {
+    result.errors.push(`Invalid priorityLevel: ${claudeSettings.priorityLevel}. Must be one of: ${validPriorityLevels.join(', ')}`);
+    result.valid = false;
+  }
+
+  // Warnings for potentially conflicting settings
+  if (claudeSettings.powerEfficiencyMode && claudeSettings.priorityLevel === 'realtime') {
+    result.warnings.push('Power efficiency mode may conflict with realtime priority level');
+  }
+
+  if (claudeSettings.superResolutionEnabled && claudeSettings.memoryOptimization) {
+    result.warnings.push('Super resolution with memory optimization enabled may cause performance issues');
+  }
+
+  return result;
+}
+
+/**
+ * Validate video URI for injection
+ */
+export function validateInjectionVideoUri(uri: string | null | undefined): ProtocolValidationResult {
+  const result: ProtocolValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+  };
+
+  if (!uri) {
+    result.warnings.push('No video URI provided, will use fallback');
+    return result;
+  }
+
+  if (typeof uri !== 'string') {
+    result.valid = false;
+    result.errors.push('Video URI must be a string');
+    return result;
+  }
+
+  const trimmedUri = uri.trim();
+
+  // Check for empty URI
+  if (trimmedUri.length === 0) {
+    result.warnings.push('Empty video URI, will use fallback');
+    return result;
+  }
+
+  // Validate base64 data URIs
+  if (trimmedUri.startsWith('data:video/')) {
+    if (!trimmedUri.includes(';base64,')) {
+      result.valid = false;
+      result.errors.push('Invalid base64 video data URI format');
+    }
+    return result;
+  }
+
+  // Validate blob URIs
+  if (trimmedUri.startsWith('blob:')) {
+    result.warnings.push('Blob URIs may expire and should be used immediately');
+    return result;
+  }
+
+  // Validate HTTP(S) URIs
+  if (trimmedUri.startsWith('http://') || trimmedUri.startsWith('https://')) {
+    if (trimmedUri.startsWith('http://')) {
+      result.warnings.push('HTTP URIs may be blocked by CORS or security policies');
+    }
+    
+    // Check for known problematic hosts
+    const problematicHosts = ['imgur.com', 'giphy.com', 'gfycat.com', 'streamable.com'];
+    for (const host of problematicHosts) {
+      if (trimmedUri.includes(host)) {
+        result.warnings.push(`Videos from ${host} often fail due to CORS restrictions. Consider downloading first.`);
+      }
+    }
+    
+    return result;
+  }
+
+  // Validate file URIs
+  if (trimmedUri.startsWith('file://') || trimmedUri.startsWith('/')) {
+    return result;
+  }
+
+  // Canvas fallback pattern
+  if (trimmedUri.startsWith('canvas:')) {
+    return result;
+  }
+
+  result.warnings.push('Unknown URI format, may not work as expected');
+  return result;
+}
+
+/**
+ * Create a protocol-specific error with context
+ */
+export function createProtocolError(
+  code: ErrorCode,
+  message: string,
+  protocolId: string,
+  originalError?: Error | unknown
+): AppError {
+  const enrichedMessage = `[Protocol ${protocolId}] ${message}`;
+  return createAppError(code, enrichedMessage, originalError, true);
+}
+
+/**
+ * Handle protocol errors with automatic recovery suggestions
+ */
+export function getProtocolErrorRecovery(error: AppError): {
+  canRecover: boolean;
+  suggestion: string;
+  action?: () => void;
+} {
+  switch (error.code) {
+    case ErrorCode.STREAM_ERROR:
+      return {
+        canRecover: true,
+        suggestion: 'Try restarting the stream or switching to a lower quality setting',
+      };
+    
+    case ErrorCode.QUALITY_DEGRADATION:
+      return {
+        canRecover: true,
+        suggestion: 'Quality has been automatically reduced. Check device performance.',
+      };
+    
+    case ErrorCode.INJECTION_FAILED:
+      return {
+        canRecover: true,
+        suggestion: 'Injection failed. Try using a different video source or check permissions.',
+      };
+    
+    case ErrorCode.NEURAL_ENGINE_ERROR:
+      return {
+        canRecover: true,
+        suggestion: 'Neural engine encountered an error. Falling back to standard processing.',
+      };
+    
+    case ErrorCode.FINGERPRINT_DETECTION:
+      return {
+        canRecover: false,
+        suggestion: 'Potential fingerprint detection. Consider increasing anti-detection level.',
+      };
+    
+    default:
+      return {
+        canRecover: error.recoverable,
+        suggestion: 'An error occurred. Please try again or contact support.',
+      };
+  }
+}
+
+/**
+ * Log protocol metrics for debugging
+ */
+export function logProtocolMetrics(
+  protocolId: string,
+  metrics: Record<string, unknown>
+): void {
+  if (__DEV__) {
+    console.log(`[Protocol Metrics - ${protocolId}]`, JSON.stringify(metrics, null, 2));
+  }
+}
+
+// Check if we're in development mode
+const __DEV__ = process.env.NODE_ENV !== 'production';
