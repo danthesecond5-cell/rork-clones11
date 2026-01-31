@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'codex';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -47,6 +47,15 @@ export interface HarnessProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
+export interface CodexProtocolSettings {
+  autoInject: boolean;
+  enhancedStealth: boolean;
+  forceSimulation: boolean;
+  adaptiveQuality: boolean;
+  diagnosticsOverlay: boolean;
+  injectMotionData: boolean;
+}
+
 export interface ProtocolContextValue {
   // Developer Mode
   developerModeEnabled: boolean;
@@ -77,12 +86,14 @@ export interface ProtocolContextValue {
   allowlistSettings: AllowlistProtocolSettings;
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
+  codexSettings: CodexProtocolSettings;
   
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
+  updateCodexSettings: (settings: Partial<CodexProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -112,6 +123,7 @@ const STORAGE_KEYS = {
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
+  CODEX_SETTINGS: '@protocol_codex_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -152,6 +164,15 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
+const DEFAULT_CODEX_SETTINGS: CodexProtocolSettings = {
+  autoInject: true,
+  enhancedStealth: true,
+  forceSimulation: true,
+  adaptiveQuality: true,
+  diagnosticsOverlay: true,
+  injectMotionData: true,
+};
+
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   standard: {
     id: 'standard',
@@ -181,6 +202,13 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  codex: {
+    id: 'codex',
+    name: 'Protocol 5: GPT-5.2 Codex High',
+    description: 'Advanced self-optimizing injection profile tuned for maximum fidelity and resilience.',
+    enabled: true,
+    settings: {},
+  },
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
@@ -199,6 +227,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
+  const [codexSettings, setCodexSettings] = useState<CodexProtocolSettings>(DEFAULT_CODEX_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -215,6 +244,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           allowlist,
           protected_,
           harness,
+          codex,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -228,6 +258,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.CODEX_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -236,7 +267,9 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (pin) setDeveloperPinState(pin);
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
-        if (activeProto) setActiveProtocolState(activeProto as ProtocolType);
+        if (activeProto && Object.prototype.hasOwnProperty.call(DEFAULT_PROTOCOLS, activeProto)) {
+          setActiveProtocolState(activeProto as ProtocolType);
+        }
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);
@@ -271,6 +304,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setHarnessSettings({ ...DEFAULT_HARNESS_SETTINGS, ...JSON.parse(harness) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse harness settings:', e);
+          }
+        }
+        if (codex) {
+          try {
+            setCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...JSON.parse(codex) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse codex settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -374,6 +414,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
   }, [harnessSettings]);
 
+  const updateCodexSettings = useCallback(async (settings: Partial<CodexProtocolSettings>) => {
+    const newSettings = { ...codexSettings, ...settings };
+    setCodexSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.CODEX_SETTINGS, JSON.stringify(newSettings));
+  }, [codexSettings]);
+
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
     if (!normalized || allowlistSettings.domains.includes(normalized)) return;
@@ -423,10 +469,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    codexSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateCodexSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,

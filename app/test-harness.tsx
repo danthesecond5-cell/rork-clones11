@@ -13,7 +13,6 @@ import { Stack, router } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { ChevronLeft, Monitor, Film, FlaskConical, Settings, Lock, Activity, Shield } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
-import { useDeveloperMode } from '@/contexts/DeveloperModeContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
 import { formatVideoUriForWebView, isLocalFileUri } from '@/utils/videoServing';
 import TestingWatermark from '@/components/TestingWatermark';
@@ -121,7 +120,6 @@ export default function TestHarnessScreen() {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
   const { savedVideos, isVideoReady } = useVideoLibrary();
-  const { developerMode } = useDeveloperMode();
   const {
     harnessSettings,
     updateHarnessSettings,
@@ -129,6 +127,7 @@ export default function TestHarnessScreen() {
     presentationMode,
     mlSafetyEnabled,
     protocols,
+    showTestingWatermark,
   } = useProtocol();
 
   const protocolEnabled = protocols.harness?.enabled ?? true;
@@ -152,7 +151,6 @@ export default function TestHarnessScreen() {
   }, [savedVideos, isVideoReady]);
 
   const webViewOriginWhitelist = useMemo(() => ['about:blank'], []);
-  const allowLocalFileAccess = Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   useEffect(() => {
     if (!selectedVideoId && compatibleVideos.length > 0) {
@@ -161,6 +159,7 @@ export default function TestHarnessScreen() {
   }, [selectedVideoId, compatibleVideos]);
 
   const selectedVideo = compatibleVideos.find(video => video.id === selectedVideoId) || null;
+  const allowLocalFileAccess = Platform.OS === 'android' && Boolean(selectedVideo && isLocalFileUri(selectedVideo.uri));
 
   const applyOverlaySettings = useCallback(() => {
     if (!webViewRef.current) return;
@@ -188,7 +187,7 @@ export default function TestHarnessScreen() {
   return (
     <View style={styles.container}>
       <TestingWatermark 
-        visible={developerMode.showWatermark}
+        visible={showTestingWatermark}
         position="top-right"
         variant="minimal"
       />

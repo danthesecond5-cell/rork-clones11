@@ -1,9 +1,9 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'codex';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -54,12 +54,24 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
+// Protocol 5: Codex High Fidelity Settings
+export interface CodexProtocolSettings {
+  enabled: boolean;
+  autoInject: boolean;
+  enhancedStealth: boolean;
+  forceSimulation: boolean;
+  adaptiveQuality: boolean;
+  diagnosticsOverlay: boolean;
+  injectMotionData: boolean;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
+  codex: CodexProtocolSettings;
 }
 
 // Developer Mode Settings
@@ -112,11 +124,22 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
+export const DEFAULT_CODEX_SETTINGS: CodexProtocolSettings = {
+  enabled: true,
+  autoInject: true,
+  enhancedStealth: true,
+  forceSimulation: true,
+  adaptiveQuality: true,
+  diagnosticsOverlay: true,
+  injectMotionData: true,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
+  codex: DEFAULT_CODEX_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -166,5 +189,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
+  },
+  codex: {
+    id: 'codex',
+    name: 'Protocol 5: GPT-5.2 Codex High',
+    description: 'Advanced self-optimizing injection profile tuned for maximum fidelity and resilience.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
   },
 };

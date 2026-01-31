@@ -8,6 +8,7 @@ import {
   AllowlistSettings,
   ProtectedPreviewSettings,
   TestHarnessSettings,
+  CodexProtocolSettings,
   DEFAULT_DEVELOPER_MODE,
   DEFAULT_PROTOCOL_SETTINGS,
   ProtocolId,
@@ -34,6 +35,7 @@ interface DeveloperModeContextValue {
   updateAllowlistSettings: (updates: Partial<AllowlistSettings>) => Promise<void>;
   updateProtectedSettings: (updates: Partial<ProtectedPreviewSettings>) => Promise<void>;
   updateHarnessSettings: (updates: Partial<TestHarnessSettings>) => Promise<void>;
+  updateCodexSettings: (updates: Partial<CodexProtocolSettings>) => Promise<void>;
   toggleProtocolEnabled: (protocolId: ProtocolId) => Promise<void>;
   resetProtocolSettings: (protocolId?: ProtocolId) => Promise<void>;
   
@@ -68,6 +70,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
             allowlist: { ...DEFAULT_PROTOCOL_SETTINGS.allowlist, ...parsed.allowlist },
             protected: { ...DEFAULT_PROTOCOL_SETTINGS.protected, ...parsed.protected },
             harness: { ...DEFAULT_PROTOCOL_SETTINGS.harness, ...parsed.harness },
+            codex: { ...DEFAULT_PROTOCOL_SETTINGS.codex, ...parsed.codex },
           });
           console.log('[DeveloperMode] Loaded protocol settings');
         }
@@ -180,6 +183,15 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     await saveProtocolSettings(updated);
   }, [protocolSettings, saveProtocolSettings]);
 
+  const updateCodexSettings = useCallback(async (updates: Partial<CodexProtocolSettings>) => {
+    const updated = {
+      ...protocolSettings,
+      codex: { ...protocolSettings.codex, ...updates },
+    };
+    setProtocolSettings(updated);
+    await saveProtocolSettings(updated);
+  }, [protocolSettings, saveProtocolSettings]);
+
   // Toggle protocol enabled status
   const toggleProtocolEnabled = useCallback(async (protocolId: ProtocolId) => {
     const updates: Partial<ProtocolSettings> = {};
@@ -196,6 +208,9 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
         break;
       case 'harness':
         updates.harness = { ...protocolSettings.harness, enabled: !protocolSettings.harness.enabled };
+        break;
+      case 'codex':
+        updates.codex = { ...protocolSettings.codex, enabled: !protocolSettings.codex.enabled };
         break;
     }
 
@@ -223,6 +238,9 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
           break;
         case 'harness':
           updated.harness = DEFAULT_PROTOCOL_SETTINGS.harness;
+          break;
+        case 'codex':
+          updated.codex = DEFAULT_PROTOCOL_SETTINGS.codex;
           break;
       }
     } else {
@@ -253,6 +271,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateCodexSettings,
     toggleProtocolEnabled,
     resetProtocolSettings,
     isLoading,

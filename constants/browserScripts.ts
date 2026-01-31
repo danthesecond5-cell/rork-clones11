@@ -662,6 +662,7 @@ export interface MediaInjectionOptions {
   loopVideo?: boolean;
   mirrorVideo?: boolean;
   debugEnabled?: boolean;
+  performanceProfile?: 'standard' | 'codex';
 }
 
 export const createMediaInjectionScript = (
@@ -678,12 +679,43 @@ export const createMediaInjectionScript = (
     loopVideo = true,
     mirrorVideo = false,
     debugEnabled,
+    performanceProfile = 'standard',
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
   
   const placeholderWidth = defaultRes?.width || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width;
   const placeholderHeight = defaultRes?.height || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height;
+
+  const performanceProfiles = {
+    standard: {
+      performanceSampleSize: 60,
+      qualityAdaptationInterval: 3000,
+      minAcceptableFps: 15,
+      maxActiveStreams: 3,
+      healthCheckInterval: 5000,
+      qualityThresholds: { high: 25, medium: 18, low: 12 },
+      qualityLevels: [
+        { name: 'high', scale: 1.0, fps: 30 },
+        { name: 'medium', scale: 0.75, fps: 24 },
+        { name: 'low', scale: 0.5, fps: 15 },
+      ],
+    },
+    codex: {
+      performanceSampleSize: 90,
+      qualityAdaptationInterval: 2000,
+      minAcceptableFps: 18,
+      maxActiveStreams: 4,
+      healthCheckInterval: 4000,
+      qualityThresholds: { high: 26, medium: 20, low: 14 },
+      qualityLevels: [
+        { name: 'ultra', scale: 1.0, fps: 30 },
+        { name: 'high', scale: 0.85, fps: 26 },
+        { name: 'medium', scale: 0.7, fps: 22 },
+        { name: 'low', scale: 0.55, fps: 16 },
+      ],
+    },
+  };
 
   return `
 (function() {
@@ -701,6 +733,7 @@ export const createMediaInjectionScript = (
         showOverlayLabel: ${showOverlayLabel ? 'true' : 'false'},
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
+        performanceProfile: ${JSON.stringify(performanceProfile)},
         debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)}
       });
     }
@@ -709,6 +742,7 @@ export const createMediaInjectionScript = (
   window.__mediaInjectorInitialized = true;
   
   // ============ CONFIGURATION ============
+  const PERFORMANCE_PROFILES = ${JSON.stringify(performanceProfiles)};
   const CONFIG = {
     DEBUG_ENABLED: ${debugEnabled === undefined ? 'true' : JSON.stringify(debugEnabled)},
     FALLBACK_VIDEO_URI: ${JSON.stringify(fallbackVideoUri)},
@@ -718,28 +752,42 @@ export const createMediaInjectionScript = (
     SHOW_OVERLAY_LABEL: ${showOverlayLabel ? 'true' : 'false'},
     LOOP_VIDEO: ${loopVideo ? 'true' : 'false'},
     MIRROR_VIDEO: ${mirrorVideo ? 'true' : 'false'},
+    PERFORMANCE_PROFILE: ${JSON.stringify(performanceProfile)},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
     TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
     VIDEO_LOAD_TIMEOUT: 12000,
     MAX_RETRY_ATTEMPTS: 4,
     INITIAL_RETRY_DELAY: 500,
-    HEALTH_CHECK_INTERVAL: 5000,
-    MIN_ACCEPTABLE_FPS: 15,
     CORS_STRATEGIES: ['anonymous', 'use-credentials', null],
-    PERFORMANCE_SAMPLE_SIZE: 60,
-    QUALITY_HIGH_FPS_THRESHOLD: 25,
-    QUALITY_MEDIUM_FPS_THRESHOLD: 18,
-    QUALITY_LOW_FPS_THRESHOLD: 12,
-    QUALITY_ADAPTATION_INTERVAL: 3000,
-    QUALITY_LEVELS: [
-      { name: 'high', scale: 1.0, fps: 30 },
-      { name: 'medium', scale: 0.75, fps: 24 },
-      { name: 'low', scale: 0.5, fps: 15 },
-    ],
-    MAX_ACTIVE_STREAMS: 3,
+    HEALTH_CHECK_INTERVAL: PERFORMANCE_PROFILES.standard.healthCheckInterval,
+    MIN_ACCEPTABLE_FPS: PERFORMANCE_PROFILES.standard.minAcceptableFps,
+    PERFORMANCE_SAMPLE_SIZE: PERFORMANCE_PROFILES.standard.performanceSampleSize,
+    QUALITY_HIGH_FPS_THRESHOLD: PERFORMANCE_PROFILES.standard.qualityThresholds.high,
+    QUALITY_MEDIUM_FPS_THRESHOLD: PERFORMANCE_PROFILES.standard.qualityThresholds.medium,
+    QUALITY_LOW_FPS_THRESHOLD: PERFORMANCE_PROFILES.standard.qualityThresholds.low,
+    QUALITY_ADAPTATION_INTERVAL: PERFORMANCE_PROFILES.standard.qualityAdaptationInterval,
+    QUALITY_LEVELS: PERFORMANCE_PROFILES.standard.qualityLevels,
+    MAX_ACTIVE_STREAMS: PERFORMANCE_PROFILES.standard.maxActiveStreams,
     CLEANUP_DELAY: 100,
   };
+
+  const applyPerformanceProfile = function(profileName) {
+    var resolvedProfile = PERFORMANCE_PROFILES[profileName] ? profileName : 'standard';
+    var profile = PERFORMANCE_PROFILES[resolvedProfile] || PERFORMANCE_PROFILES.standard;
+    CONFIG.PERFORMANCE_PROFILE = resolvedProfile;
+    CONFIG.PERFORMANCE_SAMPLE_SIZE = profile.performanceSampleSize;
+    CONFIG.QUALITY_ADAPTATION_INTERVAL = profile.qualityAdaptationInterval;
+    CONFIG.MIN_ACCEPTABLE_FPS = profile.minAcceptableFps;
+    CONFIG.MAX_ACTIVE_STREAMS = profile.maxActiveStreams;
+    CONFIG.HEALTH_CHECK_INTERVAL = profile.healthCheckInterval;
+    CONFIG.QUALITY_HIGH_FPS_THRESHOLD = profile.qualityThresholds.high;
+    CONFIG.QUALITY_MEDIUM_FPS_THRESHOLD = profile.qualityThresholds.medium;
+    CONFIG.QUALITY_LOW_FPS_THRESHOLD = profile.qualityThresholds.low;
+    CONFIG.QUALITY_LEVELS = profile.qualityLevels;
+  };
+  
+  applyPerformanceProfile(CONFIG.PERFORMANCE_PROFILE);
   
   // ============ EXPO/WEBVIEW COMPATIBILITY ============
   if (!window.performance) {
@@ -815,6 +863,7 @@ export const createMediaInjectionScript = (
           source: source,
           fallback: CONFIG.FALLBACK_VIDEO_URI,
           forceSimulation: CONFIG.FORCE_SIMULATION,
+          performanceProfile: CONFIG.PERFORMANCE_PROFILE,
           timestamp: Date.now()
         }
       }));
@@ -822,7 +871,7 @@ export const createMediaInjectionScript = (
   }
   
   Logger.log('======== WEBCAM SIMULATION INIT ========');
-  Logger.log('Protocol:', CONFIG.PROTOCOL_ID, '| Devices:', ${devices.length}, '| Stealth:', ${stealthMode}, '| ForceSim:', CONFIG.FORCE_SIMULATION);
+  Logger.log('Protocol:', CONFIG.PROTOCOL_ID, '| Devices:', ${devices.length}, '| Stealth:', ${stealthMode}, '| ForceSim:', CONFIG.FORCE_SIMULATION, '| Profile:', CONFIG.PERFORMANCE_PROFILE);
   
   // ============ METRICS TRACKING ============
   const Metrics = {
@@ -930,11 +979,11 @@ export const createMediaInjectionScript = (
     lastAdaptTime: 0,
     fpsHistory: [],
     
-    getCurrentQuality: function() { return CONFIG.QUALITY_LEVELS[this.currentLevel]; },
+    getCurrentQuality: function() { return CONFIG.QUALITY_LEVELS[this.currentLevel] || CONFIG.QUALITY_LEVELS[0]; },
     
     recordFps: function(fps) {
       this.fpsHistory.push(fps);
-      if (this.fpsHistory.length > 30) this.fpsHistory.shift();
+      if (this.fpsHistory.length > CONFIG.PERFORMANCE_SAMPLE_SIZE) this.fpsHistory.shift();
     },
     
     getAverageFps: function() {
@@ -949,10 +998,14 @@ export const createMediaInjectionScript = (
       var avgFps = this.getAverageFps();
       var prevLevel = this.currentLevel;
       
-      if (avgFps < CONFIG.QUALITY_LOW_FPS_THRESHOLD && this.currentLevel < 2) {
-        this.currentLevel = 2;
-      } else if (avgFps < CONFIG.QUALITY_MEDIUM_FPS_THRESHOLD && this.currentLevel < 1) {
-        this.currentLevel = 1;
+      var maxLevel = CONFIG.QUALITY_LEVELS.length - 1;
+      var midLevel = Math.max(0, maxLevel - 1);
+      if (maxLevel < 0) return;
+      
+      if (avgFps < CONFIG.QUALITY_LOW_FPS_THRESHOLD && this.currentLevel < maxLevel) {
+        this.currentLevel = maxLevel;
+      } else if (avgFps < CONFIG.QUALITY_MEDIUM_FPS_THRESHOLD && this.currentLevel < midLevel) {
+        this.currentLevel = midLevel;
       } else if (avgFps > CONFIG.QUALITY_HIGH_FPS_THRESHOLD && this.currentLevel > 0) {
         this.currentLevel = Math.max(0, this.currentLevel - 1);
       }
@@ -1233,6 +1286,7 @@ export const createMediaInjectionScript = (
     loopVideo: CONFIG.LOOP_VIDEO,
     mirrorVideo: CONFIG.MIRROR_VIDEO,
     protocolId: CONFIG.PROTOCOL_ID,
+    performanceProfile: CONFIG.PERFORMANCE_PROFILE,
     overlayLabelText: CONFIG.PROTOCOL_LABEL,
     showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
   };
@@ -1282,6 +1336,12 @@ export const createMediaInjectionScript = (
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
     }
+    if (config.performanceProfile && config.performanceProfile !== CONFIG.PERFORMANCE_PROFILE) {
+      applyPerformanceProfile(config.performanceProfile);
+      QualityAdapter.reset();
+      window.__mediaSimConfig.performanceProfile = CONFIG.PERFORMANCE_PROFILE;
+      Logger.log('Performance profile updated:', CONFIG.PERFORMANCE_PROFILE);
+    }
     if (
       config.loopVideo !== undefined ||
       config.protocolId !== undefined ||
@@ -1305,7 +1365,8 @@ export const createMediaInjectionScript = (
       ...Metrics.getSummary(),
       quality: QualityAdapter.getCurrentQuality(),
       qualityLevel: QualityAdapter.currentLevel,
-      streams: StreamRegistry.getStats()
+      streams: StreamRegistry.getStats(),
+      performanceProfile: CONFIG.PERFORMANCE_PROFILE
     };
   };
   
@@ -2589,7 +2650,7 @@ export const createMediaInjectionScript = (
   Logger.log('Fallback formats:', VIDEO_FORMAT_FALLBACKS.length);
   Logger.log('Health monitoring: ENABLED');
   Logger.log('Video caching: LRU eviction enabled');
-  Logger.log('Quality adaptation: 3 levels (high/medium/low)');
+  Logger.log('Quality adaptation:', CONFIG.QUALITY_LEVELS.length, 'levels | Profile:', CONFIG.PERFORMANCE_PROFILE);
   Logger.log('Stream registry: max', CONFIG.MAX_ACTIVE_STREAMS, 'active streams');
   Logger.log('Memory cleanup: Page lifecycle hooks active');
   Logger.log('CORS retry:', CONFIG.CORS_STRATEGIES.length, 'strategies');

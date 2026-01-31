@@ -61,10 +61,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    codexSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateCodexSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -447,6 +449,84 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'codex':
+        return (
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Auto Inject</Text>
+                <Text style={styles.settingHint}>Inject immediately for high-fidelity sessions</Text>
+              </View>
+              <Switch
+                value={codexSettings.autoInject}
+                onValueChange={(v) => updateCodexSettings({ autoInject: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={codexSettings.autoInject ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Enhanced Stealth</Text>
+                <Text style={styles.settingHint}>Force stealth protections on all sites</Text>
+              </View>
+              <Switch
+                value={codexSettings.enhancedStealth}
+                onValueChange={(v) => updateCodexSettings({ enhancedStealth: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={codexSettings.enhancedStealth ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Force Simulation</Text>
+                <Text style={styles.settingHint}>Always simulate camera streams</Text>
+              </View>
+              <Switch
+                value={codexSettings.forceSimulation}
+                onValueChange={(v) => updateCodexSettings({ forceSimulation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={codexSettings.forceSimulation ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Adaptive Quality</Text>
+                <Text style={styles.settingHint}>Enable Codex performance profile tuning</Text>
+              </View>
+              <Switch
+                value={codexSettings.adaptiveQuality}
+                onValueChange={(v) => updateCodexSettings({ adaptiveQuality: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={codexSettings.adaptiveQuality ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Diagnostics Overlay</Text>
+                <Text style={styles.settingHint}>Show protocol telemetry badges</Text>
+              </View>
+              <Switch
+                value={codexSettings.diagnosticsOverlay}
+                onValueChange={(v) => updateCodexSettings({ diagnosticsOverlay: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={codexSettings.diagnosticsOverlay ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Inject Motion Data</Text>
+                <Text style={styles.settingHint}>Add accelerometer/gyroscope simulation</Text>
+              </View>
+              <Switch
+                value={codexSettings.injectMotionData}
+                onValueChange={(v) => updateCodexSettings({ injectMotionData: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={codexSettings.injectMotionData ? '#ffffff' : '#888'}
+              />
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +537,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    codex: <Cpu size={18} color="#ffcc00" />,
   };
 
   return (
@@ -612,6 +693,7 @@ export default function ProtocolSettingsModal({
                 const protocol = protocols[protocolId];
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
+                const isActivationLocked = protocolId === 'codex' && !developerModeEnabled;
 
                 return (
                   <View
@@ -658,8 +740,18 @@ export default function ProtocolSettingsModal({
 
                         {!isActive && (
                           <TouchableOpacity
-                            style={styles.setActiveButton}
-                            onPress={() => setActiveProtocol(protocolId)}
+                            style={[
+                              styles.setActiveButton,
+                              isActivationLocked && styles.setActiveButtonDisabled,
+                            ]}
+                            onPress={() => {
+                              if (isActivationLocked) {
+                                Alert.alert('Locked', 'Enable developer mode to activate this protocol.');
+                                return;
+                              }
+                              setActiveProtocol(protocolId);
+                            }}
+                            disabled={isActivationLocked}
                           >
                             <Check size={14} color="#0a0a0a" />
                             <Text style={styles.setActiveButtonText}>Set as Active</Text>
@@ -929,6 +1021,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     marginBottom: 12,
+  },
+  setActiveButtonDisabled: {
+    opacity: 0.5,
   },
   setActiveButtonText: {
     fontSize: 13,
