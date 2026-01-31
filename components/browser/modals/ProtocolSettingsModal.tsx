@@ -61,10 +61,12 @@ export default function ProtocolSettingsModal({
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    sonnetSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateSonnetSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
@@ -447,6 +449,177 @@ export default function ProtocolSettingsModal({
           </View>
         );
 
+      case 'sonnet':
+        return (
+          <View style={styles.settingsGroup}>
+            <Text style={styles.sectionTitle}>🤖 Adaptive Intelligence</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>AI Optimization Level</Text>
+              </View>
+              <View style={styles.sensitivityButtons}>
+                {(['conservative', 'balanced', 'aggressive', 'experimental'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.optimizationBtn,
+                      sonnetSettings.aiOptimizationLevel === level && styles.optimizationBtnActive,
+                    ]}
+                    onPress={() => updateSonnetSettings({ aiOptimizationLevel: level })}
+                  >
+                    <Text style={[
+                      styles.optimizationBtnText,
+                      sonnetSettings.aiOptimizationLevel === level && styles.optimizationBtnTextActive,
+                    ]}>
+                      {level.charAt(0).toUpperCase() + level.slice(1).substring(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Dynamic Quality Adaptation</Text>
+                <Text style={styles.settingHint}>Automatically adjust quality based on performance</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.dynamicQualityAdaptation}
+                onValueChange={(v) => updateSonnetSettings({ dynamicQualityAdaptation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.dynamicQualityAdaptation ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Predictive Preloading</Text>
+                <Text style={styles.settingHint}>AI-powered resource prediction</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.predictivePreloading}
+                onValueChange={(v) => updateSonnetSettings({ predictivePreloading: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.predictivePreloading ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🎭 Advanced Stealth</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Hyper-Stealth Mode</Text>
+                <Text style={styles.settingHint}>Maximum detection evasion</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.hyperStealthMode}
+                onValueChange={(v) => updateSonnetSettings({ hyperStealthMode: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={sonnetSettings.hyperStealthMode ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Fingerprint Rotation</Text>
+                <Text style={styles.settingHint}>Rotate device fingerprints</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.fingerprintRotation}
+                onValueChange={(v) => updateSonnetSettings({ fingerprintRotation: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={sonnetSettings.fingerprintRotation ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Behavioral Mimicry</Text>
+                <Text style={styles.settingHint}>Simulate natural user patterns</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.behavioralMimicry}
+                onValueChange={(v) => updateSonnetSettings({ behavioralMimicry: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                thumbColor={sonnetSettings.behavioralMimicry ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>⚡ Performance</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>GPU Acceleration</Text>
+                <Text style={styles.settingHint}>Hardware-accelerated processing</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.gpuAcceleration}
+                onValueChange={(v) => updateSonnetSettings({ gpuAcceleration: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={sonnetSettings.gpuAcceleration ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Memory Optimization</Text>
+                <Text style={styles.settingHint}>Intelligent memory management</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.memoryOptimization}
+                onValueChange={(v) => updateSonnetSettings({ memoryOptimization: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={sonnetSettings.memoryOptimization ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>🛡️ Security & Safety</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Anomaly Detection</Text>
+                <Text style={styles.settingHint}>AI-powered threat detection</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.anomalyDetection}
+                onValueChange={(v) => updateSonnetSettings({ anomalyDetection: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.anomalyDetection ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Self-Healing</Text>
+                <Text style={styles.settingHint}>Automatic error recovery</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.selfHealing}
+                onValueChange={(v) => updateSonnetSettings({ selfHealing: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={sonnetSettings.selfHealing ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>📊 Analytics</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Performance Metrics</Text>
+                <Text style={styles.settingHint}>Real-time performance tracking</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.performanceMetrics}
+                onValueChange={(v) => updateSonnetSettings({ performanceMetrics: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={sonnetSettings.performanceMetrics ? '#ffffff' : '#888'}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Error Prediction</Text>
+                <Text style={styles.settingHint}>Predictive error prevention</Text>
+              </View>
+              <Switch
+                value={sonnetSettings.errorPrediction}
+                onValueChange={(v) => updateSonnetSettings({ errorPrediction: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={sonnetSettings.errorPrediction ? '#ffffff' : '#888'}
+              />
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -457,6 +630,7 @@ export default function ProtocolSettingsModal({
     allowlist: <Shield size={18} color="#00aaff" />,
     protected: <EyeOff size={18} color="#ff6b35" />,
     harness: <Monitor size={18} color="#b388ff" />,
+    sonnet: <Cpu size={18} color="#ffcc00" />,
   };
 
   return (
@@ -1075,5 +1249,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#00aaff',
+  },
+  optimizationBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  optimizationBtnActive: {
+    backgroundColor: '#ffcc00',
+  },
+  optimizationBtnText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  optimizationBtnTextActive: {
+    color: '#0a0a0a',
   },
 });

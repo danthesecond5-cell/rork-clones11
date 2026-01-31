@@ -1,9 +1,9 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -54,12 +54,53 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
+// Protocol 5: Sonnet Protocol Settings (Advanced AI-Optimized)
+export interface SonnetProtocolSettings {
+  enabled: boolean;
+  // Adaptive Intelligence
+  aiOptimizationLevel: 'conservative' | 'balanced' | 'aggressive' | 'experimental';
+  dynamicQualityAdaptation: boolean;
+  predictivePreloading: boolean;
+  intelligentCaching: boolean;
+  
+  // Advanced Stealth
+  hyperStealthMode: boolean;
+  fingerprintRotation: boolean;
+  behavioralMimicry: boolean;
+  timingRandomization: boolean;
+  
+  // Performance Optimization
+  gpuAcceleration: boolean;
+  multiThreadedProcessing: boolean;
+  memoryOptimization: boolean;
+  bandwidthThrottling: boolean;
+  
+  // Security & Safety
+  anomalyDetection: boolean;
+  realTimeValidation: boolean;
+  automaticFallback: boolean;
+  encryptedStreaming: boolean;
+  
+  // Advanced Features
+  contextAwareness: boolean;
+  adaptiveFrameRate: boolean;
+  smartBuffering: boolean;
+  edgeCaseHandling: boolean;
+  
+  // Monitoring & Analytics
+  telemetryEnabled: boolean;
+  performanceMetrics: boolean;
+  errorPrediction: boolean;
+  selfHealing: boolean;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
+  sonnet: SonnetProtocolSettings;
 }
 
 // Developer Mode Settings
@@ -112,11 +153,51 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
+export const DEFAULT_SONNET_SETTINGS: SonnetProtocolSettings = {
+  enabled: true,
+  // Adaptive Intelligence - Balanced by default for optimal performance
+  aiOptimizationLevel: 'balanced',
+  dynamicQualityAdaptation: true,
+  predictivePreloading: true,
+  intelligentCaching: true,
+  
+  // Advanced Stealth - Maximum stealth capabilities
+  hyperStealthMode: true,
+  fingerprintRotation: true,
+  behavioralMimicry: true,
+  timingRandomization: true,
+  
+  // Performance Optimization - All enabled for best experience
+  gpuAcceleration: true,
+  multiThreadedProcessing: true,
+  memoryOptimization: true,
+  bandwidthThrottling: false,
+  
+  // Security & Safety - Full protection enabled
+  anomalyDetection: true,
+  realTimeValidation: true,
+  automaticFallback: true,
+  encryptedStreaming: false, // Disabled by default (requires setup)
+  
+  // Advanced Features - Intelligent adaptation
+  contextAwareness: true,
+  adaptiveFrameRate: true,
+  smartBuffering: true,
+  edgeCaseHandling: true,
+  
+  // Monitoring & Analytics - Full telemetry
+  telemetryEnabled: true,
+  performanceMetrics: true,
+  errorPrediction: true,
+  selfHealing: true,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
+  sonnet: DEFAULT_SONNET_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -166,5 +247,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
+  },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol 5: Sonnet Adaptive Intelligence',
+    description: 'Advanced AI-optimized protocol with hyper-stealth capabilities, predictive adaptation, and self-healing mechanisms. The most sophisticated injection system combining all advanced features.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
   },
 };
