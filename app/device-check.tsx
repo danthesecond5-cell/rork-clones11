@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { CheckCircle, ChevronRight, ArrowRight, Save } from 'lucide-react-native';
+import { CheckCircle, ChevronRight, ArrowRight, Save, FlaskConical } from 'lucide-react-native';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useDeviceEnumeration } from '@/hooks/useDeviceEnumeration';
 import type { CheckStep } from '@/types/browser';
@@ -244,6 +244,8 @@ export default function DeviceCheckScreen() {
               <ArrowRight size={20} color="#0a0a0a" />
             ) : currentStep === 'injection' ? (
               <Save size={20} color="#0a0a0a" />
+            ) : currentStep === 'test' ? (
+              <FlaskConical size={20} color="#0a0a0a" />
             ) : (
               <ChevronRight size={20} color="#0a0a0a" />
             )}
@@ -306,6 +308,10 @@ const styles = StyleSheet.create({
   stepDotComplete: {
     backgroundColor: '#00ff88',
     borderColor: '#00ff88',
+  },
+  stepDotInjection: {
+    backgroundColor: '#8a2be2',
+    borderColor: '#8a2be2',
   },
   stepLine: {
     width: 32,
