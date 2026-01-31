@@ -19,17 +19,9 @@ import {
   withErrorLogging,
 } from '@/utils/errorHandling';
 
-jest.mock('react-native', () => {
-  const actual = jest.requireActual('react-native');
-  return {
-    ...actual,
-    Alert: { alert: jest.fn() },
-    Platform: { ...actual.Platform, OS: 'ios' },
-  };
-});
-
 const setPlatformOS = (os: string) => {
-  (Platform as { OS: string }).OS = os;
+  // Platform.OS may be read-only in some environments, so redefine it.
+  Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
 };
 
 describe('errorHandling utilities', () => {
@@ -41,7 +33,7 @@ describe('errorHandling utilities', () => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    (Alert.alert as jest.Mock).mockClear();
+    jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
     setPlatformOS('ios');
   });
 
@@ -49,6 +41,7 @@ describe('errorHandling utilities', () => {
     consoleErrorSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleLogSpy.mockRestore();
+    (Alert.alert as unknown as jest.Mock).mockRestore?.();
     jest.useRealTimers();
   });
 
