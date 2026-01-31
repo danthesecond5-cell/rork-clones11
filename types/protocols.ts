@@ -1,9 +1,10 @@
 /**
  * Protocol Settings Types
- * Defines configuration for all 4 testing protocols
+ * Defines configuration for all 5 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'sonnet';
+export type ProtocolType = ProtocolId; // Alias for compatibility
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -54,12 +55,29 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
+// Protocol 5: Sonnet Protocol Settings (AI-Powered Adaptive Injection)
+export interface SonnetProtocolSettings {
+  enabled: boolean;
+  aiAdaptiveQuality: boolean;
+  behavioralMimicry: boolean;
+  neuralStyleTransfer: boolean;
+  predictiveFrameOptimization: boolean;
+  quantumTimingRandomness: boolean;
+  biometricSimulation: boolean;
+  realTimeProfiler: boolean;
+  adaptiveStealth: boolean;
+  performanceTarget: 'quality' | 'balanced' | 'performance';
+  stealthIntensity: 'minimal' | 'moderate' | 'maximum';
+  learningMode: boolean;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
+  sonnet: SonnetProtocolSettings;
 }
 
 // Developer Mode Settings
@@ -112,11 +130,27 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
+export const DEFAULT_SONNET_SETTINGS: SonnetProtocolSettings = {
+  enabled: true,
+  aiAdaptiveQuality: true,
+  behavioralMimicry: true,
+  neuralStyleTransfer: false, // Computationally expensive, off by default
+  predictiveFrameOptimization: true,
+  quantumTimingRandomness: true,
+  biometricSimulation: true,
+  realTimeProfiler: true,
+  adaptiveStealth: true,
+  performanceTarget: 'balanced',
+  stealthIntensity: 'maximum',
+  learningMode: true,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
+  sonnet: DEFAULT_SONNET_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -163,6 +197,14 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     id: 'harness',
     name: 'Protocol 4: Local Test Harness',
     description: 'A local sandbox page for safe overlay testing without touching third-party sites.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: false,
+  },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol 5: Sonnet Protocol',
+    description: 'AI-powered adaptive injection with neural behavioral mimicry, predictive optimization, and quantum-grade stealth. The most advanced protocol attempting ultra-realistic camera simulation with real-time learning.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
