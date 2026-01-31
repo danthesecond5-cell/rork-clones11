@@ -5,12 +5,14 @@ import {
   StyleSheet,
   Animated,
   Easing,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Shield,
   AlertTriangle,
   FlaskConical,
   Lock,
+  X,
 } from 'lucide-react-native';
 
 type WatermarkPosition = 'top' | 'bottom' | 'top-right' | 'bottom-right';
@@ -24,6 +26,7 @@ interface TestingWatermarkProps {
   mlSafetyEnabled?: boolean;
   httpsEnforced?: boolean;
   protocolName?: string;
+  onDismiss?: () => void;
 }
 
 const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkProps) {
@@ -35,6 +38,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
     mlSafetyEnabled,
     httpsEnforced,
     protocolName,
+    onDismiss,
   } = props;
 
   const hasVariantProp = props.variant !== undefined;
@@ -43,6 +47,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
     typeof httpsEnforced === 'boolean' ||
     typeof protocolName === 'string'
   );
+  const canDismiss = typeof onDismiss === 'function';
 
   const overlayMlSafetyEnabled = mlSafetyEnabled ?? true;
   const overlayHttpsEnforced = httpsEnforced ?? true;
@@ -96,20 +101,35 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
   if (showOverlay) {
     return (
       <Animated.View
-        pointerEvents="none"
+        pointerEvents={canDismiss ? 'box-none' : 'none'}
         style={[styles.overlayContainer, { opacity: fadeAnim }]}
       >
-        <View style={styles.topBanner}>
+        <View
+          pointerEvents={canDismiss ? 'box-none' : 'none'}
+          style={[styles.topBanner, canDismiss && styles.topBannerDismissible]}
+        >
           <Animated.View
+            pointerEvents="none"
             style={[styles.bannerContent, { opacity: showPulse ? pulseAnim : 1 }]}
           >
             <FlaskConical size={14} color="#ffcc00" />
             <Text style={styles.bannerText}>TESTING PROTOTYPE</Text>
             <FlaskConical size={14} color="#ffcc00" />
           </Animated.View>
+          {canDismiss && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Hide testing watermark"
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              onPress={onDismiss}
+              style={styles.dismissButton}
+            >
+              <X size={12} color="#ffcc00" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View style={styles.safetyBadges}>
+        <View pointerEvents="none" style={styles.safetyBadges}>
           {overlayHttpsEnforced && (
             <View style={styles.badge}>
               <Lock size={10} color="#00ff88" />
@@ -127,25 +147,25 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
         </View>
 
         {protocolName && (
-          <View style={styles.protocolIndicator}>
+          <View pointerEvents="none" style={styles.protocolIndicator}>
             <Text style={styles.protocolText}>{protocolName}</Text>
           </View>
         )}
 
-        <View style={styles.cornerTopLeft}>
+        <View pointerEvents="none" style={styles.cornerTopLeft}>
           <Text style={styles.cornerText}>BETA</Text>
         </View>
-        <View style={styles.cornerTopRight}>
+        <View pointerEvents="none" style={styles.cornerTopRight}>
           <Text style={styles.cornerText}>BETA</Text>
         </View>
-        <View style={styles.cornerBottomLeft}>
+        <View pointerEvents="none" style={styles.cornerBottomLeft}>
           <Text style={styles.cornerText}>DEV</Text>
         </View>
-        <View style={styles.cornerBottomRight}>
+        <View pointerEvents="none" style={styles.cornerBottomRight}>
           <Text style={styles.cornerText}>DEV</Text>
         </View>
 
-        <View style={styles.footer}>
+        <View pointerEvents="none" style={styles.footer}>
           <Text style={styles.footerText}>
             For demonstration purposes only. Not for production use.
           </Text>
@@ -246,6 +266,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 204, 0, 0.3)',
   },
+  topBannerDismissible: {
+    paddingRight: 36,
+  },
   bannerContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -256,6 +279,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 2,
+  },
+  dismissButton: {
+    position: 'absolute',
+    right: 8,
+    top: 4,
+    padding: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.4)',
   },
   safetyBadges: {
     position: 'absolute',
