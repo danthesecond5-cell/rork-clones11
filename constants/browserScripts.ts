@@ -1054,9 +1054,41 @@ export const createMediaInjectionScript = (
     }
   };
   
-  // ============ ERROR HANDLING ============
+  // ============ ENHANCED ERROR HANDLING ============
   const ErrorHandler = {
+    errorHistory: [],
+    maxHistorySize: 50,
+    
+    recordError: function(error, context, videoUrl) {
+      const errorRecord = {
+        timestamp: Date.now(),
+        error: error,
+        context: context,
+        url: videoUrl ? videoUrl.substring(0, 100) : null,
+        userAgent: navigator.userAgent,
+        memoryUsage: performance.memory ? performance.memory.usedJSHeapSize : null
+      };
+      this.errorHistory.push(errorRecord);
+      if (this.errorHistory.length > this.maxHistorySize) {
+        this.errorHistory.shift();
+      }
+    },
+    
+    getErrorPattern: function() {
+      if (this.errorHistory.length < 3) return null;
+      const recentErrors = this.errorHistory.slice(-5);
+      const errorTypes = recentErrors.map(e => e.context);
+      const uniqueTypes = [...new Set(errorTypes)];
+      if (uniqueTypes.length === 1 && errorTypes.length >= 3) {
+        return { pattern: 'repeating', type: uniqueTypes[0] };
+      }
+      return null;
+    },
+    
     getDetailedErrorMessage: function(error, context, videoUrl) {
+      this.recordError(error, context, videoUrl);
+      const pattern = this.getErrorPattern();
+      
       const errorMap = {
         'MEDIA_ERR_ABORTED': {
           message: 'Video loading was aborted',
