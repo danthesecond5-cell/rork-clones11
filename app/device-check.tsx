@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { CheckCircle, ChevronRight, ArrowRight, Save } from 'lucide-react-native';
+import { CheckCircle, ChevronRight, ArrowRight, Save, FlaskConical } from 'lucide-react-native';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useDeviceEnumeration } from '@/hooks/useDeviceEnumeration';
 import type { CheckStep } from '@/types/browser';
@@ -20,8 +20,11 @@ import {
   PermissionsStep,
   DevicesStep,
   TestStep,
+  TestInjectionStep,
   CompleteStep,
 } from '@/components/device-check';
+
+const STEPS: CheckStep[] = ['info', 'permissions', 'devices', 'test', 'injection', 'complete'];
 
 export default function DeviceCheckScreen() {
   const { createTemplate } = useDeviceTemplate();
@@ -44,8 +47,10 @@ export default function DeviceCheckScreen() {
   const [currentStep, setCurrentStep] = useState<CheckStep>('info');
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [injectionComplete, setInjectionComplete] = useState(false);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const currentStepIndex = STEPS.indexOf(currentStep);
 
   useEffect(() => {
     gatherDeviceInfo().then((info) => {
@@ -56,13 +61,18 @@ export default function DeviceCheckScreen() {
   }, [gatherDeviceInfo, generateTemplateName]);
 
   useEffect(() => {
-    const stepIndex = ['info', 'permissions', 'devices', 'test', 'complete'].indexOf(currentStep);
     Animated.spring(progressAnim, {
-      toValue: (stepIndex + 1) / 5,
+      toValue: (currentStepIndex + 1) / STEPS.length,
       useNativeDriver: false,
       friction: 10,
     }).start();
-  }, [currentStep, progressAnim]);
+  }, [currentStepIndex, progressAnim]);
+
+  useEffect(() => {
+    if (currentStep === 'injection') {
+      setInjectionComplete(false);
+    }
+  }, [currentStep]);
 
   const saveTemplate = async () => {
     if (!deviceInfo) return;
@@ -106,6 +116,9 @@ export default function DeviceCheckScreen() {
         setCurrentStep('test');
         break;
       case 'test':
+        setCurrentStep('injection');
+        break;
+      case 'injection':
         await saveTemplate();
         break;
       case 'complete':
@@ -116,9 +129,9 @@ export default function DeviceCheckScreen() {
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
-      {['info', 'permissions', 'devices', 'test', 'complete'].map((step, index) => {
+      {STEPS.map((step, index) => {
         const isActive = currentStep === step;
-        const isPast = ['info', 'permissions', 'devices', 'test', 'complete'].indexOf(currentStep) > index;
+        const isPast = currentStepIndex > index;
         return (
           <View key={step} style={styles.stepDotContainer}>
             <View style={[
@@ -126,9 +139,9 @@ export default function DeviceCheckScreen() {
               isActive && styles.stepDotActive,
               isPast && styles.stepDotComplete,
             ]}>
-              {isPast && <CheckCircle size={12} color="#0a0a0a" />}
+              {isPast && <CheckCircle size={10} color="#0a0a0a" />}
             </View>
-            {index < 4 && <View style={[styles.stepLine, isPast && styles.stepLineComplete]} />}
+            {index < STEPS.length - 1 && <View style={[styles.stepLine, isPast && styles.stepLineComplete]} />}
           </View>
         );
       })}
@@ -165,6 +178,14 @@ export default function DeviceCheckScreen() {
             onTestAllDevices={testAllDevices}
           />
         );
+      case 'injection':
+        return (
+          <TestInjectionStep
+            captureDevices={captureDevices}
+            deviceInfo={deviceInfo}
+            onCompletionChange={setInjectionComplete}
+          />
+        );
       case 'complete':
         return (
           <CompleteStep
@@ -182,14 +203,16 @@ export default function DeviceCheckScreen() {
       case 'info': return 'Continue';
       case 'permissions': return 'Request Permission';
       case 'devices': return 'Continue to Testing';
-      case 'test': return isSaving ? 'Saving...' : 'Save Template';
+      case 'test': return 'Continue to Injection';
+      case 'injection': return isSaving ? 'Saving...' : 'Save Template';
       case 'complete': return 'Start Testing';
     }
   };
 
   const canProceed = () => {
     if (currentStep === 'test' && testingDeviceId !== null) return false;
-    if (currentStep === 'test' && isSaving) return false;
+    if (currentStep === 'injection' && !injectionComplete) return false;
+    if (isSaving) return false;
     return true;
   };
 
@@ -199,14 +222,21 @@ export default function DeviceCheckScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Camera Check</Text>
-          <Text style={styles.headerSubtitle}>Step {['info', 'permissions', 'devices', 'test', 'complete'].indexOf(currentStep) + 1} of 5</Text>
+          <Text style={styles.headerSubtitle}>Step {currentStepIndex + 1} of {STEPS.length}</Text>
         </View>
 
         {renderStepIndicator()}
 
-        <Animated.View style={[styles.progressBar, { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
+        <Animated.View style={[
+          styles.progressBar, 
+          { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }
+        ]} />
 
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content} 
+          contentContainerStyle={styles.contentContainer} 
+          showsVerticalScrollIndicator={false}
+        >
           {renderCurrentStep()}
         </ScrollView>
 
@@ -219,8 +249,10 @@ export default function DeviceCheckScreen() {
             <Text style={styles.nextButtonText}>{getButtonText()}</Text>
             {currentStep === 'complete' ? (
               <ArrowRight size={20} color="#0a0a0a" />
-            ) : currentStep === 'test' ? (
+            ) : currentStep === 'injection' ? (
               <Save size={20} color="#0a0a0a" />
+            ) : currentStep === 'test' ? (
+              <FlaskConical size={20} color="#0a0a0a" />
             ) : (
               <ChevronRight size={20} color="#0a0a0a" />
             )}
@@ -260,16 +292,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
   },
   stepDotContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.2)',
@@ -284,11 +316,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#00ff88',
     borderColor: '#00ff88',
   },
+  stepDotInjection: {
+    backgroundColor: '#8a2be2',
+    borderColor: '#8a2be2',
+  },
   stepLine: {
-    width: 32,
+    width: 20,
     height: 2,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    marginHorizontal: 4,
+    marginHorizontal: 2,
   },
   stepLineComplete: {
     backgroundColor: '#00ff88',
