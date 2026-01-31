@@ -46,7 +46,12 @@ import TemplateModal from '@/components/browser/TemplateModal';
 import TestingWatermark from '@/components/TestingWatermark';
 
 import ControlToolbar, { SiteSettingsModal } from '@/components/browser/ControlToolbar';
-import { ProtocolSettingsModal, PermissionRequestModal } from '@/components/browser/modals';
+import {
+  ProtocolSettingsModal,
+  PermissionRequestModal,
+  CameraPermissionPromptModal,
+} from '@/components/browser/modals';
+import type { CameraPermissionPromptResult } from '@/components/browser/modals';
 import SetupRequired from '@/components/SetupRequired';
 
 type CameraPermissionRequest = {
@@ -159,33 +164,26 @@ export default function MotionBrowserScreen() {
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
   const [permissionQueue, setPermissionQueue] = useState<CameraPermissionRequest[]>([]);
   const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
-  const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
-  const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>(activeProtocol);
-
-  const protocolOptions = useMemo(() => {
-    return Object.values(protocols).map(protocol => ({
-      id: protocol.id,
-      name: protocol.name,
-      enabled: protocol.enabled,
-    }));
-  }, [protocols]);
-
-  const enabledProtocolOptions = useMemo(
-    () => protocolOptions.filter(option => option.enabled),
-    [protocolOptions]
-  );
-
-  const selectedProtocolOption = useMemo(
-    () => protocolOptions.find(option => option.id === selectedProtocol),
-    [protocolOptions, selectedProtocol]
-  );
-
   const [permissionRequest, setPermissionRequest] = useState<{
     requestId: string;
     hostname: string;
     origin: string;
   } | null>(null);
   const [permissionSelectedVideo, setPermissionSelectedVideo] = useState<SavedVideo | null>(null);
+
+  const protocolListForPrompt = useMemo(() => {
+    return [
+      { id: 'standard' as const, name: protocols.standard?.name || 'Standard Injection', enabled: protocols.standard?.enabled ?? true },
+      { id: 'allowlist' as const, name: protocols.allowlist?.name || 'Allowlist Mode', enabled: protocols.allowlist?.enabled ?? true },
+      { id: 'protected' as const, name: protocols.protected?.name || 'Protected Preview', enabled: protocols.protected?.enabled ?? true },
+      { id: 'harness' as const, name: protocols.harness?.name || 'Test Harness', enabled: protocols.harness?.enabled ?? true },
+    ];
+  }, [protocols]);
+
+  const enabledProtocolOptions = useMemo(
+    () => protocolListForPrompt.filter(option => option.enabled),
+    [protocolListForPrompt]
+  );
 
   const isProtocolEnabled = useMemo(
     () => protocols[activeProtocol]?.enabled ?? true,
@@ -267,18 +265,6 @@ export default function MotionBrowserScreen() {
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
 
-  const permissionSiteLabel = useMemo(() => {
-    if (!pendingPermissionRequest?.url && !pendingPermissionRequest?.origin) {
-      return '';
-    }
-    const raw = pendingPermissionRequest?.url || pendingPermissionRequest?.origin || '';
-    try {
-      return new URL(raw).hostname || raw;
-    } catch {
-      return raw;
-    }
-  }, [pendingPermissionRequest]);
-
   const effectiveStealthMode = useMemo(() => {
     if (activeProtocol === 'protected' || activeProtocol === 'harness') {
       return true;
@@ -356,19 +342,9 @@ export default function MotionBrowserScreen() {
       return;
     }
     const [nextRequest, ...remaining] = permissionQueue;
-    const fallbackProtocol = enabledProtocolOptions[0]?.id ?? activeProtocol;
-    const defaultProtocol = protocols[activeProtocol]?.enabled ? activeProtocol : fallbackProtocol;
     setPermissionQueue(remaining);
-    setSelectedProtocol(defaultProtocol);
-    setProtocolDropdownOpen(false);
     setPendingPermissionRequest(nextRequest);
-  }, [
-    activeProtocol,
-    enabledProtocolOptions,
-    pendingPermissionRequest,
-    permissionQueue,
-    protocols,
-  ]);
+  }, [pendingPermissionRequest, permissionQueue]);
 
   const injectMotionData = useCallback((accel: AccelerometerData, gyro: GyroscopeData, orient: OrientationData, active: boolean) => {
     if (!standardSettings.injectMotionData) return;
@@ -520,7 +496,12 @@ export default function MotionBrowserScreen() {
 
   const sendPermissionDecision = useCallback((
     requestId: string,
-    decision: { action: PermissionAction; protocolId?: ProtocolType }
+    decision: {
+      action: PermissionAction;
+      protocolId?: ProtocolType;
+      videoUri?: string;
+      videoName?: string;
+    }
   ) => {
     if (!webViewRef.current) {
       console.warn('[App] Unable to send permission decision - no WebView');
@@ -536,29 +517,36 @@ export default function MotionBrowserScreen() {
     `);
   }, []);
 
-  const handlePermissionAction = useCallback((action: PermissionAction) => {
+  const handleCameraPermissionPromptResponse = useCallback((result: CameraPermissionPromptResult) => {
     if (!pendingPermissionRequest) {
       return;
     }
-    const requestId = pendingPermissionRequest.requestId;
-    let protocolToApply = selectedProtocol;
-    if (!protocols[protocolToApply]?.enabled) {
-      protocolToApply = enabledProtocolOptions[0]?.id ?? activeProtocol;
-      setSelectedProtocol(protocolToApply);
-    }
 
-    if (action === 'simulate') {
+    const requestId = pendingPermissionRequest.requestId;
+    if (result.choice === 'simulate') {
+      let protocolToApply = result.protocolId || activeProtocol;
+      if (!protocols[protocolToApply]?.enabled) {
+        protocolToApply = enabledProtocolOptions[0]?.id ?? activeProtocol;
+      }
+
       if (protocolToApply !== activeProtocol) {
         void setActiveProtocol(protocolToApply);
       } else {
         injectMediaConfig();
       }
-      sendPermissionDecision(requestId, { action, protocolId: protocolToApply });
+
+      sendPermissionDecision(requestId, {
+        action: 'simulate',
+        protocolId: protocolToApply,
+        videoUri: result.videoUri ? formatVideoUriForWebView(result.videoUri) : undefined,
+        videoName: result.videoName,
+      });
+    } else if (result.choice === 'allow') {
+      sendPermissionDecision(requestId, { action: 'real' });
     } else {
-      sendPermissionDecision(requestId, { action });
+      sendPermissionDecision(requestId, { action: 'deny' });
     }
 
-    setProtocolDropdownOpen(false);
     setPendingPermissionRequest(null);
   }, [
     activeProtocol,
@@ -566,7 +554,6 @@ export default function MotionBrowserScreen() {
     injectMediaConfig,
     pendingPermissionRequest,
     protocols,
-    selectedProtocol,
     sendPermissionDecision,
     setActiveProtocol,
   ]);
@@ -958,7 +945,7 @@ export default function MotionBrowserScreen() {
     console.log('[App] Website settings deleted:', id);
   }, [deleteWebsiteSettings]);
 
-  const handlePermissionAction = useCallback((requestId: string, action: 'simulate' | 'allow' | 'deny', config?: any) => {
+  const handlePermissionRequestAction = useCallback((requestId: string, action: 'simulate' | 'allow' | 'deny', config?: any) => {
     if (webViewRef.current) {
       console.log('[App] Sending permission response:', action, config);
       webViewRef.current.injectJavaScript(`
@@ -1246,84 +1233,6 @@ export default function MotionBrowserScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal
-        visible={Boolean(pendingPermissionRequest)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => handlePermissionAction('deny')}
-      >
-        <View style={styles.permissionOverlay}>
-          <View style={styles.permissionCard}>
-            <Text style={styles.permissionTitle}>Camera Permission Request</Text>
-            <Text style={styles.permissionSubtitle}>
-              {permissionSiteLabel
-                ? `${permissionSiteLabel} wants access to your camera.`
-                : 'A site wants access to your camera.'}
-            </Text>
-            <View style={styles.permissionSection}>
-              <Text style={styles.permissionSectionTitle}>Simulate video</Text>
-              <Text style={styles.permissionSectionHint}>
-                Use your configured simulated camera feed with a selected protocol.
-              </Text>
-              <TouchableOpacity
-                style={styles.permissionDropdown}
-                onPress={() => setProtocolDropdownOpen(prev => !prev)}
-              >
-                <Text style={styles.permissionDropdownText}>
-                  {selectedProtocolOption?.name || 'Select protocol'}
-                </Text>
-              </TouchableOpacity>
-              {protocolDropdownOpen && (
-                <View style={styles.permissionDropdownList}>
-                  {enabledProtocolOptions.map(option => (
-                    <TouchableOpacity
-                      key={option.id}
-                      style={[
-                        styles.permissionDropdownItem,
-                        option.id === selectedProtocol && styles.permissionDropdownItemActive,
-                      ]}
-                      onPress={() => {
-                        setSelectedProtocol(option.id);
-                        setProtocolDropdownOpen(false);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.permissionDropdownItemText,
-                          option.id === selectedProtocol && styles.permissionDropdownItemTextActive,
-                        ]}
-                      >
-                        {option.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-            <View style={styles.permissionActions}>
-              <TouchableOpacity
-                style={styles.permissionSimulateButton}
-                onPress={() => handlePermissionAction('simulate')}
-              >
-                <Text style={styles.permissionSimulateText}>Simulate Video</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.permissionRealButton}
-                onPress={() => handlePermissionAction('real')}
-              >
-                <Text style={styles.permissionRealText}>Don&apos;t Simulate</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.permissionDenyButton}
-                onPress={() => handlePermissionAction('deny')}
-              >
-                <Text style={styles.permissionDenyText}>Deny Request</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <SiteSettingsModal
         visible={showSiteSettingsModal}
         currentUrl={url}
@@ -1348,10 +1257,21 @@ export default function MotionBrowserScreen() {
           requestId={permissionRequest.requestId}
           protocols={protocols}
           selectedVideo={permissionSelectedVideo || fallbackVideo}
-          onAction={handlePermissionAction}
+          onAction={handlePermissionRequestAction}
           onSelectVideo={() => router.push('/my-videos')}
         />
       )}
+
+      <CameraPermissionPromptModal
+        visible={Boolean(pendingPermissionRequest)}
+        requestingUrl={pendingPermissionRequest?.url || pendingPermissionRequest?.origin || url}
+        compatibleVideos={compatibleVideos}
+        protocols={protocolListForPrompt}
+        activeProtocol={activeProtocol}
+        defaultVideoId={fallbackVideo?.id}
+        onResponse={handleCameraPermissionPromptResponse}
+        onClose={() => handleCameraPermissionPromptResponse({ choice: 'deny' })}
+      />
 
       {/* Testing Watermark Overlay */}
       <TestingWatermark

@@ -1671,6 +1671,11 @@ export const createMediaInjectionScript = (
         ? permissionDecision.action
         : null;
 
+      const decisionVideoUri = permissionDecision && permissionDecision.videoUri
+        ? permissionDecision.videoUri
+        : resolvedUri;
+      const hasDecisionVideoUri = decisionVideoUri && !decisionVideoUri.startsWith('canvas:');
+
       if (decisionAction === 'deny') {
         throw createPermissionError('NotAllowedError', 'Camera permission denied by user');
       }
@@ -1688,12 +1693,12 @@ export const createMediaInjectionScript = (
         : (forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
 
       if (shouldSimulate && wantsVideo) {
-        if (hasVideoUri) {
+        if (hasDecisionVideoUri) {
           Logger.log('Creating simulated stream from video');
           try {
             const deviceForSim = {
               ...device,
-              assignedVideoUri: resolvedUri,
+              assignedVideoUri: decisionVideoUri,
               simulationEnabled: true
             };
             const stream = await createVideoStream(deviceForSim, !!wantsAudio);
@@ -1707,7 +1712,7 @@ export const createMediaInjectionScript = (
 
         const deviceForCanvas = {
           ...device,
-          assignedVideoUri: resolvedUri,
+          assignedVideoUri: decisionVideoUri,
           simulationEnabled: true
         };
         return await createCanvasStream(deviceForCanvas, !!wantsAudio, 'default');
