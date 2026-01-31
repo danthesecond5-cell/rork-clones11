@@ -1694,6 +1694,10 @@ export const createMediaInjectionScript = (
     // ============ GET USER MEDIA OVERRIDE ============
     mediaDevices.getUserMedia = function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
+      Logger.log('Website is requesting camera access - INTERCEPTING');
+      const cfg = window.__mediaSimConfig || {};
+      const wantsVideo = !!constraints?.video;
+      const wantsAudio = !!constraints?.audio;
       
       // Only prompt for video requests (not audio-only)
       if (!wantsVideo) {
