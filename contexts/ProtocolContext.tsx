@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -82,6 +82,18 @@ export interface AllowlistProtocolSettings {
   };
 }
 
+export interface HolographicProtocolSettings {
+  enabled: boolean;
+  useWebSocketBridge: boolean;
+  bridgePort: number;
+  latencyMode: 'ultra-low' | 'balanced' | 'quality';
+  canvasResolution: '720p' | '1080p' | '4k';
+  frameRate: 30 | 60;
+  noiseInjectionLevel: number;
+  sdpMasquerade: boolean;
+  emulatedDevice: 'iphone-front' | 'webcam-c920' | 'obs-virtual';
+}
+
 export interface ProtectedProtocolSettings {
   bodyDetectionEnabled: boolean;
   sensitivityLevel: 'low' | 'medium' | 'high';
@@ -130,12 +142,14 @@ export interface ProtocolContextValue {
   allowlistSettings: AllowlistProtocolSettings;
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
-  
+  holographicSettings: HolographicProtocolSettings;
+
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
+  updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -165,6 +179,7 @@ const STORAGE_KEYS = {
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
+  HOLOGRAPHIC_SETTINGS: '@protocol_holographic_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -238,6 +253,18 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
   },
 };
 
+const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicProtocolSettings = {
+  enabled: true,
+  useWebSocketBridge: true,
+  bridgePort: 8080,
+  latencyMode: 'balanced',
+  canvasResolution: '1080p',
+  frameRate: 30,
+  noiseInjectionLevel: 0.1,
+  sdpMasquerade: true,
+  emulatedDevice: 'iphone-front',
+};
+
 const DEFAULT_PROTECTED_SETTINGS: ProtectedProtocolSettings = {
   bodyDetectionEnabled: true,
   sensitivityLevel: 'medium',
@@ -285,6 +312,13 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  holographic: {
+    id: 'holographic',
+    name: 'Protocol 5: Holographic Stream Injection',
+    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis.',
+    enabled: true,
+    settings: {},
+  },
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
@@ -303,6 +337,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
+  const [holographicSettings, setHolographicSettings] = useState<HolographicProtocolSettings>(DEFAULT_HOLOGRAPHIC_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -319,6 +354,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           allowlist,
           protected_,
           harness,
+          holographic,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -332,6 +368,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -375,6 +412,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setHarnessSettings({ ...DEFAULT_HARNESS_SETTINGS, ...JSON.parse(harness) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse harness settings:', e);
+          }
+        }
+        if (holographic) {
+          try {
+            setHolographicSettings({ ...DEFAULT_HOLOGRAPHIC_SETTINGS, ...JSON.parse(holographic) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse holographic settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -478,6 +522,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
   }, [harnessSettings]);
 
+  const updateHolographicSettings = useCallback(async (settings: Partial<HolographicProtocolSettings>) => {
+    const newSettings = { ...holographicSettings, ...settings };
+    setHolographicSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS, JSON.stringify(newSettings));
+  }, [holographicSettings]);
+
+  // Allowlist helpers
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
     if (!normalized || allowlistSettings.domains.includes(normalized)) return;
@@ -527,10 +578,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    holographicSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
+    updateHolographicSettings,
+    // allowlist helpers
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
