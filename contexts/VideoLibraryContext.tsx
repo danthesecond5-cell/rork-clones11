@@ -51,7 +51,17 @@ interface VideoLibraryContextValue {
 }
 
 const VIDEOS_METADATA_KEY = '@video_library_metadata_v2';
-const BUILTIN_VIDEO_INITIALIZED_KEY = '@builtin_video_initialized_v1';
+
+const isBundledSampleVideo = (video: SavedVideo): boolean => {
+  return video.id === BUILTIN_TEST_VIDEO_ID || video.uri.startsWith('canvas:');
+};
+
+const ensureBundledSampleVideo = async (existing: SavedVideo | null): Promise<SavedVideo | null> => {
+  if (existing && existing.id === BUILTIN_TEST_VIDEO_ID) {
+    return existing;
+  }
+  return createBuiltinTestVideoEntry();
+};
 
 const initialProcessingState: ProcessingState = {
   isProcessing: false,
@@ -156,6 +166,8 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     return saveQueueRef.current;
   }, [saveVideosMetadata]);
 
+  const queueSaveVideos = enqueueSaveVideosMetadata;
+
   const persistCompatibilityResult = useCallback((videoId: string, result: CompatibilityResult) => {
     const compatibility = {
       overallStatus: result.overallStatus,
@@ -170,10 +182,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
           ? { ...video, compatibility }
           : video
       );
+      enqueueSaveVideosMetadata(updated);
       return updated;
     });
-      return updated;
-    });
+  }, [enqueueSaveVideosMetadata]);
 
   const syncWithFileSystem = useCallback(async (): Promise<SavedVideo[]> => {
     const storedMetadata = await loadVideosMetadata();
@@ -381,7 +393,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     console.log('[VideoLibrary] Video saved:', videoWithMetadata.name);
+    
+    enqueueSaveVideosMetadata(nextVideos);
     return videoWithMetadata;
+  }, [enqueueSaveVideosMetadata]);
 
   const saveLocalVideo = useCallback(async (uri: string, name: string): Promise<SavedVideo | null> => {
     console.log('[VideoLibrary] Saving local video:', uri);
@@ -466,7 +481,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     console.log('[VideoLibrary] Local video saved:', videoWithMetadata.name);
+    
+    enqueueSaveVideosMetadata(nextVideos);
     return videoWithMetadata;
+  }, [enqueueSaveVideosMetadata]);
 
   const removeVideo = useCallback(async (id: string): Promise<boolean> => {
     const video = savedVideos.find(v => v.id === id);
@@ -491,8 +509,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     console.log('[VideoLibrary] Video removed:', id);
+    
+    enqueueSaveVideosMetadata(nextVideos);
     return true;
-  }, [savedVideos, queueSaveVideos]);
+  }, [savedVideos, enqueueSaveVideosMetadata]);
 
   const clearProcessingState = useCallback(() => {
     setProcessingState(initialProcessingState);
@@ -522,8 +542,10 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
     });
 
     console.log('[VideoLibrary] Thumbnail regenerated for:', video.name);
+    
+    enqueueSaveVideosMetadata(nextVideos);
     return true;
-  }, [savedVideos, queueSaveVideos]);
+  }, [savedVideos, enqueueSaveVideosMetadata]);
 
   const isVideoReady = useCallback((id: string): boolean => {
     const video = savedVideos.find(v => v.id === id);
@@ -592,6 +614,8 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
         readyForSimulation: true,
         summary: 'Built-in test video is always compatible',
         items: [],
+        requiresModification: false,
+        modifications: [],
       };
       return perfectResult;
     }

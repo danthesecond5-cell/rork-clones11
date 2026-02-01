@@ -94,6 +94,8 @@ export default function ProtocolSettingsModal({
     if (!currentHostname) return;
     addAllowlistDomain(currentHostname);
   };
+
+  const handlePinSubmit = async () => {
     if (pinInput.length < 4) {
       Alert.alert('Invalid PIN', 'PIN must be at least 4 characters.');
       return;
