@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { CheckCircle, ChevronRight, ArrowRight, Save, Activity } from 'lucide-react-native';
+import { CheckCircle, ChevronRight, ArrowRight, Save, FlaskConical } from 'lucide-react-native';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useDeviceEnumeration } from '@/hooks/useDeviceEnumeration';
 import type { CheckStep } from '@/types/browser';
@@ -24,7 +24,24 @@ import {
   CompleteStep,
 } from '@/components/device-check';
 
+// Type for injection test results
+interface InjectionTestResult {
+  protocol: 'standard' | 'allowlist' | 'protected' | 'harness';
+  status: 'pending' | 'running' | 'passed' | 'failed' | 'timeout';
+  startTime: number | null;
+  endTime: number | null;
+  duration: number | null;
+  error: string | null;
+  streamDetected: boolean;
+  injectionActive: boolean;
+  deviceLabel: string | null;
+  resolution: { width: number; height: number } | null;
+  fps: number | null;
+}
+
+// All steps including the new injection-test step
 const STEPS: CheckStep[] = ['info', 'permissions', 'devices', 'test', 'injection-test', 'complete'];
+const TOTAL_STEPS = STEPS.length;
 
 export default function DeviceCheckScreen() {
   const { createTemplate } = useDeviceTemplate();
@@ -47,7 +64,8 @@ export default function DeviceCheckScreen() {
   const [currentStep, setCurrentStep] = useState<CheckStep>('info');
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [isInjectionTestComplete, setIsInjectionTestComplete] = useState(false);
+  const [injectionTestResults, setInjectionTestResults] = useState<InjectionTestResult[]>([]);
+  const [injectionTestsComplete, setInjectionTestsComplete] = useState(false);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -62,11 +80,18 @@ export default function DeviceCheckScreen() {
   useEffect(() => {
     const stepIndex = STEPS.indexOf(currentStep);
     Animated.spring(progressAnim, {
-      toValue: (stepIndex + 1) / STEPS.length,
+      toValue: (stepIndex + 1) / TOTAL_STEPS,
       useNativeDriver: false,
       friction: 10,
     }).start();
   }, [currentStep, progressAnim]);
+
+  // Handler for when injection tests complete
+  const handleInjectionTestsComplete = (results: InjectionTestResult[]) => {
+    console.log('[DeviceCheck] Injection tests complete:', results);
+    setInjectionTestResults(results);
+    setInjectionTestsComplete(true);
+  };
 
   const saveTemplate = async () => {
     if (!deviceInfo) return;
@@ -110,9 +135,11 @@ export default function DeviceCheckScreen() {
         setCurrentStep('test');
         break;
       case 'test':
+        // Move to injection test step
         setCurrentStep('injection-test');
         break;
       case 'injection-test':
+        // Save template after injection tests complete
         await saveTemplate();
         break;
       case 'complete':
@@ -124,25 +151,21 @@ export default function DeviceCheckScreen() {
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
       {STEPS.map((step, index) => {
-        // Skip complete step in dots to save space or keep it consistent? 
-        // Let's keep it but handle the layout carefully.
-        // Actually, let's exclude 'complete' from the visual dots or just include all.
-        // The original code had 5 dots for 5 steps. Now 6.
         const isActive = currentStep === step;
         const isPast = STEPS.indexOf(currentStep) > index;
-        
+        const isInjectionTest = step === 'injection-test';
         return (
           <View key={step} style={styles.stepDotContainer}>
             <View style={[
               styles.stepDot,
               isActive && styles.stepDotActive,
               isPast && styles.stepDotComplete,
+              isInjectionTest && isActive && styles.stepDotInjection,
             ]}>
-              {isPast && <CheckCircle size={10} color="#0a0a0a" />}
+              {isPast && <CheckCircle size={12} color="#0a0a0a" />}
+              {isInjectionTest && isActive && <FlaskConical size={12} color="#0a0a0a" />}
             </View>
-            {index < STEPS.length - 1 && (
-              <View style={[styles.stepLine, isPast && styles.stepLineComplete]} />
-            )}
+            {index < TOTAL_STEPS - 1 && <View style={[styles.stepLine, isPast && styles.stepLineComplete]} />}
           </View>
         );
       })}
@@ -181,9 +204,12 @@ export default function DeviceCheckScreen() {
         );
       case 'injection-test':
         return (
-          <InjectionTestStep 
+          <InjectionTestStep
+            captureDevices={captureDevices}
             deviceInfo={deviceInfo}
-            onComplete={() => setIsInjectionTestComplete(true)}
+            onTestsComplete={handleInjectionTestsComplete}
+            stealthMode={true}
+            assignedVideoUri={null}
           />
         );
       case 'complete':
@@ -203,15 +229,15 @@ export default function DeviceCheckScreen() {
       case 'info': return 'Continue';
       case 'permissions': return 'Request Permission';
       case 'devices': return 'Continue to Testing';
-      case 'test': return 'Continue to Injection Test';
-      case 'injection-test': return isSaving ? 'Saving...' : 'Save & Complete';
+      case 'test': return 'Run Injection Tests';
+      case 'injection-test': return isSaving ? 'Saving...' : 'Save Template';
       case 'complete': return 'Start Testing';
     }
   };
 
   const canProceed = () => {
     if (currentStep === 'test' && testingDeviceId !== null) return false;
-    if (currentStep === 'injection-test' && !isInjectionTestComplete) return false;
+    if (currentStep === 'injection-test' && !injectionTestsComplete) return false;
     if (currentStep === 'injection-test' && isSaving) return false;
     return true;
   };
@@ -222,9 +248,7 @@ export default function DeviceCheckScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Camera Check</Text>
-          <Text style={styles.headerSubtitle}>
-            Step {STEPS.indexOf(currentStep) + 1} of {STEPS.length}
-          </Text>
+          <Text style={styles.headerSubtitle}>Step {STEPS.indexOf(currentStep) + 1} of {TOTAL_STEPS}</Text>
         </View>
 
         {renderStepIndicator()}
@@ -253,6 +277,8 @@ export default function DeviceCheckScreen() {
               <ArrowRight size={20} color="#0a0a0a" />
             ) : currentStep === 'injection-test' ? (
               <Save size={20} color="#0a0a0a" />
+            ) : currentStep === 'test' ? (
+              <FlaskConical size={20} color="#0a0a0a" />
             ) : (
               <ChevronRight size={20} color="#0a0a0a" />
             )}
@@ -315,6 +341,10 @@ const styles = StyleSheet.create({
   stepDotComplete: {
     backgroundColor: '#00ff88',
     borderColor: '#00ff88',
+  },
+  stepDotInjection: {
+    backgroundColor: '#8a2be2',
+    borderColor: '#8a2be2',
   },
   stepLine: {
     width: 20,
