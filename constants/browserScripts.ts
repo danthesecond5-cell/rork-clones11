@@ -11,51 +11,6 @@ import {
 
 export const SAFARI_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 
-export type PerformanceProfile = 'standard' | 'advanced' | 'aggressive';
-
-export interface PerformanceProfilePreset {
-  videoLoadTimeout: number;
-  maxRetryAttempts: number;
-  initialRetryDelay: number;
-  healthCheckInterval: number;
-  minAcceptableFps: number;
-  qualityAdaptationInterval: number;
-  performanceSampleSize: number;
-}
-
-const PERFORMANCE_PROFILE_PRESETS: Record<PerformanceProfile, PerformanceProfilePreset> = {
-  standard: {
-    videoLoadTimeout: 12000,
-    maxRetryAttempts: 4,
-    initialRetryDelay: 500,
-    healthCheckInterval: 5000,
-    minAcceptableFps: 15,
-    qualityAdaptationInterval: 3000,
-    performanceSampleSize: 60,
-  },
-  advanced: {
-    videoLoadTimeout: 15000,
-    maxRetryAttempts: 6,
-    initialRetryDelay: 400,
-    healthCheckInterval: 3500,
-    minAcceptableFps: 12,
-    qualityAdaptationInterval: 2000,
-    performanceSampleSize: 90,
-  },
-  aggressive: {
-    videoLoadTimeout: 18000,
-    maxRetryAttempts: 8,
-    initialRetryDelay: 300,
-    healthCheckInterval: 2500,
-    minAcceptableFps: 10,
-    qualityAdaptationInterval: 1500,
-    performanceSampleSize: 120,
-  },
-};
-
-export const getPerformanceProfilePreset = (profile: PerformanceProfile): PerformanceProfilePreset =>
-  PERFORMANCE_PROFILE_PRESETS[profile] || PERFORMANCE_PROFILE_PRESETS.standard;
-
 export const IPHONE_DEFAULT_PORTRAIT_RESOLUTION = {
   width: 1080,
   height: 1920,
@@ -707,8 +662,7 @@ export interface MediaInjectionOptions {
   loopVideo?: boolean;
   mirrorVideo?: boolean;
   debugEnabled?: boolean;
-  performanceProfile?: PerformanceProfile;
-  adaptiveQualityEnabled?: boolean;
+  performanceProfile?: 'standard' | 'codex';
 }
 
 export const createMediaInjectionScript = (
@@ -726,14 +680,42 @@ export const createMediaInjectionScript = (
     mirrorVideo = false,
     debugEnabled,
     performanceProfile = 'standard',
-    adaptiveQualityEnabled = false,
   } = options;
   const frontCamera = devices.find(d => d.facing === 'front' && d.type === 'camera');
   const defaultRes = frontCamera?.capabilities?.videoResolutions?.[0];
-  const profilePreset = getPerformanceProfilePreset(performanceProfile);
   
   const placeholderWidth = defaultRes?.width || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width;
   const placeholderHeight = defaultRes?.height || IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height;
+
+  const performanceProfiles = {
+    standard: {
+      performanceSampleSize: 60,
+      qualityAdaptationInterval: 3000,
+      minAcceptableFps: 15,
+      maxActiveStreams: 3,
+      healthCheckInterval: 5000,
+      qualityThresholds: { high: 25, medium: 18, low: 12 },
+      qualityLevels: [
+        { name: 'high', scale: 1.0, fps: 30 },
+        { name: 'medium', scale: 0.75, fps: 24 },
+        { name: 'low', scale: 0.5, fps: 15 },
+      ],
+    },
+    codex: {
+      performanceSampleSize: 90,
+      qualityAdaptationInterval: 2000,
+      minAcceptableFps: 18,
+      maxActiveStreams: 4,
+      healthCheckInterval: 4000,
+      qualityThresholds: { high: 26, medium: 20, low: 14 },
+      qualityLevels: [
+        { name: 'ultra', scale: 1.0, fps: 30 },
+        { name: 'high', scale: 0.85, fps: 26 },
+        { name: 'medium', scale: 0.7, fps: 22 },
+        { name: 'low', scale: 0.55, fps: 16 },
+      ],
+    },
+  };
 
   return `
 (function() {
@@ -751,16 +733,8 @@ export const createMediaInjectionScript = (
         showOverlayLabel: ${showOverlayLabel ? 'true' : 'false'},
         loopVideo: ${loopVideo ? 'true' : 'false'},
         mirrorVideo: ${mirrorVideo ? 'true' : 'false'},
-        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)},
-        adaptiveQualityEnabled: ${adaptiveQualityEnabled ? 'true' : 'false'},
         performanceProfile: ${JSON.stringify(performanceProfile)},
-        videoLoadTimeout: ${profilePreset.videoLoadTimeout},
-        maxRetryAttempts: ${profilePreset.maxRetryAttempts},
-        initialRetryDelay: ${profilePreset.initialRetryDelay},
-        healthCheckInterval: ${profilePreset.healthCheckInterval},
-        minAcceptableFps: ${profilePreset.minAcceptableFps},
-        qualityAdaptationInterval: ${profilePreset.qualityAdaptationInterval},
-        performanceSampleSize: ${profilePreset.performanceSampleSize}
+        debugEnabled: ${debugEnabled === undefined ? 'undefined' : JSON.stringify(debugEnabled)}
       });
     }
     return;
@@ -768,6 +742,7 @@ export const createMediaInjectionScript = (
   window.__mediaInjectorInitialized = true;
   
   // ============ CONFIGURATION ============
+  const PERFORMANCE_PROFILES = ${JSON.stringify(performanceProfiles)};
   const CONFIG = {
     DEBUG_ENABLED: ${debugEnabled === undefined ? 'true' : JSON.stringify(debugEnabled)},
     FALLBACK_VIDEO_URI: ${JSON.stringify(fallbackVideoUri)},
@@ -778,72 +753,41 @@ export const createMediaInjectionScript = (
     LOOP_VIDEO: ${loopVideo ? 'true' : 'false'},
     MIRROR_VIDEO: ${mirrorVideo ? 'true' : 'false'},
     PERFORMANCE_PROFILE: ${JSON.stringify(performanceProfile)},
-    ADAPTIVE_QUALITY_ENABLED: ${adaptiveQualityEnabled ? 'true' : 'false'},
     PORTRAIT_WIDTH: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.width},
     PORTRAIT_HEIGHT: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.height},
     TARGET_FPS: ${IPHONE_DEFAULT_PORTRAIT_RESOLUTION.fps},
-    VIDEO_LOAD_TIMEOUT: ${profilePreset.videoLoadTimeout},
-    MAX_RETRY_ATTEMPTS: ${profilePreset.maxRetryAttempts},
-    INITIAL_RETRY_DELAY: ${profilePreset.initialRetryDelay},
-    HEALTH_CHECK_INTERVAL: ${profilePreset.healthCheckInterval},
-    MIN_ACCEPTABLE_FPS: ${profilePreset.minAcceptableFps},
+    VIDEO_LOAD_TIMEOUT: 12000,
+    MAX_RETRY_ATTEMPTS: 4,
+    INITIAL_RETRY_DELAY: 500,
     CORS_STRATEGIES: ['anonymous', 'use-credentials', null],
-    PERFORMANCE_SAMPLE_SIZE: ${profilePreset.performanceSampleSize},
-    QUALITY_HIGH_FPS_THRESHOLD: 25,
-    QUALITY_MEDIUM_FPS_THRESHOLD: 18,
-    QUALITY_LOW_FPS_THRESHOLD: 12,
-    QUALITY_ADAPTATION_INTERVAL: ${profilePreset.qualityAdaptationInterval},
-    QUALITY_LEVELS: [
-      { name: 'high', scale: 1.0, fps: 30 },
-      { name: 'medium', scale: 0.75, fps: 24 },
-      { name: 'low', scale: 0.5, fps: 15 },
-    ],
-    MAX_ACTIVE_STREAMS: 3,
+    HEALTH_CHECK_INTERVAL: PERFORMANCE_PROFILES.standard.healthCheckInterval,
+    MIN_ACCEPTABLE_FPS: PERFORMANCE_PROFILES.standard.minAcceptableFps,
+    PERFORMANCE_SAMPLE_SIZE: PERFORMANCE_PROFILES.standard.performanceSampleSize,
+    QUALITY_HIGH_FPS_THRESHOLD: PERFORMANCE_PROFILES.standard.qualityThresholds.high,
+    QUALITY_MEDIUM_FPS_THRESHOLD: PERFORMANCE_PROFILES.standard.qualityThresholds.medium,
+    QUALITY_LOW_FPS_THRESHOLD: PERFORMANCE_PROFILES.standard.qualityThresholds.low,
+    QUALITY_ADAPTATION_INTERVAL: PERFORMANCE_PROFILES.standard.qualityAdaptationInterval,
+    QUALITY_LEVELS: PERFORMANCE_PROFILES.standard.qualityLevels,
+    MAX_ACTIVE_STREAMS: PERFORMANCE_PROFILES.standard.maxActiveStreams,
     CLEANUP_DELAY: 100,
   };
 
-  const RuntimeConfig = {
-    adaptiveQualityEnabled: CONFIG.ADAPTIVE_QUALITY_ENABLED,
-    performanceProfile: CONFIG.PERFORMANCE_PROFILE,
-    videoLoadTimeout: CONFIG.VIDEO_LOAD_TIMEOUT,
-    maxRetryAttempts: CONFIG.MAX_RETRY_ATTEMPTS,
-    initialRetryDelay: CONFIG.INITIAL_RETRY_DELAY,
-    healthCheckInterval: CONFIG.HEALTH_CHECK_INTERVAL,
-    minAcceptableFps: CONFIG.MIN_ACCEPTABLE_FPS,
-    qualityAdaptationInterval: CONFIG.QUALITY_ADAPTATION_INTERVAL,
-    performanceSampleSize: CONFIG.PERFORMANCE_SAMPLE_SIZE
+  const applyPerformanceProfile = function(profileName) {
+    var resolvedProfile = PERFORMANCE_PROFILES[profileName] ? profileName : 'standard';
+    var profile = PERFORMANCE_PROFILES[resolvedProfile] || PERFORMANCE_PROFILES.standard;
+    CONFIG.PERFORMANCE_PROFILE = resolvedProfile;
+    CONFIG.PERFORMANCE_SAMPLE_SIZE = profile.performanceSampleSize;
+    CONFIG.QUALITY_ADAPTATION_INTERVAL = profile.qualityAdaptationInterval;
+    CONFIG.MIN_ACCEPTABLE_FPS = profile.minAcceptableFps;
+    CONFIG.MAX_ACTIVE_STREAMS = profile.maxActiveStreams;
+    CONFIG.HEALTH_CHECK_INTERVAL = profile.healthCheckInterval;
+    CONFIG.QUALITY_HIGH_FPS_THRESHOLD = profile.qualityThresholds.high;
+    CONFIG.QUALITY_MEDIUM_FPS_THRESHOLD = profile.qualityThresholds.medium;
+    CONFIG.QUALITY_LOW_FPS_THRESHOLD = profile.qualityThresholds.low;
+    CONFIG.QUALITY_LEVELS = profile.qualityLevels;
   };
-
-  function updateRuntimeConfig(update) {
-    if (!update || typeof update !== 'object') return;
-    if (typeof update.adaptiveQualityEnabled === 'boolean') {
-      RuntimeConfig.adaptiveQualityEnabled = update.adaptiveQualityEnabled;
-    }
-    if (typeof update.performanceProfile === 'string') {
-      RuntimeConfig.performanceProfile = update.performanceProfile;
-    }
-    if (typeof update.videoLoadTimeout === 'number') {
-      RuntimeConfig.videoLoadTimeout = update.videoLoadTimeout;
-    }
-    if (typeof update.maxRetryAttempts === 'number') {
-      RuntimeConfig.maxRetryAttempts = update.maxRetryAttempts;
-    }
-    if (typeof update.initialRetryDelay === 'number') {
-      RuntimeConfig.initialRetryDelay = update.initialRetryDelay;
-    }
-    if (typeof update.healthCheckInterval === 'number') {
-      RuntimeConfig.healthCheckInterval = update.healthCheckInterval;
-    }
-    if (typeof update.minAcceptableFps === 'number') {
-      RuntimeConfig.minAcceptableFps = update.minAcceptableFps;
-    }
-    if (typeof update.qualityAdaptationInterval === 'number') {
-      RuntimeConfig.qualityAdaptationInterval = update.qualityAdaptationInterval;
-    }
-    if (typeof update.performanceSampleSize === 'number') {
-      RuntimeConfig.performanceSampleSize = update.performanceSampleSize;
-    }
-  }
+  
+  applyPerformanceProfile(CONFIG.PERFORMANCE_PROFILE);
   
   // ============ EXPO/WEBVIEW COMPATIBILITY ============
   if (!window.performance) {
@@ -919,6 +863,7 @@ export const createMediaInjectionScript = (
           source: source,
           fallback: CONFIG.FALLBACK_VIDEO_URI,
           forceSimulation: CONFIG.FORCE_SIMULATION,
+          performanceProfile: CONFIG.PERFORMANCE_PROFILE,
           timestamp: Date.now()
         }
       }));
@@ -926,7 +871,7 @@ export const createMediaInjectionScript = (
   }
   
   Logger.log('======== WEBCAM SIMULATION INIT ========');
-  Logger.log('Protocol:', CONFIG.PROTOCOL_ID, '| Devices:', ${devices.length}, '| Stealth:', ${stealthMode}, '| ForceSim:', CONFIG.FORCE_SIMULATION);
+  Logger.log('Protocol:', CONFIG.PROTOCOL_ID, '| Devices:', ${devices.length}, '| Stealth:', ${stealthMode}, '| ForceSim:', CONFIG.FORCE_SIMULATION, '| Profile:', CONFIG.PERFORMANCE_PROFILE);
   
   // ============ METRICS TRACKING ============
   const Metrics = {
@@ -956,7 +901,7 @@ export const createMediaInjectionScript = (
         const delta = now - this.lastFrameTime;
         const fps = 1000 / delta;
         this.fpsHistory.push(fps);
-        if (this.fpsHistory.length > RuntimeConfig.performanceSampleSize) {
+        if (this.fpsHistory.length > CONFIG.PERFORMANCE_SAMPLE_SIZE) {
           this.fpsHistory.shift();
         }
       }
@@ -1027,40 +972,6 @@ export const createMediaInjectionScript = (
       return { activeCount: this.activeStreams.size, streams: Array.from(this.activeStreams.keys()) };
     }
   };
-
-  function registerStreamWithRegistry(stream, device) {
-    if (!stream) return null;
-    const baseId = device?.id || device?.nativeDeviceId || device?.name || 'sim_stream';
-    const streamId = baseId + '_' + Math.random().toString(36).slice(2, 9);
-    stream._registryUnregistered = false;
-    stream._registryId = streamId;
-
-    const cleanupOnce = function() {
-      if (stream._registryUnregistered) return;
-      stream._registryUnregistered = true;
-      StreamRegistry.unregister(streamId);
-    };
-
-    StreamRegistry.register(streamId, stream, function() {
-      try {
-        if (stream._cleanup) stream._cleanup();
-      } catch (e) {}
-    });
-
-    try {
-      stream.getTracks().forEach(function(track) {
-        if (track && typeof track.addEventListener === 'function') {
-          track.addEventListener('ended', cleanupOnce);
-          track.addEventListener('inactive', cleanupOnce);
-        } else if (track) {
-          track.onended = cleanupOnce;
-          track.oninactive = cleanupOnce;
-        }
-      });
-    } catch (e) {}
-
-    return streamId;
-  }
   
   // ============ QUALITY ADAPTATION SYSTEM ============
   const QualityAdapter = {
@@ -1068,12 +979,11 @@ export const createMediaInjectionScript = (
     lastAdaptTime: 0,
     fpsHistory: [],
     
-    getCurrentQuality: function() { return CONFIG.QUALITY_LEVELS[this.currentLevel]; },
+    getCurrentQuality: function() { return CONFIG.QUALITY_LEVELS[this.currentLevel] || CONFIG.QUALITY_LEVELS[0]; },
     
     recordFps: function(fps) {
-      if (!RuntimeConfig.adaptiveQualityEnabled) return;
       this.fpsHistory.push(fps);
-      if (this.fpsHistory.length > 30) this.fpsHistory.shift();
+      if (this.fpsHistory.length > CONFIG.PERFORMANCE_SAMPLE_SIZE) this.fpsHistory.shift();
     },
     
     getAverageFps: function() {
@@ -1082,17 +992,20 @@ export const createMediaInjectionScript = (
     },
     
     adapt: function() {
-      if (!RuntimeConfig.adaptiveQualityEnabled) return;
       var now = Date.now();
-      if (now - this.lastAdaptTime < RuntimeConfig.qualityAdaptationInterval || this.fpsHistory.length < 10) return;
+      if (now - this.lastAdaptTime < CONFIG.QUALITY_ADAPTATION_INTERVAL || this.fpsHistory.length < 10) return;
       
       var avgFps = this.getAverageFps();
       var prevLevel = this.currentLevel;
       
-      if (avgFps < CONFIG.QUALITY_LOW_FPS_THRESHOLD && this.currentLevel < 2) {
-        this.currentLevel = 2;
-      } else if (avgFps < CONFIG.QUALITY_MEDIUM_FPS_THRESHOLD && this.currentLevel < 1) {
-        this.currentLevel = 1;
+      var maxLevel = CONFIG.QUALITY_LEVELS.length - 1;
+      var midLevel = Math.max(0, maxLevel - 1);
+      if (maxLevel < 0) return;
+      
+      if (avgFps < CONFIG.QUALITY_LOW_FPS_THRESHOLD && this.currentLevel < maxLevel) {
+        this.currentLevel = maxLevel;
+      } else if (avgFps < CONFIG.QUALITY_MEDIUM_FPS_THRESHOLD && this.currentLevel < midLevel) {
+        this.currentLevel = midLevel;
       } else if (avgFps > CONFIG.QUALITY_HIGH_FPS_THRESHOLD && this.currentLevel > 0) {
         this.currentLevel = Math.max(0, this.currentLevel - 1);
       }
@@ -1373,17 +1286,9 @@ export const createMediaInjectionScript = (
     loopVideo: CONFIG.LOOP_VIDEO,
     mirrorVideo: CONFIG.MIRROR_VIDEO,
     protocolId: CONFIG.PROTOCOL_ID,
-    overlayLabelText: CONFIG.PROTOCOL_LABEL,
-    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL,
-    adaptiveQualityEnabled: CONFIG.ADAPTIVE_QUALITY_ENABLED,
     performanceProfile: CONFIG.PERFORMANCE_PROFILE,
-    videoLoadTimeout: CONFIG.VIDEO_LOAD_TIMEOUT,
-    maxRetryAttempts: CONFIG.MAX_RETRY_ATTEMPTS,
-    initialRetryDelay: CONFIG.INITIAL_RETRY_DELAY,
-    healthCheckInterval: CONFIG.HEALTH_CHECK_INTERVAL,
-    minAcceptableFps: CONFIG.MIN_ACCEPTABLE_FPS,
-    qualityAdaptationInterval: CONFIG.QUALITY_ADAPTATION_INTERVAL,
-    performanceSampleSize: CONFIG.PERFORMANCE_SAMPLE_SIZE
+    overlayLabelText: CONFIG.PROTOCOL_LABEL,
+    showOverlayLabel: CONFIG.SHOW_OVERLAY_LABEL
   };
 
   // ============ PROTOCOL OVERLAY BADGE ============
@@ -1427,13 +1332,15 @@ export const createMediaInjectionScript = (
   
   window.__updateMediaConfig = function(config) {
     Object.assign(window.__mediaSimConfig, config);
-    updateRuntimeConfig(config);
     Logger.log('Config updated - devices:', window.__mediaSimConfig.devices?.length || 0);
     if (config.debugEnabled !== undefined) {
       Logger.setEnabled(config.debugEnabled);
     }
-    if (config.adaptiveQualityEnabled === false) {
+    if (config.performanceProfile && config.performanceProfile !== CONFIG.PERFORMANCE_PROFILE) {
+      applyPerformanceProfile(config.performanceProfile);
       QualityAdapter.reset();
+      window.__mediaSimConfig.performanceProfile = CONFIG.PERFORMANCE_PROFILE;
+      Logger.log('Performance profile updated:', CONFIG.PERFORMANCE_PROFILE);
     }
     if (
       config.loopVideo !== undefined ||
@@ -1458,7 +1365,8 @@ export const createMediaInjectionScript = (
       ...Metrics.getSummary(),
       quality: QualityAdapter.getCurrentQuality(),
       qualityLevel: QualityAdapter.currentLevel,
-      streams: StreamRegistry.getStats()
+      streams: StreamRegistry.getStats(),
+      performanceProfile: CONFIG.PERFORMANCE_PROFILE
     };
   };
   
@@ -1697,11 +1605,7 @@ export const createMediaInjectionScript = (
       
       if (_origGetUserMedia && !cfg.stealthMode && !forceSimulation) {
         Logger.log('Using real getUserMedia');
-        try {
-          return await _origGetUserMedia(constraints);
-        } catch (err) {
-          Logger.warn('Real getUserMedia failed, falling back to simulation:', err?.message || err);
-        }
+        return _origGetUserMedia(constraints);
       }
       
       Logger.log('No simulation, returning canvas pattern');
@@ -1805,17 +1709,17 @@ export const createMediaInjectionScript = (
   }
   
   async function loadVideoWithRetry(videoUri, maxAttempts) {
-    const effectiveMaxAttempts = typeof maxAttempts === 'number' ? maxAttempts : RuntimeConfig.maxRetryAttempts;
+    maxAttempts = maxAttempts || CONFIG.MAX_RETRY_ATTEMPTS;
     let lastError = null;
     
     // Handle base64 data URIs directly (no CORS needed)
     if (isBase64VideoUri(videoUri)) {
-      return loadBase64Video(videoUri, RuntimeConfig.videoLoadTimeout * 2); // Extra timeout for large base64
+      return loadBase64Video(videoUri, CONFIG.VIDEO_LOAD_TIMEOUT * 2); // Extra timeout for large base64
     }
     
     // Handle blob URLs directly (no CORS needed)
     if (isBlobUri(videoUri)) {
-      return loadBlobVideo(videoUri, RuntimeConfig.videoLoadTimeout);
+      return loadBlobVideo(videoUri, CONFIG.VIDEO_LOAD_TIMEOUT);
     }
     
     // Check connection quality first
@@ -1827,8 +1731,8 @@ export const createMediaInjectionScript = (
     for (let strategy = 0; strategy < CONFIG.CORS_STRATEGIES.length; strategy++) {
       const corsMode = CONFIG.CORS_STRATEGIES[strategy];
       
-      for (let attempt = 0; attempt < effectiveMaxAttempts; attempt++) {
-        const delay = RuntimeConfig.initialRetryDelay * Math.pow(2, attempt);
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const delay = CONFIG.INITIAL_RETRY_DELAY * Math.pow(2, attempt);
         
         if (attempt > 0) {
           Logger.log('Retry attempt', attempt + 1, 'with', delay, 'ms delay, CORS:', corsMode);
@@ -1839,7 +1743,7 @@ export const createMediaInjectionScript = (
         Metrics.startVideoLoad();
         
         try {
-          const video = await loadVideoElement(videoUri, corsMode, RuntimeConfig.videoLoadTimeout);
+          const video = await loadVideoElement(videoUri, corsMode, CONFIG.VIDEO_LOAD_TIMEOUT);
           Metrics.endVideoLoad(true);
           notifyLoadingProgress(1, 'complete', 'Video loaded successfully');
           return video;
@@ -2090,6 +1994,7 @@ export const createMediaInjectionScript = (
       let fallbackAttempt = 0;
       const start = Date.now();
       let lastDrawTime = 0;
+      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
       
       // Get the current fallback renderer
       let currentRenderer = VIDEO_FORMAT_FALLBACKS[0].render;
@@ -2098,19 +2003,12 @@ export const createMediaInjectionScript = (
         if (!isRunning) return;
         
         const elapsed = timestamp - lastDrawTime;
-        const targetFps = RuntimeConfig.adaptiveQualityEnabled
-          ? QualityAdapter.getCurrentQuality().fps
-          : CONFIG.TARGET_FPS;
-        const targetFrameTime = 1000 / targetFps;
         if (elapsed < targetFrameTime * 0.9) {
           requestAnimationFrame(render);
           return;
         }
         lastDrawTime = timestamp;
         
-        const fps = 1000 / Math.max(1, elapsed);
-        QualityAdapter.recordFps(fps);
-        QualityAdapter.adapt();
         Metrics.recordFrame();
         const t = (Date.now() - start) / 1000;
         
@@ -2151,8 +2049,6 @@ export const createMediaInjectionScript = (
             Logger.log('Green screen stream cleanup');
           };
           stream._isRunning = function() { return isRunning; };
-
-          registerStreamWithRegistry(stream, device);
           
           Logger.log('Green screen stream ready:', stream.getTracks().length, 'tracks (9:16 enforced)');
           resolve(stream);
@@ -2254,6 +2150,8 @@ export const createMediaInjectionScript = (
       
       let isRunning = true;
       let lastDrawTime = 0;
+      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
+      const minFrameTime = targetFrameTime * 0.9;
       let frameCount = 0;
       
       // Pre-cache canvas dimensions
@@ -2265,10 +2163,6 @@ export const createMediaInjectionScript = (
         
         // Optimized frame rate limiting
         const elapsed = timestamp - lastDrawTime;
-        const targetFps = RuntimeConfig.adaptiveQualityEnabled
-          ? QualityAdapter.getCurrentQuality().fps
-          : CONFIG.TARGET_FPS;
-        const minFrameTime = (1000 / targetFps) * 0.9;
         if (elapsed < minFrameTime) {
           requestAnimationFrame(draw);
           return;
@@ -2286,9 +2180,6 @@ export const createMediaInjectionScript = (
         // Update natural variations (throttled internally)
         NaturalVariations.update(timestamp);
         
-        const fps = 1000 / Math.max(1, elapsed);
-        QualityAdapter.recordFps(fps);
-        QualityAdapter.adapt();
         // Record metrics every 10 frames to reduce overhead
         if (frameCount % 10 === 0) {
           Metrics.recordFrame();
@@ -2415,8 +2306,6 @@ export const createMediaInjectionScript = (
           stream._canvas = canvas;
           stream._isRunning = function() { return isRunning; };
           stream._stop = function() { isRunning = false; };
-
-          registerStreamWithRegistry(stream, device);
           
           resolve(stream);
         } catch (err) {
@@ -2435,7 +2324,7 @@ export const createMediaInjectionScript = (
       }
       
       const avgFps = Metrics.getAverageFps();
-      const isHealthy = avgFps >= RuntimeConfig.minAcceptableFps;
+      const isHealthy = avgFps >= CONFIG.MIN_ACCEPTABLE_FPS;
       
       if (!isHealthy) {
         Logger.warn('Stream health degraded - FPS:', avgFps.toFixed(1));
@@ -2461,7 +2350,7 @@ export const createMediaInjectionScript = (
           Logger.error('Failed to resume video:', e.message);
         });
       }
-    }, RuntimeConfig.healthCheckInterval);
+    }, CONFIG.HEALTH_CHECK_INTERVAL);
     
     // Store interval for cleanup
     stream._healthInterval = healthInterval;
@@ -2509,6 +2398,7 @@ export const createMediaInjectionScript = (
       const start = Date.now();
       let isRunning = true;
       let lastDrawTime = 0;
+      const targetFrameTime = 1000 / CONFIG.TARGET_FPS;
       let currentFallbackIdx = 0;
       let errorCount = 0;
       const MAX_ERRORS_BEFORE_FALLBACK = 3;
@@ -2517,19 +2407,12 @@ export const createMediaInjectionScript = (
         if (!isRunning) return;
         
         const elapsed = timestamp - lastDrawTime;
-        const targetFps = RuntimeConfig.adaptiveQualityEnabled
-          ? QualityAdapter.getCurrentQuality().fps
-          : CONFIG.TARGET_FPS;
-        const targetFrameTime = 1000 / targetFps;
         if (elapsed < targetFrameTime * 0.9) {
           requestAnimationFrame(render);
           return;
         }
         lastDrawTime = timestamp;
         
-        const fps = 1000 / Math.max(1, elapsed);
-        QualityAdapter.recordFps(fps);
-        QualityAdapter.adapt();
         Metrics.recordFrame();
         const t = (Date.now() - start) / 1000;
         
@@ -2639,8 +2522,6 @@ export const createMediaInjectionScript = (
             currentFallbackIdx = (currentFallbackIdx + 1) % VIDEO_FORMAT_FALLBACKS.length;
             Logger.log('Manual fallback switch to:', VIDEO_FORMAT_FALLBACKS[currentFallbackIdx].name);
           };
-
-          registerStreamWithRegistry(stream, device);
           
           Logger.log('Green screen stream ready:', stream.getTracks().length, 'tracks | 9:16 enforced | Fallback:', VIDEO_FORMAT_FALLBACKS[currentFallbackIdx].name);
           resolve(stream);
@@ -2769,7 +2650,7 @@ export const createMediaInjectionScript = (
   Logger.log('Fallback formats:', VIDEO_FORMAT_FALLBACKS.length);
   Logger.log('Health monitoring: ENABLED');
   Logger.log('Video caching: LRU eviction enabled');
-  Logger.log('Quality adaptation: 3 levels (high/medium/low)');
+  Logger.log('Quality adaptation:', CONFIG.QUALITY_LEVELS.length, 'levels | Profile:', CONFIG.PERFORMANCE_PROFILE);
   Logger.log('Stream registry: max', CONFIG.MAX_ACTIVE_STREAMS, 'active streams');
   Logger.log('Memory cleanup: Page lifecycle hooks active');
   Logger.log('CORS retry:', CONFIG.CORS_STRATEGIES.length, 'strategies');

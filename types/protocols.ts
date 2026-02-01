@@ -3,7 +3,7 @@
  * Defines configuration for all 5 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'gpt-5.2-codex-high';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'codex';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -54,12 +54,24 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
+// Protocol 5: Codex High Fidelity Settings
+export interface CodexProtocolSettings {
+  enabled: boolean;
+  autoInject: boolean;
+  enhancedStealth: boolean;
+  forceSimulation: boolean;
+  adaptiveQuality: boolean;
+  diagnosticsOverlay: boolean;
+  injectMotionData: boolean;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
+  codex: CodexProtocolSettings;
 }
 
 // Developer Mode Settings
@@ -112,11 +124,22 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
+export const DEFAULT_CODEX_SETTINGS: CodexProtocolSettings = {
+  enabled: true,
+  autoInject: true,
+  enhancedStealth: true,
+  forceSimulation: true,
+  adaptiveQuality: true,
+  diagnosticsOverlay: true,
+  injectMotionData: true,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
+  codex: DEFAULT_CODEX_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -167,10 +190,10 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     isLive: true,
     requiresDeveloperMode: false,
   },
-  'gpt-5.2-codex-high': {
-    id: 'gpt-5.2-codex-high',
+  codex: {
+    id: 'codex',
     name: 'Protocol 5: GPT-5.2 Codex High',
-    description: 'AI-optimized injection profile for the most advanced attempt at this app so far.',
+    description: 'Advanced self-optimizing injection profile tuned for maximum fidelity and resilience.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
