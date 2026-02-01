@@ -8,7 +8,7 @@ import {
   AllowlistSettings,
   ProtectedPreviewSettings,
   TestHarnessSettings,
-  CodexProtocolSettings,
+  ClaudeProtocolSettings,
   DEFAULT_DEVELOPER_MODE,
   DEFAULT_PROTOCOL_SETTINGS,
   ProtocolId,
@@ -35,7 +35,7 @@ interface DeveloperModeContextValue {
   updateAllowlistSettings: (updates: Partial<AllowlistSettings>) => Promise<void>;
   updateProtectedSettings: (updates: Partial<ProtectedPreviewSettings>) => Promise<void>;
   updateHarnessSettings: (updates: Partial<TestHarnessSettings>) => Promise<void>;
-  updateCodexSettings: (updates: Partial<CodexProtocolSettings>) => Promise<void>;
+  updateClaudeSettings: (updates: Partial<ClaudeProtocolSettings>) => Promise<void>;
   toggleProtocolEnabled: (protocolId: ProtocolId) => Promise<void>;
   resetProtocolSettings: (protocolId?: ProtocolId) => Promise<void>;
   
@@ -70,7 +70,6 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
             allowlist: { ...DEFAULT_PROTOCOL_SETTINGS.allowlist, ...parsed.allowlist },
             protected: { ...DEFAULT_PROTOCOL_SETTINGS.protected, ...parsed.protected },
             harness: { ...DEFAULT_PROTOCOL_SETTINGS.harness, ...parsed.harness },
-            codex: { ...DEFAULT_PROTOCOL_SETTINGS.codex, ...parsed.codex },
           });
           console.log('[DeveloperMode] Loaded protocol settings');
         }
@@ -183,13 +182,14 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     await saveProtocolSettings(updated);
   }, [protocolSettings, saveProtocolSettings]);
 
-  const updateCodexSettings = useCallback(async (updates: Partial<CodexProtocolSettings>) => {
+  const updateClaudeSettings = useCallback(async (updates: Partial<ClaudeProtocolSettings>) => {
     const updated = {
       ...protocolSettings,
-      codex: { ...protocolSettings.codex, ...updates },
+      claude: { ...protocolSettings.claude, ...updates },
     };
     setProtocolSettings(updated);
     await saveProtocolSettings(updated);
+    console.log('[DeveloperMode] Claude settings updated');
   }, [protocolSettings, saveProtocolSettings]);
 
   // Toggle protocol enabled status
@@ -209,8 +209,8 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
       case 'harness':
         updates.harness = { ...protocolSettings.harness, enabled: !protocolSettings.harness.enabled };
         break;
-      case 'codex':
-        updates.codex = { ...protocolSettings.codex, enabled: !protocolSettings.codex.enabled };
+      case 'claude':
+        updates.claude = { ...protocolSettings.claude, enabled: !protocolSettings.claude.enabled };
         break;
     }
 
@@ -239,8 +239,8 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
         case 'harness':
           updated.harness = DEFAULT_PROTOCOL_SETTINGS.harness;
           break;
-        case 'codex':
-          updated.codex = DEFAULT_PROTOCOL_SETTINGS.codex;
+        case 'claude':
+          updated.claude = DEFAULT_PROTOCOL_SETTINGS.claude;
           break;
       }
     } else {
@@ -271,7 +271,7 @@ export const [DeveloperModeProvider, useDeveloperMode] = createContextHook<Devel
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
-    updateCodexSettings,
+    updateClaudeSettings,
     toggleProtocolEnabled,
     resetProtocolSettings,
     isLoading,
