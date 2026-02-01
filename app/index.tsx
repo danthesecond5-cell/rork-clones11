@@ -563,7 +563,12 @@ export default function MotionBrowserScreen() {
       console.log('[App] Allowlist settings changed, reloading WebView');
       webViewRef.current.reload();
     }
-  }, [allowlistModeActive, allowlistSettings.enabled, allowlistSettings.domains]);
+  }, [
+    allowlistModeActive,
+    allowlistSettings.enabled,
+    allowlistSettings.domains,
+    allowlistSettings.blockUnlisted,
+  ]);
 
   useEffect(() => {
     if (!motionInjectionEnabled) return;
