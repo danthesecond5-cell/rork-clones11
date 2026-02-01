@@ -93,9 +93,10 @@ export default function MotionBrowserScreen() {
     setPendingVideoForApply,
   } = useVideoLibrary();
 
+  const { developerMode } = useDeveloperMode();
+
   // Protocol Context for allowlist and presentation mode
   const {
-    developerModeEnabled,
     presentationMode,
     showTestingWatermark,
     activeProtocol,

@@ -634,7 +634,7 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       console.log('[VideoLibrary] ========== COMPATIBILITY CHECK FAILED ==========');
       throw error;
     }
-  }, [savedVideos]);
+  }, [savedVideos, persistCompatibilityResult]);
 
   const getBuiltinTestVideo = useCallback((): SavedVideo | undefined => {
     return savedVideos.find(v => v.id === BUILTIN_TEST_VIDEO_ID);
