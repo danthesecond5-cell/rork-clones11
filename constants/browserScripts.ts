@@ -1330,6 +1330,75 @@ export const createMediaInjectionScript = (
     }
     notifyReady('update');
   };
+
+  window.__handlePermissionResponse = async function(data) {
+    const req = window.__pendingRequests && window.__pendingRequests[data.requestId];
+    if (!req) {
+      Logger.warn('Unknown permission request:', data.requestId);
+      return;
+    }
+    
+    // Cleanup
+    delete window.__pendingRequests[data.requestId];
+    
+    Logger.log('Permission response:', data.action);
+    
+    if (data.action === 'deny') {
+      req.reject(new DOMException('Permission denied', 'NotAllowedError'));
+      return;
+    }
+    
+    if (data.action === 'allow') {
+      if (_origGetUserMedia) {
+        try {
+          const stream = await _origGetUserMedia(req.constraints);
+          req.resolve(stream);
+        } catch(e) {
+          req.reject(e);
+        }
+      } else {
+        req.reject(new Error('Real getUserMedia not available'));
+      }
+      return;
+    }
+    
+    if (data.action === 'simulate') {
+      try {
+        // Update device with config from response
+        const device = req.device || {};
+        const config = data.config || {};
+        
+        // Use provided URI or fallback to device's URI or global fallback
+        const videoUri = config.videoUri || device.assignedVideoUri || getFallbackVideoUri();
+        
+        const deviceForSim = {
+          ...device,
+          assignedVideoUri: videoUri,
+          simulationEnabled: true
+        };
+        
+        Logger.log('Simulating:', videoUri ? videoUri.substring(0, 30) : 'canvas');
+        
+        // If we have a URI, try video stream
+        if (videoUri && !videoUri.startsWith('canvas:')) {
+           try {
+             const stream = await createVideoStream(deviceForSim, req.wantsAudio);
+             req.resolve(stream);
+             return;
+           } catch(e) {
+             Logger.warn('Video sim failed, falling back to canvas', e.message);
+           }
+        }
+        
+        // Fallback to canvas
+        const stream = await createCanvasStream(deviceForSim, req.wantsAudio, 'default');
+        req.resolve(stream);
+      } catch(e) {
+        Logger.error('Simulation failed:', e.message);
+        req.reject(e);
+      }
+    }
+  };
   
   window.__getSimulationMetrics = function() {
     return {
@@ -1589,11 +1658,8 @@ export const createMediaInjectionScript = (
     }
     
     // ============ GET USER MEDIA OVERRIDE ============
-    mediaDevices.getUserMedia = async function(constraints) {
+    mediaDevices.getUserMedia = function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
-      const cfg = window.__mediaSimConfig || {};
-      const wantsVideo = !!constraints?.video;
-      const wantsAudio = !!constraints?.audio;
       
       // Only prompt for video requests (not audio-only)
       if (!wantsVideo) {
@@ -2696,6 +2762,7 @@ export const createMediaInjectionScript = (
       if (typeof e.data !== 'string' || !e.data.startsWith('{')) return;
       const d = JSON.parse(e.data);
       if (d?.type === 'media') window.__updateMediaConfig(d.payload);
+      if (d?.type === 'permissionResponse') window.__handlePermissionResponse(d);
     } catch(err) {}
   });
   
@@ -2704,6 +2771,7 @@ export const createMediaInjectionScript = (
       if (!e.data) return;
       const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
       if (d?.type === 'media') window.__updateMediaConfig(d.payload);
+      if (d?.type === 'permissionResponse') window.__handlePermissionResponse(d);
     } catch(err) {}
   });
   

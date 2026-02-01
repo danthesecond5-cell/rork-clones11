@@ -626,7 +626,8 @@ export default function MotionBrowserScreen() {
   }, [useRealSensors, realAccelData, realGyroData, realOrientData, injectMotionData]);
 
   useEffect(() => {
-    if (pendingVideoForApply && activeTemplate) {
+    if (pendingVideoForApply) {
+      if (activeTemplate) {
       console.log('[VideoSim] ========== PENDING VIDEO EFFECT TRIGGERED ==========');
       console.log('[VideoSim] Timestamp:', new Date().toISOString());
       console.log('[VideoSim] Pending video from my-videos:', {
