@@ -19,9 +19,14 @@ import {
 } from '@/utils/errorHandling';
 import { Alert, Platform } from 'react-native';
 
-// Mock Alert.alert
-const mockAlert = jest.fn();
-jest.spyOn(Alert, 'alert').mockImplementation(mockAlert);
+jest.mock('react-native', () => {
+  return {
+    Alert: { alert: jest.fn() },
+    Platform: { OS: 'ios', select: (obj: Record<string, unknown>) => obj.ios },
+  };
+});
+
+const mockAlert = Alert.alert as jest.Mock;
 
 const setPlatformOS = (os: string) => {
   (Platform as { OS: string }).OS = os;
