@@ -896,7 +896,7 @@ export default function MotionBrowserScreen() {
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
-  const getBeforeLoadScript = useCallback(() => {
+  const beforeLoadScript = useMemo(() => {
     // Ensure all devices have a video URI - use built-in fallback if none assigned
     const devices = (activeTemplate?.captureDevices || []).map(d => {
       const assignedUri = d.assignedVideoUri
@@ -961,9 +961,10 @@ export default function MotionBrowserScreen() {
     isProtocolEnabled,
   ]);
 
-  const getAfterLoadScript = useCallback(() => {
-    return standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : '';
-  }, [standardSettings.injectMotionData]);
+  const afterLoadScript = useMemo(
+    () => (standardSettings.injectMotionData ? MOTION_INJECTION_SCRIPT : ''),
+    [standardSettings.injectMotionData]
+  );
 
   const isNavigationAllowed = useCallback((requestUrl: string): boolean => {
     if (!requestUrl) return false;
@@ -1120,8 +1121,8 @@ export default function MotionBrowserScreen() {
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
-                injectedJavaScriptBeforeContentLoaded={getBeforeLoadScript()}
-                injectedJavaScript={getAfterLoadScript()}
+                injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
+                injectedJavaScript={afterLoadScript}
                 onLoadStart={() => setIsLoading(true)}
                 onLoadEnd={() => {
                   setIsLoading(false);
