@@ -54,6 +54,9 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
 
   const pulseAnim = useRef(new Animated.Value(0.7)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const showOverlay = position === 'top' || position === 'bottom';
+  const overlayHttpsEnforced = httpsEnforced;
+  const overlayMlSafetyEnabled = mlSafetyEnabled;
 
   useEffect(() => {
     if (visible) {
