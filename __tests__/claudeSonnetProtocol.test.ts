@@ -89,6 +89,14 @@ describe('Claude Sonnet Protocol', () => {
   });
 
   describe('Monitoring Helpers', () => {
+    beforeEach(() => {
+      jest.useRealTimers();
+    });
+
+    afterEach(() => {
+      jest.useFakeTimers();
+    });
+
     it('should track async operations', async () => {
       const operation = async () => {
         await new Promise(resolve => setTimeout(resolve, 10));
