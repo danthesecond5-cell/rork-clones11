@@ -776,5 +776,78 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
+  claudeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 0, 255, 0.1)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  claudeHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ff00ff',
+  },
+  settingGroupLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modeButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  modeBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modeBtnActive: {
+    backgroundColor: 'rgba(255, 0, 255, 0.2)',
+    borderColor: '#ff00ff',
+  },
+  modeBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  modeBtnTextActive: {
+    color: '#ff00ff',
+  },
+  qualityBtnActive: {
+    backgroundColor: 'rgba(0, 170, 255, 0.2)',
+    borderColor: '#00aaff',
+  },
+  qualityBtnTextActive: {
+    color: '#00aaff',
+  },
+  claudeInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(255, 0, 255, 0.08)',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 255, 0.2)',
+  },
+  claudeInfoText: {
+    flex: 1,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 16,
+  },
 });
 

@@ -13,6 +13,18 @@ export enum ErrorCode {
   TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND',
   DEVICE_NOT_FOUND = 'DEVICE_NOT_FOUND',
   WEBVIEW_ERROR = 'WEBVIEW_ERROR',
+  // Protocol-specific error codes
+  PROTOCOL_INIT_FAILED = 'PROTOCOL_INIT_FAILED',
+  PROTOCOL_CONFIG_INVALID = 'PROTOCOL_CONFIG_INVALID',
+  PROTOCOL_INJECTION_FAILED = 'PROTOCOL_INJECTION_FAILED',
+  PROTOCOL_STREAM_ERROR = 'PROTOCOL_STREAM_ERROR',
+  PROTOCOL_RECOVERY_FAILED = 'PROTOCOL_RECOVERY_FAILED',
+  PROTOCOL_STEALTH_COMPROMISED = 'PROTOCOL_STEALTH_COMPROMISED',
+  PROTOCOL_QUALITY_DEGRADED = 'PROTOCOL_QUALITY_DEGRADED',
+  PROTOCOL_TIMEOUT = 'PROTOCOL_TIMEOUT',
+  ALLOWLIST_BLOCKED = 'ALLOWLIST_BLOCKED',
+  BODY_DETECTION_FAILED = 'BODY_DETECTION_FAILED',
+  CLAUDE_PROTOCOL_ERROR = 'CLAUDE_PROTOCOL_ERROR',
 }
 
 export interface AppError {
@@ -447,4 +459,327 @@ export function getPlatformSpecificError(error: unknown): string {
   }
   
   return baseMessage;
+}
+
+// ============ PROTOCOL-SPECIFIC ERROR HANDLING ============
+
+/**
+ * Protocol Error Details Interface
+ */
+export interface ProtocolErrorDetails {
+  protocolId?: string;
+  phase?: 'init' | 'injection' | 'streaming' | 'recovery' | 'cleanup';
+  component?: string;
+  metrics?: Record<string, unknown>;
+  recoveryAttempts?: number;
+  timestamp: number;
+}
+
+/**
+ * Extended Protocol Error
+ */
+export interface ProtocolError extends AppError {
+  protocolDetails?: ProtocolErrorDetails;
+}
+
+/**
+ * Create a protocol-specific error
+ */
+export function createProtocolError(
+  code: ErrorCode,
+  message: string,
+  protocolDetails: Omit<ProtocolErrorDetails, 'timestamp'>,
+  originalError?: Error | unknown
+): ProtocolError {
+  const baseError = createAppError(code, message, originalError);
+  
+  return {
+    ...baseError,
+    protocolDetails: {
+      ...protocolDetails,
+      timestamp: Date.now(),
+    },
+  };
+}
+
+/**
+ * Check if error is a protocol error
+ */
+export function isProtocolError(error: unknown): error is ProtocolError {
+  return isAppError(error) && 'protocolDetails' in error;
+}
+
+/**
+ * Protocol error recovery strategies
+ */
+export type RecoveryStrategy = 
+  | 'retry'
+  | 'fallback'
+  | 'degraded_mode'
+  | 'switch_protocol'
+  | 'restart'
+  | 'abort';
+
+/**
+ * Get recommended recovery strategy for protocol errors
+ */
+export function getProtocolRecoveryStrategy(error: ProtocolError): {
+  strategy: RecoveryStrategy;
+  canAutoRecover: boolean;
+  message: string;
+} {
+  switch (error.code) {
+    case ErrorCode.PROTOCOL_INIT_FAILED:
+      return {
+        strategy: 'retry',
+        canAutoRecover: true,
+        message: 'Protocol initialization failed. Retrying...',
+      };
+    
+    case ErrorCode.PROTOCOL_INJECTION_FAILED:
+      return {
+        strategy: 'fallback',
+        canAutoRecover: true,
+        message: 'Injection failed. Switching to fallback mode...',
+      };
+    
+    case ErrorCode.PROTOCOL_STREAM_ERROR:
+      const attempts = error.protocolDetails?.recoveryAttempts || 0;
+      if (attempts < 3) {
+        return {
+          strategy: 'retry',
+          canAutoRecover: true,
+          message: `Stream error. Recovery attempt ${attempts + 1}...`,
+        };
+      }
+      return {
+        strategy: 'degraded_mode',
+        canAutoRecover: true,
+        message: 'Multiple stream errors. Switching to degraded mode...',
+      };
+    
+    case ErrorCode.PROTOCOL_RECOVERY_FAILED:
+      return {
+        strategy: 'switch_protocol',
+        canAutoRecover: false,
+        message: 'Recovery failed. Manual intervention may be required.',
+      };
+    
+    case ErrorCode.PROTOCOL_STEALTH_COMPROMISED:
+      return {
+        strategy: 'abort',
+        canAutoRecover: false,
+        message: 'Stealth mode compromised. Stopping to prevent detection.',
+      };
+    
+    case ErrorCode.PROTOCOL_QUALITY_DEGRADED:
+      return {
+        strategy: 'degraded_mode',
+        canAutoRecover: true,
+        message: 'Quality degradation detected. Adjusting settings...',
+      };
+    
+    case ErrorCode.PROTOCOL_TIMEOUT:
+      return {
+        strategy: 'retry',
+        canAutoRecover: true,
+        message: 'Operation timed out. Retrying with extended timeout...',
+      };
+    
+    case ErrorCode.ALLOWLIST_BLOCKED:
+      return {
+        strategy: 'abort',
+        canAutoRecover: false,
+        message: 'Domain not in allowlist. Injection blocked.',
+      };
+    
+    case ErrorCode.BODY_DETECTION_FAILED:
+      return {
+        strategy: 'fallback',
+        canAutoRecover: true,
+        message: 'Body detection failed. Using fallback replacement...',
+      };
+    
+    case ErrorCode.CLAUDE_PROTOCOL_ERROR:
+      return {
+        strategy: 'switch_protocol',
+        canAutoRecover: true,
+        message: 'Claude protocol error. Switching to standard protocol...',
+      };
+    
+    default:
+      return {
+        strategy: 'retry',
+        canAutoRecover: error.recoverable,
+        message: 'An error occurred. Attempting recovery...',
+      };
+  }
+}
+
+/**
+ * Format protocol error for display
+ */
+export function formatProtocolError(error: ProtocolError): string {
+  const parts: string[] = [];
+  
+  // Add protocol info
+  if (error.protocolDetails?.protocolId) {
+    parts.push(`[${error.protocolDetails.protocolId.toUpperCase()}]`);
+  }
+  
+  // Add phase info
+  if (error.protocolDetails?.phase) {
+    parts.push(`(${error.protocolDetails.phase})`);
+  }
+  
+  // Add message
+  parts.push(error.message);
+  
+  return parts.join(' ');
+}
+
+/**
+ * Log protocol error with full context
+ */
+export function logProtocolError(error: ProtocolError, additionalContext?: Record<string, unknown>): void {
+  const logData = {
+    code: error.code,
+    message: error.message,
+    recoverable: error.recoverable,
+    protocolDetails: error.protocolDetails,
+    timestamp: error.timestamp,
+    ...additionalContext,
+  };
+  
+  console.error('[ProtocolError]', formatProtocolError(error), logData);
+  
+  // In production, this could send to analytics
+  if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+    try {
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'protocolError',
+        payload: logData,
+      }));
+    } catch {
+      // Silently fail if WebView posting fails
+    }
+  }
+}
+
+/**
+ * Create error boundary handler for protocol components
+ */
+export function createProtocolErrorBoundaryHandler(
+  protocolId: string,
+  onError?: (error: ProtocolError) => void,
+  onRecovery?: (strategy: RecoveryStrategy) => void
+): (error: Error, errorInfo?: { componentStack?: string }) => void {
+  return (error: Error, errorInfo?: { componentStack?: string }) => {
+    const protocolError = createProtocolError(
+      ErrorCode.PROTOCOL_INJECTION_FAILED,
+      error.message,
+      {
+        protocolId,
+        phase: 'streaming',
+        component: errorInfo?.componentStack?.split('\n')[1]?.trim(),
+      },
+      error
+    );
+    
+    logProtocolError(protocolError, { componentStack: errorInfo?.componentStack });
+    
+    if (onError) {
+      onError(protocolError);
+    }
+    
+    const { strategy, canAutoRecover } = getProtocolRecoveryStrategy(protocolError);
+    
+    if (canAutoRecover && onRecovery) {
+      onRecovery(strategy);
+    }
+  };
+}
+
+/**
+ * Wrap async protocol operation with error handling
+ */
+export async function withProtocolErrorHandling<T>(
+  protocolId: string,
+  phase: ProtocolErrorDetails['phase'],
+  operation: () => Promise<T>,
+  options?: {
+    fallback?: T;
+    maxRetries?: number;
+    onError?: (error: ProtocolError) => void;
+  }
+): Promise<T> {
+  const { fallback, maxRetries = 3, onError } = options || {};
+  let lastError: ProtocolError | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = createProtocolError(
+        ErrorCode.PROTOCOL_INJECTION_FAILED,
+        getErrorMessage(error),
+        {
+          protocolId,
+          phase,
+          recoveryAttempts: attempt + 1,
+        },
+        error
+      );
+      
+      logProtocolError(lastError);
+      
+      if (onError) {
+        onError(lastError);
+      }
+      
+      // Exponential backoff
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
+      }
+    }
+  }
+  
+  if (fallback !== undefined) {
+    console.warn(`[ProtocolErrorHandling] Using fallback for ${protocolId}/${phase}`);
+    return fallback;
+  }
+  
+  throw lastError || createProtocolError(
+    ErrorCode.PROTOCOL_INJECTION_FAILED,
+    'Operation failed after all retries',
+    { protocolId, phase }
+  );
+}
+
+/**
+ * Check if error should trigger protocol switch
+ */
+export function shouldSwitchProtocol(error: ProtocolError): boolean {
+  const criticalCodes = new Set([
+    ErrorCode.PROTOCOL_RECOVERY_FAILED,
+    ErrorCode.PROTOCOL_STEALTH_COMPROMISED,
+    ErrorCode.CLAUDE_PROTOCOL_ERROR,
+  ]);
+  
+  return criticalCodes.has(error.code) || (error.protocolDetails?.recoveryAttempts || 0) >= 5;
+}
+
+/**
+ * Get fallback protocol for a failed protocol
+ */
+export function getFallbackProtocol(failedProtocolId: string): string {
+  const fallbackMap: Record<string, string> = {
+    claude: 'standard',
+    protected: 'standard',
+    harness: 'standard',
+    allowlist: 'standard',
+    standard: 'harness', // Ultimate fallback
+  };
+  
+  return fallbackMap[failedProtocolId] || 'standard';
 }
