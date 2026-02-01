@@ -92,11 +92,8 @@ export default function MotionBrowserScreen() {
     setPendingVideoForApply,
   } = useVideoLibrary();
 
-  const { developerMode, isAllowlistEditable } = useDeveloperMode();
+  const { developerMode } = useDeveloperMode();
 
-  
-
-  
   // Protocol Context for allowlist and presentation mode
   const {
     developerModeEnabled,
@@ -111,9 +108,6 @@ export default function MotionBrowserScreen() {
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
-    addAllowlistDomain,
-    removeAllowlistDomain,
-    updateAllowlistSettings,
   } = useProtocol();
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
@@ -191,14 +185,6 @@ export default function MotionBrowserScreen() {
 
   const accelData = simulationActive ? simAccelData : realAccelData;
   const gyroData = simulationActive ? simGyroData : realGyroData;
-
-  const handleAddAllowlistDomain = useCallback((value: string) => {
-    addAllowlistDomain(value);
-  }, [addAllowlistDomain]);
-
-  const handleRemoveAllowlistDomain = useCallback((domain: string) => {
-    removeAllowlistDomain(domain);
-  }, [removeAllowlistDomain]);
 
   const currentWebsiteSettings = useMemo(() => 
     getWebsiteSettings(url),
