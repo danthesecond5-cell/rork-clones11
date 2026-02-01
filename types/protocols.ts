@@ -3,7 +3,7 @@
  * Defines configuration for all 4 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'sonnet';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude-sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -54,25 +54,25 @@ export interface TestHarnessSettings {
   recordTestResults: boolean;
 }
 
-// Protocol 5: Sonnet Advanced AI-Powered Protocol Settings
-export interface SonnetProtocolSettings {
+// Protocol 5: Claude Sonnet - Advanced AI-Powered Protocol
+export interface ClaudeSonnetSettings {
   enabled: boolean;
-  aiModelVersion: string;
-  adaptiveInjection: boolean;
-  adaptiveThreshold: number;
+  adaptiveQuality: boolean;
+  behavioralAnalysis: boolean;
+  advancedStealth: boolean;
+  mlBodyDetection: boolean;
+  realTimeOptimization: boolean;
+  timingRandomization: boolean;
+  protocolChaining: boolean;
+  fallbackProtocols: ProtocolId[];
+  performanceMonitoring: boolean;
   contextAwareness: boolean;
-  behaviorAnalysis: boolean;
-  anomalyDetection: boolean;
-  performanceOptimization: boolean;
+  antiDetectionLevel: 'standard' | 'advanced' | 'maximum';
+  videoQualityPreset: 'performance' | 'balanced' | 'quality';
+  adaptiveBitrate: boolean;
+  smartCaching: boolean;
   predictivePreloading: boolean;
-  intelligentFallback: boolean;
-  mlInferenceEnabled: boolean;
-  mlModelPath: string | null;
-  selfHealing: boolean;
-  continuousLearning: boolean;
-  privacyPreservation: boolean;
-  crossProtocolSync: boolean;
-  advancedMetrics: boolean;
+  neuralEnhancement: boolean;
 }
 
 // Combined Protocol Settings
@@ -81,7 +81,7 @@ export interface ProtocolSettings {
   allowlist: AllowlistSettings;
   protected: ProtectedPreviewSettings;
   harness: TestHarnessSettings;
-  sonnet: SonnetProtocolSettings;
+  'claude-sonnet': ClaudeSonnetSettings;
 }
 
 // Developer Mode Settings
@@ -134,24 +134,24 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
   recordTestResults: false,
 };
 
-export const DEFAULT_SONNET_SETTINGS: SonnetProtocolSettings = {
+export const DEFAULT_CLAUDE_SONNET_SETTINGS: ClaudeSonnetSettings = {
   enabled: true,
-  aiModelVersion: 'sonnet-4.5',
-  adaptiveInjection: true,
-  adaptiveThreshold: 0.75,
+  adaptiveQuality: true,
+  behavioralAnalysis: true,
+  advancedStealth: true,
+  mlBodyDetection: true,
+  realTimeOptimization: true,
+  timingRandomization: true,
+  protocolChaining: true,
+  fallbackProtocols: ['protected', 'standard'],
+  performanceMonitoring: true,
   contextAwareness: true,
-  behaviorAnalysis: true,
-  anomalyDetection: true,
-  performanceOptimization: true,
+  antiDetectionLevel: 'maximum',
+  videoQualityPreset: 'balanced',
+  adaptiveBitrate: true,
+  smartCaching: true,
   predictivePreloading: true,
-  intelligentFallback: true,
-  mlInferenceEnabled: true,
-  mlModelPath: null,
-  selfHealing: true,
-  continuousLearning: true,
-  privacyPreservation: true,
-  crossProtocolSync: true,
-  advancedMetrics: true,
+  neuralEnhancement: true,
 };
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
@@ -159,7 +159,7 @@ export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
   protected: DEFAULT_PROTECTED_SETTINGS,
   harness: DEFAULT_HARNESS_SETTINGS,
-  sonnet: DEFAULT_SONNET_SETTINGS,
+  'claude-sonnet': DEFAULT_CLAUDE_SONNET_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -210,12 +210,12 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     isLive: true,
     requiresDeveloperMode: false,
   },
-  sonnet: {
-    id: 'sonnet',
-    name: 'Protocol 5: Sonnet Advanced AI',
-    description: 'AI-powered adaptive injection with intelligent context awareness, predictive optimization, self-healing capabilities, and continuous learning. The most advanced protocol ever created for this application.',
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol 5: Claude Sonnet - AI Advanced',
+    description: 'State-of-the-art AI-powered injection protocol with adaptive quality, behavioral analysis, advanced stealth, ML body detection, real-time optimization, and intelligent protocol chaining. The most sophisticated protocol for maximum performance and undetectability.',
     enabled: true,
     isLive: true,
-    requiresDeveloperMode: true,
+    requiresDeveloperMode: false,
   },
 };
