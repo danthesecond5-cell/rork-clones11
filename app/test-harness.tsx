@@ -8,7 +8,6 @@ import {
   Platform,
   ScrollView,
   UIManager,
-  Alert,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { WebView } from 'react-native-webview';
@@ -35,7 +34,6 @@ const TEST_HARNESS_HTML = `
         background: #0a0a0a;
         color: #ffffff;
         font-family: -apple-system, system-ui, sans-serif;
-        min-height: 100vh;
       }
       .container {
         padding: 12px;
@@ -208,7 +206,6 @@ const TEST_HARNESS_HTML = `
         </div>
       </div>
     </div>
-    
     <script>
       const statusEl = document.getElementById('status');
       const cameraVideo = document.getElementById('camera');
@@ -488,7 +485,7 @@ export default function TestHarnessScreen() {
   return (
     <View style={styles.container}>
       <TestingWatermark 
-        visible={showTestingWatermark}
+        visible={developerMode.showWatermark}
         position="top-right"
         variant="minimal"
       />
@@ -668,46 +665,6 @@ export default function TestHarnessScreen() {
               allowUniversalAccessFromFileURLs
             />
           )}
-        </View>
-        
-        {/* Test Status Indicator */}
-        <View style={styles.testStatusCard}>
-          <View style={styles.testStatusHeader}>
-            <Play size={16} color={testStatus === 'success' ? '#00ff88' : testStatus === 'failed' ? '#ff6b6b' : '#00aaff'} />
-            <Text style={styles.testStatusTitle}>Injection Test Status</Text>
-          </View>
-          <View style={styles.testStatusContent}>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Built-in Test Video</Text>
-              <Switch
-                value={useBuiltInVideo}
-                onValueChange={setUseBuiltInVideo}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
-                thumbColor={useBuiltInVideo ? '#ffffff' : '#888888'}
-              />
-            </View>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Status</Text>
-              <Text style={[
-                styles.statusValue,
-                testStatus === 'success' && styles.statusValueSuccess,
-                testStatus === 'failed' && styles.statusValueError,
-              ]}>
-                {testStatus === 'idle' ? 'Ready' : 
-                 testStatus === 'running' ? 'Testing...' :
-                 testStatus === 'success' ? 'Injection Active!' : 'Failed'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.reloadButton}
-              onPress={() => {
-                setTestStatus('running');
-                webViewRef.current?.reload();
-              }}
-            >
-              <Text style={styles.reloadButtonText}>Reload Test</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Settings Card */}
@@ -1020,65 +977,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
-  },
-  testStatusCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginTop: 12,
-  },
-  testStatusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  testStatusTitle: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#ffffff',
-  },
-  testStatusContent: {
-    gap: 12,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusLabel: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  statusValue: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#00aaff',
-  },
-  statusValueSuccess: {
-    color: '#00ff88',
-  },
-  statusValueError: {
-    color: '#ff6b6b',
-  },
-  reloadButton: {
-    backgroundColor: 'rgba(0, 255, 136, 0.15)',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 136, 0.3)',
-  },
-  reloadButtonText: {
-    color: '#00ff88',
-    fontSize: 13,
-    fontWeight: '600' as const,
   },
 });

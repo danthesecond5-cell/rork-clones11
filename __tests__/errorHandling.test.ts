@@ -128,12 +128,12 @@ describe('errorHandling utilities', () => {
 
   test('showErrorAlert uses default button and handlers', () => {
     showErrorAlert('Title', 'Message');
-    expect(mockAlert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
+    expect(Alert.alert).toHaveBeenCalledWith('Title', 'Message', [{ text: 'OK' }]);
 
     const onRetry = jest.fn();
     const onCancel = jest.fn();
     showErrorAlert('Oops', 'Try again', onRetry, onCancel);
-    expect(mockAlert).toHaveBeenCalledWith('Oops', 'Try again', [
+    expect(Alert.alert).toHaveBeenCalledWith('Oops', 'Try again', [
       { text: 'Cancel', style: 'cancel', onPress: onCancel },
       { text: 'Retry', onPress: onRetry },
     ]);

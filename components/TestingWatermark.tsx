@@ -151,7 +151,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
     );
   }
 
-  const positionStyles: Record<WatermarkPosition, object> = {
+  const positionStyles: Record<Exclude<WatermarkPosition, 'fullscreen'>, object> = {
     top: styles.positionTop,
     bottom: styles.positionBottom,
     'top-right': styles.positionTopRight,
@@ -164,7 +164,7 @@ const TestingWatermark = memo(function TestingWatermark(props: TestingWatermarkP
       pointerEvents="none"
       style={[
         styles.badgeContainer,
-        positionStyles[position],
+        positionStyles[position as Exclude<WatermarkPosition, 'fullscreen'>],
         {
           opacity: showPulse ? pulseAnim : fadeAnim,
         },

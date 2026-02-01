@@ -147,6 +147,7 @@ export const prepareVideoForSimulation = (video: SavedVideo): VideoServingConfig
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBase64: true,
       mimeType,
       requiresDownload: false,
@@ -159,6 +160,7 @@ export const prepareVideoForSimulation = (video: SavedVideo): VideoServingConfig
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBlob: true,
       mimeType,
       requiresDownload: false,
@@ -228,6 +230,7 @@ export const prepareUriForSimulation = (uri: string): VideoServingConfig => {
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBase64: true,
       mimeType,
       requiresDownload: false,
@@ -239,6 +242,7 @@ export const prepareUriForSimulation = (uri: string): VideoServingConfig => {
     return {
       uri,
       isLocal: true,
+      isBuiltIn: false,
       isBlob: true,
       mimeType,
       requiresDownload: false,

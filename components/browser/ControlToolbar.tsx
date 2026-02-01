@@ -55,7 +55,6 @@ interface ControlToolbarProps {
   onOpenSiteSettings: () => void;
   allowlistStatusLabel: string;
   allowlistBlocked: boolean;
-  protocolEnabled: boolean;
   simulationActive: boolean;
   useRealSensors: boolean;
   accelData: AccelerometerData;
@@ -93,7 +92,6 @@ const ControlToolbar = memo(function ControlToolbar({
   onOpenSiteSettings,
   allowlistStatusLabel,
   allowlistBlocked,
-  protocolEnabled,
   simulationActive,
   useRealSensors,
   accelData,
@@ -121,7 +119,7 @@ const ControlToolbar = memo(function ControlToolbar({
   }, [savedVideos, isVideoReady]);
 
   const hasCompatibleVideos = compatibleVideos.length > 0;
-  const injectionDisabled = allowlistBlocked || !hasCompatibleVideos || !protocolEnabled;
+  const injectionDisabled = allowlistBlocked || !hasCompatibleVideos;
 
   const applyAllLabel = useMemo(() => {
     if (!activeTemplate?.captureDevices.length) return 'Select compatible video';
@@ -457,11 +455,9 @@ const ControlToolbar = memo(function ControlToolbar({
 
             {injectionDisabled && (
               <Text style={styles.dropdownEmptyText}>
-                {!protocolEnabled
-                  ? 'Active protocol is disabled. Enable it in Protocols to inject.'
-                  : allowlistBlocked
-                    ? 'Allowlist mode is blocking injection on this site.'
-                    : 'Import compatible videos in My Videos to unlock injection options.'}
+                {allowlistBlocked
+                  ? 'Allowlist mode is blocking injection on this site.'
+                  : 'Import compatible videos in My Videos to unlock injection options.'}
               </Text>
             )}
           </View>

@@ -16,7 +16,6 @@ import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { ChevronLeft, Shield, Film, FlaskConical, Settings, Lock, Play, CheckCircle } from 'lucide-react-native';
 import { useVideoLibrary } from '@/contexts/VideoLibraryContext';
 import { useProtocol } from '@/contexts/ProtocolContext';
-import { BUILT_IN_TEST_VIDEO, BUILT_IN_TEST_PATTERNS } from '@/constants/builtInTestVideo';
 import TestingWatermark from '@/components/TestingWatermark';
 
 // Built-in animated fallback pattern component
@@ -419,36 +418,13 @@ export default function ProtectedPreviewScreen() {
     }
   }, [selectedVideoId, protectedSettings.replacementVideoId, updateProtectedSettings]);
 
-  // Fade in/out animation for overlay
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: simulateBodyDetected ? 1 : 0,
-      duration: protectedSettings.blurFallback ? 300 : 150,
-      useNativeDriver: true,
-    }).start();
-  }, [simulateBodyDetected, fadeAnim, protectedSettings.blurFallback]);
-
   const selectedVideo = compatibleVideos.find(video => video.id === selectedVideoId) || null;
   const showCamera = permission?.granted && Platform.OS !== 'web';
-  
-  // Determine which video source to use
-  const hasVideoSource = useBuiltInVideo || selectedVideo;
-  
-  const handleVideoStatusUpdate = (status: AVPlaybackStatus) => {
-    if (status.isLoaded) {
-      if (status.isPlaying) {
-        setVideoStatus('playing');
-      }
-    } else if ('error' in status) {
-      setVideoStatus('error');
-      console.error('[ProtectedPreview] Video error:', status.error);
-    }
-  };
 
   return (
     <View style={styles.container}>
       <TestingWatermark 
-        visible={showTestingWatermark}
+        visible={developerMode.showWatermark}
         position="top-right"
         variant="minimal"
       />
@@ -556,12 +532,10 @@ export default function ProtectedPreviewScreen() {
                 )}
                 {protectedSettings.showProtectedBadge && selectedVideo && (
                   <View style={styles.overlayLabel}>
-                    <Text style={styles.overlayLabelText}>
-                      {useBuiltInVideo ? 'Built-in Test Video Active' : 'Protected Replacement Active'}
-                    </Text>
+                    <Text style={styles.overlayLabelText}>Protected Replacement Active</Text>
                   </View>
                 )}
-              </Animated.View>
+              </View>
             )}
           </View>
 
@@ -573,21 +547,6 @@ export default function ProtectedPreviewScreen() {
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={simulateBodyDetected ? '#ffffff' : '#888888'}
               disabled={!developerModeEnabled}
-            />
-          </View>
-          
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleLabelContainer}>
-              <Text style={styles.toggleLabel}>Use Built-in Test Video</Text>
-              <Text style={styles.toggleHintSmall}>
-                Animated test pattern - no upload needed
-              </Text>
-            </View>
-            <Switch
-              value={useBuiltInVideo}
-              onValueChange={setUseBuiltInVideo}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#8a2be2' }}
-              thumbColor={useBuiltInVideo ? '#ffffff' : '#888888'}
             />
           </View>
           
@@ -655,7 +614,9 @@ export default function ProtectedPreviewScreen() {
             </View>
             <Switch
               value={protectedSettings.showProtectedBadge}
-              onValueChange={(val) => { if (developerModeEnabled) updateProtectedSettings({ showProtectedBadge: val }); }}
+              onValueChange={(val) =>
+                developerModeEnabled && updateProtectedSettings({ showProtectedBadge: val })
+              }
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={protectedSettings.showProtectedBadge ? '#ffffff' : '#888888'}
@@ -695,7 +656,9 @@ export default function ProtectedPreviewScreen() {
             </View>
             <Switch
               value={protectedSettings.blurFallback}
-              onValueChange={(val) => { if (developerModeEnabled) updateProtectedSettings({ blurFallback: val }); }}
+              onValueChange={(val) =>
+                developerModeEnabled && updateProtectedSettings({ blurFallback: val })
+              }
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={protectedSettings.blurFallback ? '#ffffff' : '#888888'}
@@ -919,31 +882,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 6,
-  },
-  toggleLabelContainer: {
-    flex: 1,
-  },
-  toggleHintSmall: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.4)',
-    marginTop: 2,
-  },
-  statusBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-    color: '#00ff88',
   },
   sensitivityRow: {
     flexDirection: 'row',
