@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
-// Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness';
+// Protocol Types - Synced with types/protocols.ts
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'claude';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -47,19 +47,56 @@ export interface HarnessProtocolSettings {
   testPatternOnNoVideo: boolean;
 }
 
-export interface SonnetProtocolSettings {
-  enabled: boolean;
-  aiAdaptiveQuality: boolean;
-  behavioralMimicry: boolean;
-  neuralStyleTransfer: boolean;
-  predictiveFrameOptimization: boolean;
-  quantumTimingRandomness: boolean;
-  biometricSimulation: boolean;
-  realTimeProfiler: boolean;
-  adaptiveStealth: boolean;
-  performanceTarget: 'quality' | 'balanced' | 'performance';
-  stealthIntensity: 'minimal' | 'moderate' | 'maximum';
-  learningMode: boolean;
+// Claude Protocol Settings - Advanced AI-driven injection system
+export interface ClaudeProtocolSettings {
+  // Adaptive Quality System
+  adaptiveQuality: boolean;
+  qualityOptimizationLevel: 'conservative' | 'balanced' | 'aggressive';
+  
+  // Neural Fingerprint Synthesis
+  neuralFingerprintEnabled: boolean;
+  fingerprintVarianceLevel: number;
+  
+  // Temporal Coherence System
+  temporalCoherenceEnabled: boolean;
+  frameBlendingStrength: number;
+  motionPredictionEnabled: boolean;
+  
+  // Behavioral Mimicry
+  behavioralMimicryEnabled: boolean;
+  microMovementSimulation: boolean;
+  blinkPatternSynthesis: boolean;
+  breathingMotionEnabled: boolean;
+  
+  // Advanced Stealth Features
+  antiDetectionLevel: 'minimal' | 'standard' | 'maximum' | 'paranoid';
+  dynamicTimingJitter: boolean;
+  canvasFingerprintMutation: boolean;
+  webglSignatureRandomization: boolean;
+  audioContextObfuscation: boolean;
+  
+  // Context-Aware Injection
+  contextAwareEnabled: boolean;
+  automaticOrientationMatching: boolean;
+  lightingConditionAdaptation: boolean;
+  backgroundBlurMatching: boolean;
+  
+  // Performance Optimizations
+  gpuAccelerationEnabled: boolean;
+  predictivePrefetching: boolean;
+  memoryOptimizationLevel: 'low' | 'medium' | 'high';
+  streamPoolingEnabled: boolean;
+  maxConcurrentStreams: number;
+  
+  // Analytics and Debugging
+  performanceMetricsEnabled: boolean;
+  detailedLogging: boolean;
+  anomalyDetectionEnabled: boolean;
+  healthCheckInterval: number;
+  
+  // Fallback Chain
+  intelligentFallbackEnabled: boolean;
+  fallbackChainOrder: ('video' | 'greenscreen' | 'blur' | 'placeholder')[];
 }
 
 export interface ProtocolContextValue {
@@ -92,14 +129,14 @@ export interface ProtocolContextValue {
   allowlistSettings: AllowlistProtocolSettings;
   protectedSettings: ProtectedProtocolSettings;
   harnessSettings: HarnessProtocolSettings;
-  sonnetSettings: SonnetProtocolSettings;
+  claudeSettings: ClaudeProtocolSettings;
   
   // Settings Updaters
   updateStandardSettings: (settings: Partial<StandardProtocolSettings>) => Promise<void>;
   updateAllowlistSettings: (settings: Partial<AllowlistProtocolSettings>) => Promise<void>;
   updateProtectedSettings: (settings: Partial<ProtectedProtocolSettings>) => Promise<void>;
   updateHarnessSettings: (settings: Partial<HarnessProtocolSettings>) => Promise<void>;
-  updateSonnetSettings: (settings: Partial<SonnetProtocolSettings>) => Promise<void>;
+  updateClaudeSettings: (settings: Partial<ClaudeProtocolSettings>) => Promise<void>;
   
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
@@ -129,7 +166,7 @@ const STORAGE_KEYS = {
   ALLOWLIST_SETTINGS: '@protocol_allowlist_settings',
   PROTECTED_SETTINGS: '@protocol_protected_settings',
   HARNESS_SETTINGS: '@protocol_harness_settings',
-  SONNET_SETTINGS: '@protocol_sonnet_settings',
+  CLAUDE_SETTINGS: '@protocol_claude_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -170,19 +207,57 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
-const DEFAULT_SONNET_SETTINGS: SonnetProtocolSettings = {
-  enabled: true,
-  aiAdaptiveQuality: true,
-  behavioralMimicry: true,
-  neuralStyleTransfer: false, // Computationally expensive, off by default
-  predictiveFrameOptimization: true,
-  quantumTimingRandomness: true,
-  biometricSimulation: true,
-  realTimeProfiler: true,
-  adaptiveStealth: true,
-  performanceTarget: 'balanced',
-  stealthIntensity: 'maximum',
-  learningMode: true,
+// Claude Protocol - The most advanced AI-driven injection system
+// Named after Claude (Anthropic's AI model) - representing the pinnacle of injection technology
+const DEFAULT_CLAUDE_SETTINGS: ClaudeProtocolSettings = {
+  // Adaptive Quality System
+  adaptiveQuality: true,
+  qualityOptimizationLevel: 'balanced',
+  
+  // Neural Fingerprint Synthesis
+  neuralFingerprintEnabled: true,
+  fingerprintVarianceLevel: 15,
+  
+  // Temporal Coherence System
+  temporalCoherenceEnabled: true,
+  frameBlendingStrength: 25,
+  motionPredictionEnabled: true,
+  
+  // Behavioral Mimicry
+  behavioralMimicryEnabled: true,
+  microMovementSimulation: true,
+  blinkPatternSynthesis: true,
+  breathingMotionEnabled: true,
+  
+  // Advanced Stealth Features
+  antiDetectionLevel: 'maximum',
+  dynamicTimingJitter: true,
+  canvasFingerprintMutation: true,
+  webglSignatureRandomization: true,
+  audioContextObfuscation: true,
+  
+  // Context-Aware Injection
+  contextAwareEnabled: true,
+  automaticOrientationMatching: true,
+  lightingConditionAdaptation: true,
+  backgroundBlurMatching: true,
+  
+  // Performance Optimizations
+  gpuAccelerationEnabled: true,
+  predictivePrefetching: true,
+  memoryOptimizationLevel: 'high',
+  streamPoolingEnabled: true,
+  maxConcurrentStreams: 3,
+  
+  // Analytics and Debugging
+  performanceMetricsEnabled: true,
+  detailedLogging: false,
+  anomalyDetectionEnabled: true,
+  healthCheckInterval: 5000,
+  
+  // Fallback Chain
+  intelligentFallbackEnabled: true,
+  fallbackChainOrder: ['video', 'greenscreen', 'blur', 'placeholder'],
 };
 
 const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
@@ -214,10 +289,10 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
-  sonnet: {
-    id: 'sonnet',
-    name: 'Protocol 5: Sonnet Protocol',
-    description: 'AI-powered adaptive injection with neural behavioral mimicry, predictive optimization, and quantum-grade stealth. The most advanced protocol attempting ultra-realistic camera simulation.',
+  claude: {
+    id: 'claude',
+    name: 'Protocol 5: Claude Protocol',
+    description: 'Advanced AI-driven injection with neural fingerprinting, behavioral mimicry, temporal coherence, and intelligent anti-detection.',
     enabled: true,
     settings: {},
   },
@@ -239,7 +314,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [allowlistSettings, setAllowlistSettings] = useState<AllowlistProtocolSettings>(DEFAULT_ALLOWLIST_SETTINGS);
   const [protectedSettings, setProtectedSettings] = useState<ProtectedProtocolSettings>(DEFAULT_PROTECTED_SETTINGS);
   const [harnessSettings, setHarnessSettings] = useState<HarnessProtocolSettings>(DEFAULT_HARNESS_SETTINGS);
-  const [sonnetSettings, setSonnetSettings] = useState<SonnetProtocolSettings>(DEFAULT_SONNET_SETTINGS);
+  const [claudeSettings, setClaudeSettings] = useState<ClaudeProtocolSettings>(DEFAULT_CLAUDE_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -256,7 +331,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           allowlist,
           protected_,
           harness,
-          sonnet,
+          claude,
           https,
           mlSafety,
         ] = await Promise.all([
@@ -270,7 +345,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.ALLOWLIST_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.PROTECTED_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
-          AsyncStorage.getItem(STORAGE_KEYS.SONNET_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.CLAUDE_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
         ]);
@@ -316,11 +391,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             console.warn('[Protocol] Failed to parse harness settings:', e);
           }
         }
-        if (sonnet) {
+        if (claude) {
           try {
-            setSonnetSettings({ ...DEFAULT_SONNET_SETTINGS, ...JSON.parse(sonnet) });
+            setClaudeSettings({ ...DEFAULT_CLAUDE_SETTINGS, ...JSON.parse(claude) });
           } catch (e) {
-            console.warn('[Protocol] Failed to parse sonnet settings:', e);
+            console.warn('[Protocol] Failed to parse claude settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -424,11 +499,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.HARNESS_SETTINGS, JSON.stringify(newSettings));
   }, [harnessSettings]);
 
-  const updateSonnetSettings = useCallback(async (settings: Partial<SonnetProtocolSettings>) => {
-    const newSettings = { ...sonnetSettings, ...settings };
-    setSonnetSettings(newSettings);
-    await AsyncStorage.setItem(STORAGE_KEYS.SONNET_SETTINGS, JSON.stringify(newSettings));
-  }, [sonnetSettings]);
+  const updateClaudeSettings = useCallback(async (settings: Partial<ClaudeProtocolSettings>) => {
+    const newSettings = { ...claudeSettings, ...settings };
+    setClaudeSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.CLAUDE_SETTINGS, JSON.stringify(newSettings));
+    console.log('[Protocol] Claude settings updated');
+  }, [claudeSettings]);
 
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
@@ -479,12 +555,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     allowlistSettings,
     protectedSettings,
     harnessSettings,
-    sonnetSettings,
+    claudeSettings,
     updateStandardSettings,
     updateAllowlistSettings,
     updateProtectedSettings,
     updateHarnessSettings,
-    updateSonnetSettings,
+    updateClaudeSettings,
     addAllowlistDomain,
     removeAllowlistDomain,
     isAllowlisted,
