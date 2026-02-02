@@ -1039,12 +1039,26 @@ export default function MotionBrowserScreen() {
     if (webViewRef.current) {
       console.log('[App] Sending permission response:', action, config);
       webViewRef.current.injectJavaScript(`
-        window.__handlePermissionResponse && window.__handlePermissionResponse(${JSON.stringify({
-          type: 'permissionResponse',
-          requestId,
-          action,
-          config
-        })});
+        (function() {
+          const msg = ${JSON.stringify({ requestId, action, config })};
+          // New permission bridge (matches PermissionPrompt in constants/browserScripts.ts)
+          if (window.__resolveCameraPermission) {
+            window.__resolveCameraPermission(msg.requestId, {
+              action: msg.action,
+              protocolId: msg.config && msg.config.protocolId ? msg.config.protocolId : undefined
+            });
+            return;
+          }
+          // Legacy fallback (kept for older scripts)
+          if (window.__handlePermissionResponse) {
+            window.__handlePermissionResponse({
+              type: 'permissionResponse',
+              requestId: msg.requestId,
+              action: msg.action,
+              config: msg.config
+            });
+          }
+        })();
         true;
       `);
     }
