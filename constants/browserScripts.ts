@@ -3662,3 +3662,63 @@ export const createSimplifiedInjectionScript = (videoUrl?: string): string => {
 true;
 `;
 };
+
+/**
+ * ===========================================================================
+ * DEEP INJECTION PROTOCOLS - For Real Website Testing
+ * ===========================================================================
+ * 
+ * These are advanced injection protocols designed to work on real websites
+ * that may have protection mechanisms against camera injection.
+ * 
+ * Import from: @/utils/deepInjectionProtocols
+ * 
+ * PROTOCOL COMPATIBILITY ANALYSIS (for https://webcamtests.com/recorder):
+ * 
+ * Protocol 0: Ultra-Early Deep Hook
+ * - Strategy: Intercepts getUserMedia before page scripts load
+ * - Timing: Runs in injectedJavaScriptBeforeContentLoaded
+ * - Best for: Sites that check getUserMedia early in page lifecycle
+ * - Expected Result: HIGH SUCCESS - Early injection beats most detection
+ * - Use Case: General purpose, should work on most sites including webcamtests.com
+ * 
+ * Protocol 1: MediaStream Constructor Override
+ * - Strategy: Intercepts MediaStream constructor and getUserMedia
+ * - Timing: Pre-content load
+ * - Best for: Sites that construct MediaStream objects directly
+ * - Expected Result: MEDIUM SUCCESS - Works if site uses MediaStream constructor
+ * - Use Case: Backup option for Protocol 0
+ * 
+ * Protocol 2: Descriptor-Level Hook
+ * - Strategy: Overrides property descriptors on MediaDevices prototype
+ * - Timing: Pre-content load
+ * - Best for: Sites that check function properties/descriptors
+ * - Expected Result: MEDIUM-HIGH SUCCESS - Low-level override hard to detect
+ * - Use Case: For sites that detect function replacements
+ * 
+ * Protocol 3: Proxy-Based Intercept
+ * - Strategy: Uses JavaScript Proxy to intercept navigator.mediaDevices
+ * - Timing: Pre-content load
+ * - Best for: Sites with complex getUserMedia wrapping
+ * - Expected Result: MEDIUM SUCCESS - Proxy is more detectable
+ * - Use Case: Alternative approach when direct override fails
+ * 
+ * RECOMMENDED APPROACH for webcamtests.com and similar sites:
+ * 1. Try Protocol 0 first (ultra-early hook) - most likely to work
+ * 2. If Protocol 0 fails, try Protocol 2 (descriptor-level)
+ * 3. Protocols 1 and 3 as fallback options
+ * 
+ * KNOWN LIMITATIONS:
+ * - Sites with Content Security Policy (CSP) may block injection entirely
+ * - Sites that use WebAssembly for camera access bypass JavaScript hooks
+ * - Sites with iframe sandboxing may restrict media access
+ * - Some sites check for canvas-based streams and reject them
+ * 
+ * TESTING:
+ * Use the Protocol Tester screen (/protocol-tester) to test each protocol
+ * on real websites and see which ones work in practice.
+ */
+
+// Re-export deep injection protocols for convenience
+export { DEEP_INJECTION_PROTOCOLS } from '@/utils/deepInjectionProtocols';
+export type { InjectionConfig } from '@/utils/deepInjectionProtocols';
