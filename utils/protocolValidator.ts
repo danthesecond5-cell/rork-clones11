@@ -371,6 +371,40 @@ export function validateWebRtcLoopbackSettings(settings: Partial<WebRtcLoopbackS
     }
   }
 
+  if (settings.minBitrateKbps !== undefined && settings.minBitrateKbps < 0) {
+    errors.push({
+      code: 'INVALID_MIN_BITRATE',
+      field: 'minBitrateKbps',
+      message: 'Min bitrate must be >= 0',
+      severity: 'error',
+    });
+  }
+
+  if (settings.targetBitrateKbps !== undefined && settings.targetBitrateKbps < 0) {
+    errors.push({
+      code: 'INVALID_TARGET_BITRATE',
+      field: 'targetBitrateKbps',
+      message: 'Target bitrate must be >= 0',
+      severity: 'error',
+    });
+  }
+
+  if (settings.ringBufferSeconds !== undefined && settings.ringBufferSeconds < 1) {
+    warnings.push({
+      code: 'LOW_RING_BUFFER',
+      field: 'ringBufferSeconds',
+      message: 'Ring buffer < 1s may be too small for playback',
+    });
+  }
+
+  if (settings.ringSegmentSeconds !== undefined && settings.ringSegmentSeconds < 1) {
+    warnings.push({
+      code: 'LOW_RING_SEGMENT',
+      field: 'ringSegmentSeconds',
+      message: 'Ring segment < 1s may create excessive segment churn',
+    });
+  }
+
   if (settings.signalingTimeoutMs !== undefined) {
     if (settings.signalingTimeoutMs < 1000) {
       warnings.push({

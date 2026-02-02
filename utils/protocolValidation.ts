@@ -156,8 +156,19 @@ export class ProtocolValidator {
           result.errors.push('Max bitrate must be >= 0');
           result.valid = false;
         }
+        if (config.minBitrateKbps && config.minBitrateKbps < 0) {
+          result.errors.push('Min bitrate must be >= 0');
+          result.valid = false;
+        }
+        if (config.targetBitrateKbps && config.targetBitrateKbps < 0) {
+          result.errors.push('Target bitrate must be >= 0');
+          result.valid = false;
+        }
         if (config.keepAliveIntervalMs && config.keepAliveIntervalMs < 500) {
           result.warnings.push('Keepalive interval < 500ms may be too aggressive');
+        }
+        if (config.ringBufferSeconds && config.ringBufferSeconds < 1) {
+          result.warnings.push('Ring buffer < 1s may be too small for playback');
         }
         break;
 

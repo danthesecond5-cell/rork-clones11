@@ -10,6 +10,7 @@ final class AdvancedTestPatternCapturer: RTCVideoCapturer {
   private var height: Int = 1920
   private var fps: Int = 30
   private var frameIndex: Int64 = 0
+  var onFrame: ((CVPixelBuffer, Int64) -> Void)?
 
   func start(width: Int, height: Int, fps: Int) {
     self.width = max(2, width)
@@ -38,6 +39,7 @@ final class AdvancedTestPatternCapturer: RTCVideoCapturer {
     let rtcBuffer = RTCCVPixelBuffer(pixelBuffer: pixelBuffer)
     let frame = RTCVideoFrame(buffer: rtcBuffer, rotation: ._0, timeStampNs: timeStampNs)
     delegate?.capturer(self, didCapture: frame)
+    onFrame?(pixelBuffer, timeStampNs)
     frameIndex += 1
   }
 

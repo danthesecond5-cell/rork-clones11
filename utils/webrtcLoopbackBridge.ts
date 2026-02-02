@@ -26,6 +26,8 @@ type NativeLoopbackModule = {
   updateConfig?: (config: any) => Promise<void>;
   stop?: () => Promise<void>;
   getStats?: () => Promise<any>;
+  getRingBufferSegments?: () => Promise<string[]>;
+  clearRingBuffer?: () => Promise<void>;
 };
 
 const EVENT_NAMES = {
@@ -42,6 +44,12 @@ export class WebRtcLoopbackBridge {
   private subscriptions: Array<{ remove: () => void }> = [];
   private lastOfferId: string | null = null;
   private settings: WebRtcLoopbackSettings | null = null;
+  private videoSources: Array<{
+    id: string;
+    uri: string | null;
+    label?: string;
+    loop?: boolean;
+  }> = [];
 
   constructor() {
     this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
@@ -61,6 +69,23 @@ export class WebRtcLoopbackBridge {
       this.nativeModule.updateConfig({
         ...settings,
         platform: Platform.OS,
+      }).catch(() => {});
+    }
+  }
+
+  updateDeviceSources(devices: Array<{ id: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean }>) {
+    const sources = devices
+      .filter((d) => d.simulationEnabled !== false)
+      .map((d) => ({
+        id: d.id,
+        label: d.name,
+        uri: d.assignedVideoUri ?? null,
+        loop: true,
+      }));
+    this.videoSources = sources;
+    if (this.nativeModule?.updateConfig) {
+      this.nativeModule.updateConfig({
+        videoSources: sources,
       }).catch(() => {});
     }
   }
@@ -127,6 +152,7 @@ export class WebRtcLoopbackBridge {
       maxBitrateKbps: payload.config?.maxBitrateKbps ?? this.settings?.maxBitrateKbps,
       enableSimulcast: payload.config?.enableSimulcast ?? this.settings?.enableSimulcast,
       iceServers: payload.config?.iceServers ?? this.settings?.iceServers,
+      videoSources: this.videoSources,
     };
 
     try {
@@ -159,5 +185,15 @@ export class WebRtcLoopbackBridge {
     if (this.nativeModule?.stop) {
       await this.nativeModule.stop().catch(() => {});
     }
+  }
+
+  async getRingBufferSegments(): Promise<string[]> {
+    if (!this.nativeModule?.getRingBufferSegments) return [];
+    return this.nativeModule.getRingBufferSegments().catch(() => []);
+  }
+
+  async clearRingBuffer(): Promise<void> {
+    if (!this.nativeModule?.clearRingBuffer) return;
+    await this.nativeModule.clearRingBuffer().catch(() => {});
   }
 }

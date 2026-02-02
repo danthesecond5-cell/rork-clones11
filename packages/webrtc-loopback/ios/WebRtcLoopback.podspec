@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
   s.homepage     = "https://rork.com/"
   s.platforms    = { :ios => "13.0" }
   s.source       = { :path => "." }
-  s.source_files = "WebRtcLoopback*.{h,m,mm,swift}", "AdvancedTestPatternCapturer.swift"
+  s.source_files = "WebRtcLoopback*.{h,m,mm,swift}", "AdvancedTestPatternCapturer.swift", "VideoFileCapturer.swift", "RingBufferRecorder.swift"
   s.requires_arc = true
   s.swift_version = "5.9"
 

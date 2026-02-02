@@ -491,12 +491,19 @@ export default function MotionBrowserScreen() {
       requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
       iceServers: webrtcLoopbackSettings.iceServers,
       preferredCodec: webrtcLoopbackSettings.preferredCodec,
+      enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+      enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+      minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+      targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
       maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
       keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
       statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
       enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
       enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
       enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+      recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+      ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+      ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
     };
 
     console.log('[App] Injecting media config:', {
@@ -534,12 +541,19 @@ export default function MotionBrowserScreen() {
         requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
         iceServers: webrtcLoopbackSettings.iceServers,
         preferredCodec: webrtcLoopbackSettings.preferredCodec,
+        enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+        enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+        minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+        targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
         maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
         keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
         statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
         enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
         enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
         enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+        recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+        ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+        ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
       });
     } else {
       fallbackScript = createMediaInjectionScript(normalizedDevices, {
@@ -554,6 +568,10 @@ export default function MotionBrowserScreen() {
         debugEnabled: developerModeEnabled,
         permissionPromptEnabled: true,
       });
+    }
+
+    if (activeProtocol === 'webrtc-loopback') {
+      webrtcLoopbackBridge.updateDeviceSources(normalizedDevices);
     }
 
     webViewRef.current.injectJavaScript(`
@@ -588,12 +606,19 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.requireNativeBridge,
     webrtcLoopbackSettings.iceServers,
     webrtcLoopbackSettings.preferredCodec,
+    webrtcLoopbackSettings.enableAdaptiveBitrate,
+    webrtcLoopbackSettings.enableAdaptiveResolution,
+    webrtcLoopbackSettings.minBitrateKbps,
+    webrtcLoopbackSettings.targetBitrateKbps,
     webrtcLoopbackSettings.maxBitrateKbps,
     webrtcLoopbackSettings.keepAliveIntervalMs,
     webrtcLoopbackSettings.statsIntervalMs,
     webrtcLoopbackSettings.enableDataChannel,
     webrtcLoopbackSettings.enableIceRestart,
     webrtcLoopbackSettings.enableSimulcast,
+    webrtcLoopbackSettings.recordingEnabled,
+    webrtcLoopbackSettings.ringBufferSeconds,
+    webrtcLoopbackSettings.ringSegmentSeconds,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -1031,12 +1056,19 @@ export default function MotionBrowserScreen() {
           requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
           iceServers: webrtcLoopbackSettings.iceServers,
           preferredCodec: webrtcLoopbackSettings.preferredCodec,
+          enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+          enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+          minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+          targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
           maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
           keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
           statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
           enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
           enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
           enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+          recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+          ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+          ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
         });
         console.log('[App] Using WEBRTC loopback injection');
       } else {
@@ -1097,12 +1129,19 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.requireNativeBridge,
     webrtcLoopbackSettings.iceServers,
     webrtcLoopbackSettings.preferredCodec,
+    webrtcLoopbackSettings.enableAdaptiveBitrate,
+    webrtcLoopbackSettings.enableAdaptiveResolution,
+    webrtcLoopbackSettings.minBitrateKbps,
+    webrtcLoopbackSettings.targetBitrateKbps,
     webrtcLoopbackSettings.maxBitrateKbps,
     webrtcLoopbackSettings.keepAliveIntervalMs,
     webrtcLoopbackSettings.statsIntervalMs,
     webrtcLoopbackSettings.enableDataChannel,
     webrtcLoopbackSettings.enableIceRestart,
     webrtcLoopbackSettings.enableSimulcast,
+    webrtcLoopbackSettings.recordingEnabled,
+    webrtcLoopbackSettings.ringBufferSeconds,
+    webrtcLoopbackSettings.ringSegmentSeconds,
     isProtocolEnabled,
   ]);
 

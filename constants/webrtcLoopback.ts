@@ -11,12 +11,19 @@ export interface WebRtcLoopbackOptions {
   requireNativeBridge?: boolean;
   iceServers?: Array<{ urls: string | string[]; username?: string; credential?: string }>;
   preferredCodec?: 'auto' | 'h264' | 'vp8' | 'vp9' | 'av1';
+  enableAdaptiveBitrate?: boolean;
+  enableAdaptiveResolution?: boolean;
+  minBitrateKbps?: number;
+  targetBitrateKbps?: number;
   maxBitrateKbps?: number;
   keepAliveIntervalMs?: number;
   statsIntervalMs?: number;
   enableDataChannel?: boolean;
   enableIceRestart?: boolean;
   enableSimulcast?: boolean;
+  recordingEnabled?: boolean;
+  ringBufferSeconds?: number;
+  ringSegmentSeconds?: number;
 }
 
 /**
@@ -35,12 +42,19 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     requireNativeBridge = true,
     iceServers = [],
     preferredCodec = 'auto',
+    enableAdaptiveBitrate = true,
+    enableAdaptiveResolution = true,
+    minBitrateKbps = 300,
+    targetBitrateKbps = 1200,
     maxBitrateKbps = 0,
     keepAliveIntervalMs = 5000,
     statsIntervalMs = 4000,
     enableDataChannel = true,
     enableIceRestart = true,
     enableSimulcast = false,
+    recordingEnabled = true,
+    ringBufferSeconds = 15,
+    ringSegmentSeconds = 3,
   } = options;
 
   return `
@@ -75,12 +89,19 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     REQUIRE_NATIVE_BRIDGE: ${requireNativeBridge},
     ICE_SERVERS: ${JSON.stringify(iceServers)},
     PREFERRED_CODEC: ${JSON.stringify(preferredCodec)},
+    ENABLE_ADAPTIVE_BITRATE: ${enableAdaptiveBitrate},
+    ENABLE_ADAPTIVE_RESOLUTION: ${enableAdaptiveResolution},
+    MIN_BITRATE_KBPS: ${minBitrateKbps},
+    TARGET_BITRATE_KBPS: ${targetBitrateKbps},
     MAX_BITRATE_KBPS: ${maxBitrateKbps},
     KEEPALIVE_INTERVAL_MS: ${keepAliveIntervalMs},
     STATS_INTERVAL_MS: ${statsIntervalMs},
     ENABLE_DATA_CHANNEL: ${enableDataChannel},
     ENABLE_ICE_RESTART: ${enableIceRestart},
     ENABLE_SIMULCAST: ${enableSimulcast},
+    RECORDING_ENABLED: ${recordingEnabled},
+    RING_BUFFER_SECONDS: ${ringBufferSeconds},
+    RING_SEGMENT_SECONDS: ${ringSegmentSeconds},
   };
 
   const log = CONFIG.DEBUG
@@ -101,6 +122,9 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     offerId: null,
     statsInterval: null,
     keepAliveInterval: null,
+    remoteVideoTracks: [],
+    remoteAudioTrack: null,
+    trackAssignments: {},
   };
 
   function postMessage(type, payload) {
@@ -139,6 +163,37 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
   function resolveDevice() {
     const list = CONFIG.DEVICES || [];
     return list.find(d => d.type === 'camera') || list[0] || null;
+  }
+
+  function getConstraintValue(constraint) {
+    if (!constraint) return null;
+    if (typeof constraint === 'string') return constraint;
+    if (Array.isArray(constraint)) return constraint[0];
+    if (typeof constraint === 'object') {
+      return constraint.exact || constraint.ideal || null;
+    }
+    return null;
+  }
+
+  function normalizeFacingMode(value) {
+    if (!value) return null;
+    const v = String(value).toLowerCase();
+    if (v.includes('environment') || v.includes('back')) return 'back';
+    if (v.includes('user') || v.includes('front')) return 'front';
+    return null;
+  }
+
+  function selectDevice(devices, reqDeviceId, reqFacing) {
+    if (!devices || !devices.length) return null;
+    if (reqDeviceId) {
+      const byId = devices.find(d => d.id === reqDeviceId || d.nativeDeviceId === reqDeviceId);
+      if (byId) return byId;
+    }
+    if (reqFacing) {
+      const byFacing = devices.find(d => normalizeFacingMode(d.facing) === reqFacing);
+      if (byFacing) return byFacing;
+    }
+    return devices.find(d => d.type === 'camera') || devices[0];
   }
 
   function spoofTrack(track) {
@@ -237,6 +292,18 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     if (State.readyResolve) {
       State.readyResolve(stream);
     }
+  }
+  function assignTracksToDevices() {
+    const devices = (CONFIG.DEVICES || []).filter(d => d.type === 'camera');
+    const tracks = State.remoteVideoTracks;
+    const assignments = {};
+    devices.forEach((device, idx) => {
+      const track = tracks[idx] || tracks[0];
+      if (track) {
+        assignments[device.id] = track;
+      }
+    });
+    State.trackAssignments = assignments;
   }
 
   function failStream(err) {
@@ -340,6 +407,14 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
 
     pc.ontrack = function(event) {
       const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
+      if (event.track && event.track.kind === 'video') {
+        if (!State.remoteVideoTracks.includes(event.track)) {
+          State.remoteVideoTracks.push(event.track);
+        }
+        assignTracksToDevices();
+      } else if (event.track && event.track.kind === 'audio') {
+        State.remoteAudioTrack = event.track;
+      }
       log('Received remote track');
       setStream(stream);
     };
@@ -381,8 +456,15 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
         target: { width: CONFIG.TARGET_WIDTH, height: CONFIG.TARGET_HEIGHT, fps: CONFIG.TARGET_FPS },
         config: {
           preferredCodec: CONFIG.PREFERRED_CODEC,
+          enableAdaptiveBitrate: CONFIG.ENABLE_ADAPTIVE_BITRATE,
+          enableAdaptiveResolution: CONFIG.ENABLE_ADAPTIVE_RESOLUTION,
+          minBitrateKbps: CONFIG.MIN_BITRATE_KBPS,
+          targetBitrateKbps: CONFIG.TARGET_BITRATE_KBPS,
           maxBitrateKbps: CONFIG.MAX_BITRATE_KBPS,
           enableSimulcast: CONFIG.ENABLE_SIMULCAST,
+          recordingEnabled: CONFIG.RECORDING_ENABLED,
+          ringBufferSeconds: CONFIG.RING_BUFFER_SECONDS,
+          ringSegmentSeconds: CONFIG.RING_SEGMENT_SECONDS,
           iceServers: CONFIG.ICE_SERVERS,
         },
       });
@@ -440,6 +522,21 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
 
     log('getUserMedia requested, starting loopback');
     const stream = await startLoopback();
+
+    const devices = (CONFIG.DEVICES || []).filter(d => d.type === 'camera');
+    const reqDeviceId = typeof constraints.video === 'object' ? getConstraintValue(constraints.video.deviceId) : null;
+    const reqFacing = typeof constraints.video === 'object' ? normalizeFacingMode(getConstraintValue(constraints.video.facingMode)) : null;
+    const selectedDevice = selectDevice(devices, reqDeviceId, reqFacing);
+    const selectedTrack = selectedDevice ? State.trackAssignments[selectedDevice.id] : null;
+
+    if (selectedTrack) {
+      const tracks = [selectedTrack];
+      if (wantsAudio && State.remoteAudioTrack) {
+        tracks.push(State.remoteAudioTrack);
+      }
+      return new MediaStream(tracks);
+    }
+
     if (wantsAudio && stream && stream.getAudioTracks().length === 0) {
       log('Audio requested but none provided by loopback');
     }
@@ -503,7 +600,10 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
 
   function updateConfig(newConfig) {
     if (!newConfig || typeof newConfig !== 'object') return;
-    if (Array.isArray(newConfig.devices)) CONFIG.DEVICES = newConfig.devices;
+    if (Array.isArray(newConfig.devices)) {
+      CONFIG.DEVICES = newConfig.devices;
+      assignTracksToDevices();
+    }
     if (typeof newConfig.targetWidth === 'number') CONFIG.TARGET_WIDTH = newConfig.targetWidth;
     if (typeof newConfig.targetHeight === 'number') CONFIG.TARGET_HEIGHT = newConfig.targetHeight;
     if (typeof newConfig.targetFPS === 'number') CONFIG.TARGET_FPS = newConfig.targetFPS;
@@ -512,12 +612,19 @@ export function createWebRtcLoopbackInjectionScript(options: WebRtcLoopbackOptio
     if (typeof newConfig.requireNativeBridge === 'boolean') CONFIG.REQUIRE_NATIVE_BRIDGE = newConfig.requireNativeBridge;
     if (Array.isArray(newConfig.iceServers)) CONFIG.ICE_SERVERS = newConfig.iceServers;
     if (typeof newConfig.preferredCodec === 'string') CONFIG.PREFERRED_CODEC = newConfig.preferredCodec;
+    if (typeof newConfig.enableAdaptiveBitrate === 'boolean') CONFIG.ENABLE_ADAPTIVE_BITRATE = newConfig.enableAdaptiveBitrate;
+    if (typeof newConfig.enableAdaptiveResolution === 'boolean') CONFIG.ENABLE_ADAPTIVE_RESOLUTION = newConfig.enableAdaptiveResolution;
+    if (typeof newConfig.minBitrateKbps === 'number') CONFIG.MIN_BITRATE_KBPS = newConfig.minBitrateKbps;
+    if (typeof newConfig.targetBitrateKbps === 'number') CONFIG.TARGET_BITRATE_KBPS = newConfig.targetBitrateKbps;
     if (typeof newConfig.maxBitrateKbps === 'number') CONFIG.MAX_BITRATE_KBPS = newConfig.maxBitrateKbps;
     if (typeof newConfig.keepAliveIntervalMs === 'number') CONFIG.KEEPALIVE_INTERVAL_MS = newConfig.keepAliveIntervalMs;
     if (typeof newConfig.statsIntervalMs === 'number') CONFIG.STATS_INTERVAL_MS = newConfig.statsIntervalMs;
     if (typeof newConfig.enableDataChannel === 'boolean') CONFIG.ENABLE_DATA_CHANNEL = newConfig.enableDataChannel;
     if (typeof newConfig.enableIceRestart === 'boolean') CONFIG.ENABLE_ICE_RESTART = newConfig.enableIceRestart;
     if (typeof newConfig.enableSimulcast === 'boolean') CONFIG.ENABLE_SIMULCAST = newConfig.enableSimulcast;
+    if (typeof newConfig.recordingEnabled === 'boolean') CONFIG.RECORDING_ENABLED = newConfig.recordingEnabled;
+    if (typeof newConfig.ringBufferSeconds === 'number') CONFIG.RING_BUFFER_SECONDS = newConfig.ringBufferSeconds;
+    if (typeof newConfig.ringSegmentSeconds === 'number') CONFIG.RING_SEGMENT_SECONDS = newConfig.ringSegmentSeconds;
 
     if (State.pc && newConfig.iceServers) {
       try {

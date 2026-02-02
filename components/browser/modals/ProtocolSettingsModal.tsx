@@ -610,6 +610,138 @@ export default function ProtocolSettingsModal({
               />
             </View>
 
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#00ff88" />
+                  <Text style={styles.settingLabel}>Adaptive Bitrate</Text>
+                </View>
+                <Text style={styles.settingHint}>Auto-tune bitrate based on live stats</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.enableAdaptiveBitrate}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ enableAdaptiveBitrate: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                thumbColor={webrtcLoopbackSettings.enableAdaptiveBitrate ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#00aaff" />
+                  <Text style={styles.settingLabel}>Adaptive Resolution</Text>
+                </View>
+                <Text style={styles.settingHint}>Auto-scale resolution under stress</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.enableAdaptiveResolution}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ enableAdaptiveResolution: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
+                thumbColor={webrtcLoopbackSettings.enableAdaptiveResolution ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Cpu size={12} color="#ff6b35" />
+                  <Text style={styles.settingLabel}>Min Bitrate (kbps)</Text>
+                </View>
+                <Text style={styles.settingHint}>Floor for adaptive bitrate</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.minBitrateKbps)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ minBitrateKbps: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Cpu size={12} color="#ffcc00" />
+                  <Text style={styles.settingLabel}>Target Bitrate (kbps)</Text>
+                </View>
+                <Text style={styles.settingHint}>Adaptive bitrate target</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.targetBitrateKbps)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ targetBitrateKbps: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Video size={12} color="#b388ff" />
+                  <Text style={styles.settingLabel}>Ring Buffer Recording</Text>
+                </View>
+                <Text style={styles.settingHint}>Keep a rolling buffer of recent frames</Text>
+              </View>
+              <Switch
+                value={webrtcLoopbackSettings.recordingEnabled}
+                onValueChange={(v) => updateWebRtcLoopbackSettings({ recordingEnabled: v })}
+                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                thumbColor={webrtcLoopbackSettings.recordingEnabled ? '#ffffff' : '#888'}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#00aaff" />
+                  <Text style={styles.settingLabel}>Ring Buffer (s)</Text>
+                </View>
+                <Text style={styles.settingHint}>Total seconds to keep</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.ringBufferSeconds)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ ringBufferSeconds: parsed });
+                  }
+                }}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingLabelRow}>
+                  <Activity size={12} color="#ff6b35" />
+                  <Text style={styles.settingLabel}>Segment Size (s)</Text>
+                </View>
+                <Text style={styles.settingHint}>Segment length for rotation</Text>
+              </View>
+              <TextInput
+                style={styles.numberInput}
+                value={String(webrtcLoopbackSettings.ringSegmentSeconds)}
+                keyboardType="number-pad"
+                onChangeText={(value) => {
+                  const parsed = Number(value.replace(/[^0-9]/g, ''));
+                  if (!Number.isNaN(parsed)) {
+                    updateWebRtcLoopbackSettings({ ringSegmentSeconds: parsed });
+                  }
+                }}
+              />
+            </View>
+
             <View style={styles.infoNotice}>
               <AlertTriangle size={14} color="#ffcc00" />
               <Text style={styles.infoNoticeText}>

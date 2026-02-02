@@ -140,12 +140,19 @@ export interface WebRtcLoopbackSettings {
   requireNativeBridge: boolean;
   iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>;
   preferredCodec: 'auto' | 'h264' | 'vp8' | 'vp9' | 'av1';
+  enableAdaptiveBitrate: boolean;
+  enableAdaptiveResolution: boolean;
+  minBitrateKbps: number;
+  targetBitrateKbps: number;
   maxBitrateKbps: number;
   keepAliveIntervalMs: number;
   statsIntervalMs: number;
   enableDataChannel: boolean;
   enableIceRestart: boolean;
   enableSimulcast: boolean;
+  recordingEnabled: boolean;
+  ringBufferSeconds: number;
+  ringSegmentSeconds: number;
 }
 
 // Combined Protocol Settings
@@ -280,12 +287,19 @@ export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
   requireNativeBridge: true,
   iceServers: [],
   preferredCodec: 'auto',
+  enableAdaptiveBitrate: true,
+  enableAdaptiveResolution: true,
+  minBitrateKbps: 300,
+  targetBitrateKbps: 1200,
   maxBitrateKbps: 0,
   keepAliveIntervalMs: 5000,
   statsIntervalMs: 4000,
   enableDataChannel: true,
   enableIceRestart: true,
   enableSimulcast: false,
+  recordingEnabled: true,
+  ringBufferSeconds: 15,
+  ringSegmentSeconds: 3,
 };
 
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {

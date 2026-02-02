@@ -7,12 +7,16 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
   private static var sslInitialized = false
   private let peerFactory: RTCPeerConnectionFactory
   private var peerConnection: RTCPeerConnection?
-  private var videoSource: RTCVideoSource?
   private var audioSource: RTCAudioSource?
-  private var videoCapturer: AdvancedTestPatternCapturer?
+  private var videoCapturers: [AnyObject] = []
+  private var videoTracks: [RTCVideoTrack] = []
   private var statsTimer: Timer?
+  private var ringRecorder: RingBufferRecorder?
   private var config: LoopbackConfig = LoopbackConfig()
   private var lastOfferId: String?
+  private var adaptiveBitrateKbps: Int = 0
+  private var adaptiveScale: Double = 1.0
+  private var lastAdaptationTs: TimeInterval = 0
 
   override init() {
     if !WebRtcLoopback.sslInitialized {
@@ -50,6 +54,8 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     let configDict = payload["config"] as? NSDictionary
     config = LoopbackConfig(configDict: configDict)
     lastOfferId = (configDict?["offerId"] as? String) ?? nil
+    adaptiveBitrateKbps = max(config.minBitrateKbps, max(config.targetBitrateKbps, config.maxBitrateKbps))
+    adaptiveScale = 1.0
 
     let rtcConfig = RTCConfiguration()
     rtcConfig.sdpSemantics = .unifiedPlan
@@ -122,6 +128,17 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
   @objc(updateConfig:resolver:rejecter:)
   func updateConfig(_ payload: NSDictionary, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
     config = LoopbackConfig(configDict: payload)
+    adaptiveBitrateKbps = max(config.minBitrateKbps, max(config.targetBitrateKbps, config.maxBitrateKbps))
+    let shouldReloadSources =
+      payload["videoSources"] != nil ||
+      payload["targetWidth"] != nil ||
+      payload["targetHeight"] != nil ||
+      payload["targetFPS"] != nil
+    if shouldReloadSources {
+      setupLocalTracks()
+    } else {
+      configureRingRecorder()
+    }
     applySenderTuning()
     if let pc = peerConnection, config.enableIceRestart {
       pc.restartIce()
@@ -146,16 +163,53 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     }
   }
 
+  @objc(getRingBufferSegments:rejecter:)
+  func getRingBufferSegments(_ resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    resolver(ringRecorder?.getSegments() ?? [])
+  }
+
+  @objc(clearRingBuffer:rejecter:)
+  func clearRingBuffer(_ resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    ringRecorder?.clearSegments()
+    resolver(nil)
+  }
+
   private func setupLocalTracks() {
-    let videoSource = peerFactory.videoSource()
-    let capturer = AdvancedTestPatternCapturer(delegate: videoSource)
-    capturer.start(width: config.targetWidth, height: config.targetHeight, fps: config.targetFps)
+    clearVideoTracks()
+    configureRingRecorder()
 
-    self.videoSource = videoSource
-    self.videoCapturer = capturer
+    let sources = config.videoSources.isEmpty
+      ? [VideoSourceConfig(id: "default", uri: nil, label: "Default", loop: true)]
+      : config.videoSources
 
-    let videoTrack = peerFactory.videoTrack(with: videoSource, trackId: "loopback_video")
-    _ = peerConnection?.add(videoTrack, streamIds: ["loopback_stream"])
+    for (index, source) in sources.enumerated() {
+      let rtcSource = peerFactory.videoSource()
+      let trackId = source.id.isEmpty ? "loopback_video_\(index)" : source.id
+      let videoTrack = peerFactory.videoTrack(with: rtcSource, trackId: trackId)
+      _ = peerConnection?.add(videoTrack, streamIds: ["loopback_stream", source.id])
+
+      if let url = resolveVideoURL(source.uri) {
+        let fileCapturer = VideoFileCapturer(delegate: rtcSource)
+        if index == 0 {
+          fileCapturer.onFrame = { [weak self] buffer, ts in
+            self?.ringRecorder?.append(pixelBuffer: buffer, timeNs: ts)
+          }
+        }
+        fileCapturer.start(url: url, fps: config.targetFps, loop: source.loop)
+        videoCapturers.append(fileCapturer)
+      } else {
+        let patternCapturer = AdvancedTestPatternCapturer(delegate: rtcSource)
+        if index == 0 {
+          patternCapturer.onFrame = { [weak self] buffer, ts in
+            self?.ringRecorder?.append(pixelBuffer: buffer, timeNs: ts)
+          }
+        }
+        patternCapturer.start(width: config.targetWidth, height: config.targetHeight, fps: config.targetFps)
+        videoCapturers.append(patternCapturer)
+      }
+
+      videoTracks.append(videoTrack)
+    }
 
     let audioConstraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
     let audioSource = peerFactory.audioSource(with: audioConstraints)
@@ -164,30 +218,87 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     _ = peerConnection?.add(audioTrack, streamIds: ["loopback_stream"])
   }
 
+  private func clearVideoTracks() {
+    for capturer in videoCapturers {
+      if let pattern = capturer as? AdvancedTestPatternCapturer {
+        pattern.stop()
+      } else if let file = capturer as? VideoFileCapturer {
+        file.stop()
+      }
+    }
+    videoCapturers.removeAll()
+    videoTracks.removeAll()
+    ringRecorder?.stop()
+    ringRecorder = nil
+  }
+
+  private func configureRingRecorder() {
+    guard config.recordingEnabled else {
+      ringRecorder?.stop()
+      ringRecorder = nil
+      return
+    }
+    let recorder = RingBufferRecorder(
+      width: config.targetWidth,
+      height: config.targetHeight,
+      fps: config.targetFps,
+      ringBufferSeconds: Double(config.ringBufferSeconds),
+      segmentSeconds: Double(config.ringSegmentSeconds)
+    )
+    ringRecorder = recorder
+  }
+
+  private func resolveVideoURL(_ uri: String?) -> URL? {
+    guard let uri = uri, !uri.isEmpty else { return nil }
+    if uri.hasPrefix("builtin:") || uri.hasPrefix("canvas:") || uri.hasPrefix("data:") || uri.hasPrefix("blob:") || uri.hasPrefix("ph:") {
+      return nil
+    }
+    if uri.hasPrefix("file://") {
+      return URL(string: uri)
+    }
+    if uri.hasPrefix("/") {
+      return URL(fileURLWithPath: uri)
+    }
+    if uri.hasPrefix("http://") || uri.hasPrefix("https://") {
+      return URL(string: uri)
+    }
+    return nil
+  }
+
   private func applySenderTuning() {
     guard let pc = peerConnection else { return }
     for sender in pc.senders {
       guard sender.track?.kind == kRTCMediaStreamTrackKindVideo else { continue }
       var params = sender.parameters
+      let scaleDown = config.enableAdaptiveResolution ? adaptiveScale : 1.0
       if config.enableSimulcast {
         let full = RTCRtpEncodingParameters()
         full.rid = "f"
-        full.scaleResolutionDownBy = NSNumber(value: 1.0)
+        full.scaleResolutionDownBy = NSNumber(value: scaleDown)
         let half = RTCRtpEncodingParameters()
         half.rid = "h"
-        half.scaleResolutionDownBy = NSNumber(value: 2.0)
+        half.scaleResolutionDownBy = NSNumber(value: scaleDown * 2.0)
         let quarter = RTCRtpEncodingParameters()
         quarter.rid = "q"
-        quarter.scaleResolutionDownBy = NSNumber(value: 4.0)
+        quarter.scaleResolutionDownBy = NSNumber(value: scaleDown * 4.0)
         params.encodings = [full, half, quarter]
       } else if params.encodings.isEmpty {
-        params.encodings = [RTCRtpEncodingParameters()]
-      }
-
-      if config.maxBitrateKbps > 0 {
+        let base = RTCRtpEncodingParameters()
+        base.scaleResolutionDownBy = NSNumber(value: scaleDown)
+        params.encodings = [base]
+      } else if config.enableAdaptiveResolution {
         params.encodings = params.encodings.map { encoding in
           let updated = encoding
-          updated.maxBitrateBps = NSNumber(value: config.maxBitrateKbps * 1000)
+          updated.scaleResolutionDownBy = NSNumber(value: scaleDown)
+          return updated
+        }
+      }
+
+      let bitrate = adaptiveBitrateKbps > 0 ? adaptiveBitrateKbps : config.maxBitrateKbps
+      if bitrate > 0 {
+        params.encodings = params.encodings.map { encoding in
+          let updated = encoding
+          updated.maxBitrateBps = NSNumber(value: bitrate * 1000)
           return updated
         }
       }
@@ -218,7 +329,9 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
     statsTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(config.statsIntervalMs) / 1000.0, repeats: true) { [weak self] _ in
       guard let self = self, let pc = self.peerConnection else { return }
       pc.statistics { report in
-        self.sendEvent(withName: "WebRtcLoopbackStats", body: self.extractStats(report))
+        let stats = self.extractStats(report)
+        self.applyAdaptiveTuning(stats: stats)
+        self.sendEvent(withName: "WebRtcLoopbackStats", body: stats)
       }
     }
   }
@@ -234,9 +347,61 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
         result["frameWidth"] = stat.values["frameWidth"]
         result["frameHeight"] = stat.values["frameHeight"]
       }
+      if stat.type == "outbound-rtp", let kind = stat.values["kind"] as? String, kind == "video" {
+        result["packetsSent"] = stat.values["packetsSent"]
+        result["bytesSent"] = stat.values["bytesSent"]
+        result["framesPerSecond"] = stat.values["framesPerSecond"]
+      }
     }
     result["timestamp"] = Date().timeIntervalSince1970
     return result
+  }
+
+  private func applyAdaptiveTuning(stats: [String: Any]) {
+    guard config.enableAdaptiveBitrate || config.enableAdaptiveResolution else { return }
+    let now = Date().timeIntervalSince1970
+    if now - lastAdaptationTs < 2.0 {
+      return
+    }
+
+    let fps = (stats["fps"] as? Double) ?? (stats["framesPerSecond"] as? Double) ?? 0
+    let packetsLost = (stats["packetsLost"] as? Double) ?? 0
+    let packetsSent = (stats["packetsSent"] as? Double) ?? 0
+    let lossRatio = packetsSent > 0 ? packetsLost / packetsSent : 0
+    let targetFps = Double(config.targetFps)
+
+    var adjusted = false
+    if lossRatio > 0.05 || (targetFps > 0 && fps < targetFps * 0.6) {
+      if config.enableAdaptiveBitrate {
+        let next = max(config.minBitrateKbps, Int(Double(max(adaptiveBitrateKbps, config.targetBitrateKbps)) * 0.8))
+        if next != adaptiveBitrateKbps {
+          adaptiveBitrateKbps = next
+          adjusted = true
+        }
+      }
+      if config.enableAdaptiveResolution {
+        adaptiveScale = min(4.0, adaptiveScale * 1.5)
+        adjusted = true
+      }
+    } else if lossRatio < 0.01 && (targetFps == 0 || fps > targetFps * 0.9) {
+      if config.enableAdaptiveBitrate {
+        let maxCap = config.maxBitrateKbps > 0 ? config.maxBitrateKbps : Int(Double(config.targetBitrateKbps) * 2.0)
+        let next = min(maxCap, Int(Double(max(adaptiveBitrateKbps, config.targetBitrateKbps)) * 1.1))
+        if next != adaptiveBitrateKbps {
+          adaptiveBitrateKbps = next
+          adjusted = true
+        }
+      }
+      if config.enableAdaptiveResolution {
+        adaptiveScale = max(1.0, adaptiveScale / 1.5)
+        adjusted = true
+      }
+    }
+
+    if adjusted {
+      lastAdaptationTs = now
+      applySenderTuning()
+    }
   }
 
   private func emitError(_ message: String) {
@@ -246,9 +411,7 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
   private func teardown() {
     statsTimer?.invalidate()
     statsTimer = nil
-    videoCapturer?.stop()
-    videoCapturer = nil
-    videoSource = nil
+    clearVideoTracks()
     audioSource = nil
     peerConnection?.close()
     peerConnection = nil
@@ -286,16 +449,31 @@ class WebRtcLoopback: RCTEventEmitter, RTCPeerConnectionDelegate {
   func peerConnection(_ peerConnection: RTCPeerConnection, didStartReceivingOn transceiver: RTCRtpTransceiver) {}
 }
 
+private struct VideoSourceConfig {
+  let id: String
+  let uri: String?
+  let label: String?
+  let loop: Bool
+}
+
 private struct LoopbackConfig {
   var targetWidth: Int = 1080
   var targetHeight: Int = 1920
   var targetFps: Int = 30
   var preferredCodec: String = "auto"
+  var enableAdaptiveBitrate: Bool = true
+  var enableAdaptiveResolution: Bool = true
+  var minBitrateKbps: Int = 300
+  var targetBitrateKbps: Int = 1200
   var maxBitrateKbps: Int = 0
   var enableSimulcast: Bool = false
   var enableIceRestart: Bool = true
   var statsIntervalMs: Int = 4000
+  var recordingEnabled: Bool = true
+  var ringBufferSeconds: Int = 15
+  var ringSegmentSeconds: Int = 3
   var iceServers: [RTCIceServer] = []
+  var videoSources: [VideoSourceConfig] = []
 
   init() {}
 
@@ -309,10 +487,27 @@ private struct LoopbackConfig {
     targetHeight = configDict?["targetHeight"] as? Int ?? targetHeight
     targetFps = configDict?["targetFPS"] as? Int ?? targetFps
     preferredCodec = configDict?["preferredCodec"] as? String ?? preferredCodec
+    enableAdaptiveBitrate = configDict?["enableAdaptiveBitrate"] as? Bool ?? enableAdaptiveBitrate
+    enableAdaptiveResolution = configDict?["enableAdaptiveResolution"] as? Bool ?? enableAdaptiveResolution
+    minBitrateKbps = configDict?["minBitrateKbps"] as? Int ?? minBitrateKbps
+    targetBitrateKbps = configDict?["targetBitrateKbps"] as? Int ?? targetBitrateKbps
     maxBitrateKbps = configDict?["maxBitrateKbps"] as? Int ?? maxBitrateKbps
     enableSimulcast = configDict?["enableSimulcast"] as? Bool ?? enableSimulcast
     enableIceRestart = configDict?["enableIceRestart"] as? Bool ?? enableIceRestart
     statsIntervalMs = configDict?["statsIntervalMs"] as? Int ?? statsIntervalMs
+    recordingEnabled = configDict?["recordingEnabled"] as? Bool ?? recordingEnabled
+    ringBufferSeconds = configDict?["ringBufferSeconds"] as? Int ?? ringBufferSeconds
+    ringSegmentSeconds = configDict?["ringSegmentSeconds"] as? Int ?? ringSegmentSeconds
+
+    if let sources = configDict?["videoSources"] as? [NSDictionary] {
+      videoSources = sources.map { source in
+        let id = source["id"] as? String ?? UUID().uuidString
+        let uri = source["uri"] as? String
+        let label = source["label"] as? String
+        let loop = source["loop"] as? Bool ?? true
+        return VideoSourceConfig(id: id, uri: uri, label: label, loop: loop)
+      }
+    }
 
     if let ice = configDict?["iceServers"] as? [NSDictionary] {
       iceServers = ice.compactMap { server in
