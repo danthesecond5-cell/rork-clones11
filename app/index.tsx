@@ -1140,6 +1140,7 @@ export default function MotionBrowserScreen() {
             onSettings={() => router.push('/device-check')}
             onNavigate={handleNavigate}
             onTestWebcam={handleTestWebcam}
+            onOpenRemoteBrowser={() => router.push('/remote-browser')}
           />
 
           <View style={styles.webViewContainer}>
