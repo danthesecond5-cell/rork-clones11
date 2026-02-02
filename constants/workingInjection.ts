@@ -50,6 +50,12 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   }
   window.__workingInjectionActive = true;
   
+  // Detect environment
+  const isWebView = navigator.userAgent.includes('WebView') || 
+                     navigator.userAgent.includes('wv') ||
+                     !!window.ReactNativeWebView;
+  console.log('[WorkingInject] Environment:', isWebView ? 'WebView' : 'Browser');
+  
   const CONFIG = {
     DEBUG: ${debugEnabled},
     STEALTH: ${stealthMode},
@@ -92,6 +98,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   // ============================================================================
   
   function createSilentAudioTrack() {
+    if (!CONFIG.AUDIO_ENABLED) return null;
+    
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) {
@@ -113,7 +121,17 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       const audioTracks = destination.stream.getAudioTracks();
       if (audioTracks.length > 0) {
         log('Silent audio track created');
-        return audioTracks[0];
+        
+        // Spoof audio track metadata
+        const audioTrack = audioTracks[0];
+        try {
+          Object.defineProperty(audioTrack, 'label', {
+            get: () => 'Built-in Microphone',
+            configurable: true,
+          });
+        } catch (e) {}
+        
+        return audioTrack;
       }
     } catch (e) {
       error('Failed to create audio track:', e);
@@ -348,15 +366,28 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     try {
       // Create video stream from canvas
       let stream;
-      if (canvas.captureStream) {
-        stream = canvas.captureStream(CONFIG.TARGET_FPS);
-      } else if (canvas.mozCaptureStream) {
-        stream = canvas.mozCaptureStream(CONFIG.TARGET_FPS);
-      } else if (canvas.webkitCaptureStream) {
-        stream = canvas.webkitCaptureStream(CONFIG.TARGET_FPS);
-      } else {
-        error('captureStream not supported');
+      const captureMethod = canvas.captureStream || 
+                           canvas.mozCaptureStream || 
+                           canvas.webkitCaptureStream;
+      
+      if (!captureMethod) {
+        error('captureStream not supported on this canvas');
+        error('Available methods:', Object.keys(canvas).filter(k => k.includes('capture')));
         return null;
+      }
+      
+      try {
+        stream = captureMethod.call(canvas, CONFIG.TARGET_FPS);
+      } catch (e) {
+        error('captureStream call failed:', e);
+        // Try without FPS argument
+        try {
+          stream = captureMethod.call(canvas);
+          log('captureStream succeeded without FPS argument');
+        } catch (e2) {
+          error('captureStream failed completely:', e2);
+          return null;
+        }
       }
       
       if (!stream) {
@@ -448,14 +479,20 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   // GETUSERMEDIA OVERRIDE - THE CRITICAL PART
   // ============================================================================
   
-  // Store original
-  const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
-  const originalEnumerateDevices = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
-  
-  // Ensure mediaDevices exists
+  // Ensure mediaDevices exists (critical for WebView)
   if (!navigator.mediaDevices) {
+    log('Creating navigator.mediaDevices (was missing)');
     navigator.mediaDevices = {};
   }
+  
+  // Store original (must happen AFTER ensuring mediaDevices exists)
+  const originalGetUserMedia = navigator.mediaDevices.getUserMedia?.bind?.(navigator.mediaDevices);
+  const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices?.bind?.(navigator.mediaDevices);
+  
+  log('Original APIs:', {
+    getUserMedia: !!originalGetUserMedia,
+    enumerateDevices: !!originalEnumerateDevices,
+  });
   
   // Override enumerateDevices
   navigator.mediaDevices.enumerateDevices = async function() {
