@@ -165,6 +165,10 @@ export interface ProtocolContextValue {
   mlSafetyEnabled: boolean;
   setMlSafetyEnabled: (enabled: boolean) => Promise<void>;
   
+  // Enterprise iOS WebKit (private flags)
+  enterpriseWebKitEnabled: boolean;
+  setEnterpriseWebKitEnabled: (enabled: boolean) => Promise<void>;
+  
   // Loading states
   isLoading: boolean;
 }
@@ -184,6 +188,7 @@ const STORAGE_KEYS = {
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
+  ENTERPRISE_WEBKIT: '@protocol_enterprise_webkit',
 };
 
 const PIN_HASH_PREFIX = 'sha256:';
@@ -351,6 +356,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
+  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
@@ -377,6 +383,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           holographic,
           https,
           mlSafety,
+          enterpriseWebKit,
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.DEVELOPER_MODE),
           AsyncStorage.getItem(STORAGE_KEYS.DEVELOPER_PIN),
@@ -391,6 +398,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
+          AsyncStorage.getItem(STORAGE_KEYS.ENTERPRISE_WEBKIT),
         ]);
 
         if (devMode !== null) setDeveloperModeEnabled(devMode === 'true');
@@ -461,6 +469,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
         if (mlSafety !== null) setMlSafetyEnabledState(mlSafety === 'true');
+        if (enterpriseWebKit !== null) setEnterpriseWebKitEnabledState(enterpriseWebKit === 'true');
 
         console.log('[Protocol] Settings loaded successfully');
       } catch (error) {
@@ -612,6 +621,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     setMlSafetyEnabledState(enabled);
     await AsyncStorage.setItem(STORAGE_KEYS.ML_SAFETY, String(enabled));
   }, []);
+  
+  const setEnterpriseWebKitEnabled = useCallback(async (enabled: boolean) => {
+    setEnterpriseWebKitEnabledState(enabled);
+    await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, String(enabled));
+  }, []);
 
   return {
     developerModeEnabled,
@@ -645,6 +659,8 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     setHttpsEnforced,
     mlSafetyEnabled,
     setMlSafetyEnabled,
+    enterpriseWebKitEnabled,
+    setEnterpriseWebKitEnabled,
     isLoading,
   };
 });

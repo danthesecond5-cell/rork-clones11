@@ -85,6 +85,15 @@ export default function MotionBrowserScreen() {
       }
     };
   }, []);
+  
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
 
   const { 
     activeTemplate, 
@@ -128,6 +137,7 @@ export default function MotionBrowserScreen() {
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
+    enterpriseWebKitEnabled,
   } = useProtocol();
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
@@ -157,6 +167,7 @@ export default function MotionBrowserScreen() {
   const lastInjectionTimeRef = useRef<number>(0);
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capabilityAlertShownRef = useRef<boolean>(false);
+  const enterpriseWebKitRef = useRef<boolean>(enterpriseWebKitEnabled);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [safariModeEnabled, setSafariModeEnabled] = useState(true);
@@ -165,6 +176,7 @@ export default function MotionBrowserScreen() {
 
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
+  const [webViewKey, setWebViewKey] = useState(0);
   const [permissionQueue, setPermissionQueue] = useState<CameraPermissionRequest[]>([]);
   const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
   const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
@@ -332,6 +344,7 @@ export default function MotionBrowserScreen() {
   );
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const enterpriseWebKitActive = Platform.OS === 'ios' ? enterpriseWebKitEnabled : true;
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -464,7 +477,7 @@ export default function MotionBrowserScreen() {
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
-      useFrameGenerator: activeProtocol === 'standard' || activeProtocol === 'allowlist',
+      useFrameGenerator: enterpriseWebKitActive && (activeProtocol === 'standard' || activeProtocol === 'allowlist'),
     };
 
     console.log('[App] Injecting media config:', {
@@ -517,6 +530,7 @@ export default function MotionBrowserScreen() {
     standardSettings.loopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
+    enterpriseWebKitActive,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -939,7 +953,7 @@ export default function MotionBrowserScreen() {
           targetWidth: 1080,
           targetHeight: 1920,
           targetFPS: 30,
-          preferFrameGenerator: true,
+          preferFrameGenerator: enterpriseWebKitActive,
         });
         
         console.log('[App] Using WORKING injection for', activeProtocol, 'with video:', videoUri ? 'YES' : 'NO');
@@ -990,6 +1004,7 @@ export default function MotionBrowserScreen() {
     standardSettings.loopVideo,
     protocolMirrorVideo,
     developerModeEnabled,
+    enterpriseWebKitActive,
     isProtocolEnabled,
   ]);
 
@@ -1166,11 +1181,13 @@ export default function MotionBrowserScreen() {
               </View>
             ) : (
               <WebView
+                key={`webview-${webViewKey}`}
                 ref={webViewRef}
                 source={{ uri: url }}
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
+                enterpriseWebKitEnabled={enterpriseWebKitEnabled}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
                 onLoadStart={() => setIsLoading(true)}

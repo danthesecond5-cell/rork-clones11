@@ -1,8 +1,28 @@
+diff --git a/node_modules/react-native-webview/apple/RNCWebViewImpl.h b/node_modules/react-native-webview/apple/RNCWebViewImpl.h
+index 1f6bbfd..a916a6f 100644
+--- a/node_modules/react-native-webview/apple/RNCWebViewImpl.h
++++ b/node_modules/react-native-webview/apple/RNCWebViewImpl.h
+@@ -81,6 +81,7 @@ shouldStartLoadForRequest:(NSMutableDictionary<NSString *, id> *)request
+ @property (nonatomic, assign) CGFloat decelerationRate;
+ @property (nonatomic, assign) BOOL allowsInlineMediaPlayback;
+ @property (nonatomic, assign) BOOL allowsPictureInPictureMediaPlayback;
++@property (nonatomic, assign) BOOL enterpriseWebKitEnabled;
+ @property (nonatomic, assign) BOOL webviewDebuggingEnabled;
+ @property (nonatomic, assign) BOOL allowsAirPlayForMediaPlayback;
+ @property (nonatomic, assign) BOOL bounces;
 diff --git a/node_modules/react-native-webview/apple/RNCWebViewImpl.m b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
-index 7f5c24d..3047214 100644
+index 7f5c24d..3f703fa 100644
 --- a/node_modules/react-native-webview/apple/RNCWebViewImpl.m
 +++ b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
-@@ -23,6 +23,74 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
+@@ -16,6 +16,7 @@
+ #endif // !TARGET_OS_OSX
+ 
+ #import "objc/runtime.h"
++#import <dlfcn.h>
+ 
+ static NSTimer *keyboardTimer;
+ static NSString *const HistoryShimName = @"ReactNativeHistoryShim";
+@@ -23,6 +24,182 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
  static NSURLCredential* clientAuthenticationCredential;
  static NSDictionary* customCertificatesForHost;
  
@@ -20,6 +40,90 @@ index 7f5c24d..3047214 100644
 +  return NO;
 +}
 +
++static NSArray<NSString *> *RNCEnterpriseArrayFromPlist(NSString *key) {
++  if (!key) {
++    return nil;
++  }
++  id value = [[NSBundle mainBundle] objectForInfoDictionaryKey:key];
++  if ([value isKindOfClass:[NSArray class]]) {
++    return value;
++  }
++  if ([value isKindOfClass:[NSString class]]) {
++    NSString *stringValue = (NSString *)value;
++    NSArray<NSString *> *parts = [stringValue componentsSeparatedByString:@","];
++    NSMutableArray<NSString *> *trimmed = [NSMutableArray array];
++    for (NSString *part in parts) {
++      NSString *candidate = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
++      if (candidate.length > 0) {
++        [trimmed addObject:candidate];
++      }
++    }
++    return trimmed.count > 0 ? trimmed : nil;
++  }
++  return nil;
++}
++
++static NSDictionary *RNCEnterpriseDictionaryFromPlist(NSString *key) {
++  if (!key) {
++    return nil;
++  }
++  id value = [[NSBundle mainBundle] objectForInfoDictionaryKey:key];
++  if ([value isKindOfClass:[NSDictionary class]]) {
++    return value;
++  }
++  return nil;
++}
++
++static NSArray<NSString *> *RNCEnterpriseFrameworkPaths(void) {
++  NSArray<NSString *> *paths = RNCEnterpriseArrayFromPlist(@"RNCEnterpriseWebKitFrameworkPaths");
++  if (paths && paths.count > 0) {
++    return paths;
++  }
++  NSString *single = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"RNCEnterpriseWebKitFrameworkPath"];
++  if ([single isKindOfClass:[NSString class]] && single.length > 0) {
++    return @[single];
++  }
++  return @[];
++}
++
++static void RNCLoadCustomWebKitIfNeeded(BOOL runtimeEnabled) {
++  if (!runtimeEnabled || !RNCEnterpriseWebKitEnabled()) {
++    return;
++  }
++  NSArray<NSString *> *paths = RNCEnterpriseFrameworkPaths();
++  for (NSString *path in paths) {
++    const char *cpath = [path UTF8String];
++    if (!cpath) {
++      continue;
++    }
++    void *handle = dlopen(cpath, RTLD_LAZY | RTLD_GLOBAL);
++    if (!handle) {
++      const char *err = dlerror();
++      if (err) {
++        NSLog(@"[RNCWebView] Enterprise WebKit load failed: %s", err);
++      }
++    } else {
++      NSLog(@"[RNCWebView] Enterprise WebKit loaded: %@", path);
++    }
++  }
++}
++
++static void RNCApplyEnterpriseDefaults(void) {
++  if (!RNCEnterpriseWebKitEnabled()) {
++    return;
++  }
++  NSDictionary *defaults = RNCEnterpriseDictionaryFromPlist(@"RNCEnterpriseWebKitDefaults");
++  if (!defaults || defaults.count == 0) {
++    return;
++  }
++  @try {
++    NSUserDefaults *webKitDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.apple.WebKit"];
++    [webKitDefaults registerDefaults:defaults];
++    [webKitDefaults synchronize];
++  } @catch (NSException *exception) {
++  }
++}
++
 +static void RNCApplyPrivateBool(id target, NSString *key, BOOL value) {
 +  if (!target || !key) {
 +    return;
@@ -30,30 +134,48 @@ index 7f5c24d..3047214 100644
 +  }
 +}
 +
-+static BOOL RNCApplyEnterpriseWebKitPreferences(WKWebViewConfiguration *config, WKPreferences *prefs) {
++static BOOL RNCApplyEnterpriseWebKitPreferences(WKWebViewConfiguration *config, WKPreferences *prefs, BOOL runtimeEnabled) {
 +  if (!config || !prefs) {
 +    return NO;
 +  }
-+  if (!RNCEnterpriseWebKitEnabled()) {
++  if (!runtimeEnabled || !RNCEnterpriseWebKitEnabled()) {
 +    return NO;
 +  }
++  
++  RNCLoadCustomWebKitIfNeeded(runtimeEnabled);
++  RNCApplyEnterpriseDefaults();
 +  
 +  NSArray<NSString *> *preferenceFlags = @[
 +    @"_mediaCaptureEnabled",
 +    @"_mediaDevicesEnabled",
 +    @"_mediaRecorderEnabled",
++    @"_mediaStreamEnabled",
++    @"_mediaStreamTrackGeneratorEnabled",
++    @"_captureStreamEnabled",
 +    @"_webCodecsEnabled",
 +    @"_webCodecsVideoFrameEnabled",
 +    @"_webCodecsAudioEnabled",
-+    @"_mediaStreamTrackGeneratorEnabled",
-+    @"_captureStreamEnabled",
++    @"_webCodecsVideoEncoderEnabled",
++    @"_webCodecsVideoDecoderEnabled",
++    @"_webCodecsAudioEncoderEnabled",
++    @"_webCodecsAudioDecoderEnabled",
++    @"_webRTCEnabled",
++    @"_webRTCUnifiedPlanEnabled",
++    @"_webRTCH264HardwareEncoderEnabled",
++    @"_webRTCPlatformVideoEncoderEnabled",
++    @"_webRTCPlatformAudioEncoderEnabled",
++    @"_webRTCPlatformVideoDecoderEnabled",
++    @"_webRTCPlatformAudioDecoderEnabled",
 +    @"_allowUserMedia",
 +    @"_allowMediaCapture",
 +    @"_developerExtrasEnabled",
-+    @"_experimentalFeaturesEnabled",
-+    @"_webRTCPlatformVideoEncoderEnabled",
-+    @"_webRTCPlatformAudioDecoderEnabled"
++    @"_experimentalFeaturesEnabled"
 +  ];
++  
++  NSArray<NSString *> *customPrefFlags = RNCEnterpriseArrayFromPlist(@"RNCEnterpriseWebKitCustomPreferenceFlags");
++  if (customPrefFlags && customPrefFlags.count > 0) {
++    preferenceFlags = [preferenceFlags arrayByAddingObjectsFromArray:customPrefFlags];
++  }
 +  
 +  for (NSString *key in preferenceFlags) {
 +    RNCApplyPrivateBool(prefs, key, YES);
@@ -62,10 +184,16 @@ index 7f5c24d..3047214 100644
 +  NSArray<NSString *> *configFlags = @[
 +    @"_mediaCaptureEnabled",
 +    @"_allowUserMedia",
++    @"_allowMediaCapture",
 +    @"_allowsInlineMediaPlayback",
 +    @"_mediaDevicesEnabled",
 +    @"_captureStreamEnabled"
 +  ];
++  
++  NSArray<NSString *> *customConfigFlags = RNCEnterpriseArrayFromPlist(@"RNCEnterpriseWebKitCustomConfigFlags");
++  if (customConfigFlags && customConfigFlags.count > 0) {
++    configFlags = [configFlags arrayByAddingObjectsFromArray:customConfigFlags];
++  }
 +  
 +  for (NSString *key in configFlags) {
 +    RNCApplyPrivateBool(config, key, YES);
@@ -77,13 +205,33 @@ index 7f5c24d..3047214 100644
  NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
  
  #if TARGET_OS_IOS
-@@ -456,6 +524,9 @@ RCTAutoInsetsProtocol>
+@@ -174,6 +351,7 @@ RCTAutoInsetsProtocol>
+     _mediaPlaybackRequiresUserAction = YES;
+     _automaticallyAdjustContentInsets = YES;
+     _autoManageStatusBarEnabled = YES;
++    _enterpriseWebKitEnabled = RNCEnterpriseWebKitEnabled();
+     _contentInset = UIEdgeInsetsZero;
+     _savedKeyboardDisplayRequiresUserAction = YES;
+     _injectedJavaScript = nil;
+@@ -456,6 +634,9 @@ RCTAutoInsetsProtocol>
      }
    }
  #endif
-+  if (RNCApplyEnterpriseWebKitPreferences(wkWebViewConfig, prefs)) {
++  if (RNCApplyEnterpriseWebKitPreferences(wkWebViewConfig, prefs, _enterpriseWebKitEnabled)) {
 +    _prefsUsed = YES;
 +  }
    if (_prefsUsed) {
      wkWebViewConfig.preferences = prefs;
    }
+diff --git a/node_modules/react-native-webview/apple/RNCWebViewManager.mm b/node_modules/react-native-webview/apple/RNCWebViewManager.mm
+index f8f375f..9784ba0 100644
+--- a/node_modules/react-native-webview/apple/RNCWebViewManager.mm
++++ b/node_modules/react-native-webview/apple/RNCWebViewManager.mm
+@@ -63,6 +63,7 @@ RCT_EXPORT_VIEW_PROPERTY(allowFileAccessFromFileURLs, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(allowUniversalAccessFromFileURLs, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(allowsInlineMediaPlayback, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(allowsPictureInPictureMediaPlayback, BOOL)
++RCT_EXPORT_VIEW_PROPERTY(enterpriseWebKitEnabled, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(webviewDebuggingEnabled, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(allowsAirPlayForMediaPlayback, BOOL)
+ RCT_EXPORT_VIEW_PROPERTY(mediaPlaybackRequiresUserAction, BOOL)

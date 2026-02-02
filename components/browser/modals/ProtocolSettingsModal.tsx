@@ -9,6 +9,7 @@ import {
   Switch,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import {
   X,
@@ -73,11 +74,26 @@ export default function ProtocolSettingsModal({
     setHttpsEnforced,
     mlSafetyEnabled,
     setMlSafetyEnabled,
+    enterpriseWebKitEnabled,
+    setEnterpriseWebKitEnabled,
   } = useProtocol();
 
   const [pinInput, setPinInput] = useState('');
   const [showPinEntry, setShowPinEntry] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+
+  const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
+    if (!developerModeEnabled) {
+      Alert.alert('Developer Mode Required', 'Enable developer mode to modify enterprise WebKit settings.');
+      return;
+    }
+    await setEnterpriseWebKitEnabled(nextValue);
+    Alert.alert(
+      'Enterprise WebKit',
+      'This setting requires the WebView to reload. The browser view will restart automatically.',
+      [{ text: 'OK' }]
+    );
+  };
   const [expandedProtocol, setExpandedProtocol] = useState<ProtocolType | null>(activeProtocol);
 
   const currentAllowlisted = useMemo(() => {
@@ -636,6 +652,36 @@ export default function ProtocolSettingsModal({
                 </View>
               )}
             </View>
+            
+            {Platform.OS === 'ios' && (
+              <View style={styles.enterpriseSection}>
+                <Text style={styles.sectionTitle}>Enterprise iOS WebKit</Text>
+                <View style={styles.settingRow}>
+                  <View style={styles.settingInfo}>
+                    <View style={styles.settingLabelRow}>
+                      <Shield size={12} color="#00ff88" />
+                      <Text style={styles.settingLabel}>Enable Private WebKit Flags</Text>
+                    </View>
+                    <Text style={styles.settingHint}>
+                      Unlocks WebCodecs/captureStream in enterprise builds.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={enterpriseWebKitEnabled}
+                    onValueChange={handleToggleEnterpriseWebKit}
+                    trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
+                    thumbColor={enterpriseWebKitEnabled ? '#ffffff' : '#888'}
+                    disabled={!developerModeEnabled}
+                  />
+                </View>
+                <View style={styles.enterpriseNotice}>
+                  <AlertTriangle size={14} color="#ffcc00" />
+                  <Text style={styles.enterpriseNoticeText}>
+                    Enterprise-only. Not App Store safe. WebView reload required.
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Presentation Mode Section */}
             <View style={styles.presentationSection}>
@@ -865,6 +911,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
     lineHeight: 18,
+  },
+  enterpriseSection: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  enterpriseNotice: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  enterpriseNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 16,
   },
   pinEntry: {
     flexDirection: 'row',
