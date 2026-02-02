@@ -168,7 +168,20 @@ async function main() {
   
   const protocolRuns: ProtocolRun[] = [
     {
-      name: 'Protocol 1: standard (working injection path)',
+      name: 'Working Injection (app standard/allowlist path)',
+      id: 'working',
+      injectedBeforeLoad: createWorkingInjectionScript({
+        videoUri: null,
+        devices: DEVICES as any,
+        stealthMode: true,
+        debugEnabled: false,
+        targetWidth: 1080,
+        targetHeight: 1920,
+        targetFPS: 30,
+      }),
+    },
+    {
+      name: 'Protocol 1: standard',
       id: 'standard',
       injectedBeforeLoad: workingInjectionScript,
       postLoadConfig: { ...postLoadConfigBase, protocolId: 'standard', protocolLabel: 'standard' },

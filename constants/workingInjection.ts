@@ -214,6 +214,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       canvasCaptureStream: false,
       videoCaptureStream: false,
     },
+    captureSupported: null,
     generatorTrack: null,
     generatorWriter: null,
     generatorActive: false,
@@ -421,6 +422,33 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     protocolId: 'standard',
     useFrameGenerator: CONFIG.USE_FRAME_GENERATOR,
   });
+  
+  function postStatus(type, payload) {
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type, payload }));
+      }
+    } catch (e) {}
+  }
+
+  function safeDefine(target, prop, value) {
+    if (!target) return false;
+    try {
+      Object.defineProperty(target, prop, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+      return true;
+    } catch (e) {
+      try {
+        target[prop] = value;
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    }
+}
   
   // ============================================================================
   // SILENT AUDIO GENERATOR
@@ -892,6 +920,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       const generatorPreferred = CONFIG.USE_FRAME_GENERATOR === true;
       const generatorSupported = supportsFrameGenerator();
       const captureSupported = supportsCaptureStream();
+      State.captureSupported = captureSupported;
       const canUseCanvas = State.capabilities.canvasCaptureStream;
       const canUseVideo = State.capabilities.videoCaptureStream && State.videoElement;
       
@@ -919,10 +948,15 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         if (!stream) {
           State.unsupportedReason = 'captureStream not supported in this WebView';
           error('captureStream not supported');
+          postStatus('videoError', {
+            error: {
+              message: 'Canvas captureStream not supported in this WebView',
+              solution: 'This environment cannot generate a fake camera stream via JS injection.'
+            }
+          });
           notifyUnsupported(State.unsupportedReason);
           return null;
         }
-      }
       
       if (!stream) {
         error('Stream creation failed');
@@ -1095,8 +1129,33 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     enumerateDevices: !!originalEnumerateDevices,
   });
   
+  // Permission API spoofing (camera/microphone = granted)
+  try {
+    if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+      const originalQuery = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = async function(permissionDesc) {
+        try {
+          const result = await originalQuery(permissionDesc);
+          if (permissionDesc && (permissionDesc.name === 'camera' || permissionDesc.name === 'microphone')) {
+            return {
+              state: 'granted',
+              name: permissionDesc.name,
+              onchange: null,
+              addEventListener: result.addEventListener?.bind(result),
+              removeEventListener: result.removeEventListener?.bind(result),
+              dispatchEvent: result.dispatchEvent?.bind(result)
+            };
+          }
+          return result;
+        } catch (e) {
+          return { state: 'granted', name: permissionDesc?.name || 'camera', onchange: null };
+        }
+      };
+    }
+  } catch (e) {}
+  
   // Override enumerateDevices
-  mediaDevices.enumerateDevices = async function() {
+  const overrideEnumerateDevices = async function() {
     log('enumerateDevices called');
     
     if (CONFIG.STEALTH) {
@@ -1128,9 +1187,9 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     return [];
   };
-  
+
   // Override getUserMedia - THIS IS THE KEY FUNCTION
-  mediaDevices.getUserMedia = async function(constraints) {
+  const overrideGetUserMedia = async function(constraints) {
     log('getUserMedia called with constraints:', JSON.stringify(constraints));
     
     const wantsVideo = !!(constraints && constraints.video);
@@ -1227,6 +1286,32 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     log('Returning stream with', stream.getTracks().length, 'tracks');
     return stream;
   };
+
+  const enumerateApplied = safeDefine(mediaDevices, 'enumerateDevices', overrideEnumerateDevices);
+  const gumApplied = safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia);
+
+  if (window.MediaDevices && window.MediaDevices.prototype) {
+    if (!enumerateApplied) {
+      safeDefine(window.MediaDevices.prototype, 'enumerateDevices', overrideEnumerateDevices);
+    }
+    if (!gumApplied) {
+      safeDefine(window.MediaDevices.prototype, 'getUserMedia', overrideGetUserMedia);
+    }
+  }
+
+  // Legacy getUserMedia shims
+  const legacyGetUserMedia = function(constraints, successCb, errorCb) {
+    overrideGetUserMedia(constraints).then(successCb).catch(errorCb);
+  };
+  safeDefine(navigator, 'getUserMedia', legacyGetUserMedia);
+  safeDefine(navigator, 'webkitGetUserMedia', legacyGetUserMedia);
+  safeDefine(navigator, 'mozGetUserMedia', legacyGetUserMedia);
+
+  window.__workingInjectionStatus = {
+    getUserMediaOverridden: gumApplied,
+    enumerateDevicesOverridden: enumerateApplied,
+    captureStreamSupported: State.captureSupported,
+  };
   
   // Expose injected handlers for early overrides/debugging
   try {
@@ -1262,10 +1347,50 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
-  
-  async function initializeSync() {
-    if (State.ready) return;
-    
+
+  function cleanupState() {
+    if (State.animationFrameId) {
+      cancelAnimationFrame(State.animationFrameId);
+      State.animationFrameId = null;
+    }
+    if (State.stream) {
+      try {
+        State.stream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+    }
+    if (State.videoElement && State.videoElement.parentNode) {
+      try { State.videoElement.parentNode.removeChild(State.videoElement); } catch (e) {}
+    }
+    if (State.canvasElement && State.canvasElement.parentNode) {
+      try { State.canvasElement.parentNode.removeChild(State.canvasElement); } catch (e) {}
+    }
+    State.videoElement = null;
+    State.canvasElement = null;
+    State.canvasContext = null;
+    State.stream = null;
+    State.videoLoaded = false;
+    State.mode = 'canvas';
+    State.captureSupported = null;
+    State.ready = false;
+  }
+
+  function resolveVideoUriFromConfig(config) {
+    if (!config || typeof config !== 'object') return undefined;
+    if (config.videoUri !== undefined) return config.videoUri;
+    const devices = Array.isArray(config.devices) ? config.devices : [];
+    const primaryDevice =
+      devices.find(d => d.type === 'camera' && d.simulationEnabled) ||
+      devices.find(d => d.type === 'camera') ||
+      devices[0];
+    return primaryDevice?.assignedVideoUri || config.fallbackVideoUri || null;
+  }
+
+  async function initializeSync(force) {
+    if (State.ready && !force) return;
+    if (force) {
+      cleanupState();
+    }
+
     log('Initializing injection system...');
     
     // Always initialize canvas (fallback)
@@ -1292,6 +1417,39 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     State.ready = true;
     log('Initialization complete - mode:', State.mode);
+  }
+
+  function updateConfig(newConfig) {
+    if (!newConfig || typeof newConfig !== 'object') return;
+
+    const prevVideoUri = CONFIG.VIDEO_URI;
+    const prevWidth = CONFIG.TARGET_WIDTH;
+    const prevHeight = CONFIG.TARGET_HEIGHT;
+    const prevFps = CONFIG.TARGET_FPS;
+
+    if (typeof newConfig.stealthMode === 'boolean') CONFIG.STEALTH = newConfig.stealthMode;
+    if (typeof newConfig.debugEnabled === 'boolean') CONFIG.DEBUG = newConfig.debugEnabled;
+    if (Array.isArray(newConfig.devices)) CONFIG.DEVICES = newConfig.devices;
+    if (typeof newConfig.targetWidth === 'number') CONFIG.TARGET_WIDTH = newConfig.targetWidth;
+    if (typeof newConfig.targetHeight === 'number') CONFIG.TARGET_HEIGHT = newConfig.targetHeight;
+    if (typeof newConfig.targetFPS === 'number') CONFIG.TARGET_FPS = newConfig.targetFPS;
+
+    const nextVideoUri = resolveVideoUriFromConfig(newConfig);
+    if (nextVideoUri !== undefined) {
+      CONFIG.VIDEO_URI = nextVideoUri;
+    }
+
+    const needsRestart =
+      prevVideoUri !== CONFIG.VIDEO_URI ||
+      prevWidth !== CONFIG.TARGET_WIDTH ||
+      prevHeight !== CONFIG.TARGET_HEIGHT ||
+      prevFps !== CONFIG.TARGET_FPS ||
+      Array.isArray(newConfig.devices);
+
+    if (needsRestart) {
+      log('Config updated, reinitializing injection');
+      initializeSync(true);
+    }
   }
   
   // Allow runtime updates without swapping injectors
@@ -1365,6 +1523,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
           streamReady: !!State.stream,
           unsupportedReason: State.unsupportedReason,
           capabilities: State.capabilities,
+          captureStreamSupported: State.captureSupported,
         },
       }));
       window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -1377,6 +1536,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
           timestamp: Date.now(),
           unsupportedReason: State.unsupportedReason,
           capabilities: State.capabilities,
+          captureStreamSupported: State.captureSupported,
         },
       }));
     }
@@ -1390,7 +1550,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   window.__workingInjection = {
     getState: () => State,
     getStream: () => State.stream,
-    reinitialize: () => initializeSync(),
+    reinitialize: () => initializeSync(true),
     destroy: () => {
       try {
         if (State.animationFrameId) {
@@ -1434,6 +1594,12 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     updateConfig: (config) => updateConfig(config),
     getCapabilities: () => window.__workingInjectionCapabilities || null,
   };
+
+  // Align with legacy injector update flow
+  window.__updateMediaConfig = function(config) {
+    updateConfig(config);
+  };
+  window.__mediaInjectorInitialized = true;
   
 })();
 true;

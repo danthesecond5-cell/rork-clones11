@@ -3,7 +3,7 @@
  * Defines configuration for all 4 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -155,6 +155,32 @@ export interface TestHarnessSettings {
   testPatternOnNoVideo: boolean;
 }
 
+// Protocol 6: WebRTC Loopback (Native bridge)
+export interface WebRtcLoopbackSettings {
+  enabled: boolean;
+  autoStart: boolean;
+  signalingTimeoutMs: number;
+  requireNativeBridge: boolean;
+  iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>;
+  preferredCodec: 'auto' | 'h264' | 'vp8' | 'vp9' | 'av1';
+  enableAdaptiveBitrate: boolean;
+  enableAdaptiveResolution: boolean;
+  minBitrateKbps: number;
+  targetBitrateKbps: number;
+  maxBitrateKbps: number;
+  keepAliveIntervalMs: number;
+  statsIntervalMs: number;
+  enableDataChannel: boolean;
+  enableIceRestart: boolean;
+  enableSimulcast: boolean;
+  recordingEnabled: boolean;
+  ringBufferSeconds: number;
+  ringSegmentSeconds: number;
+  cacheRemoteVideos: boolean;
+  cacheTTLHours: number;
+  cacheMaxSizeMB: number;
+}
+
 // Combined Protocol Settings
 export interface ProtocolSettings {
   standard: StandardInjectionSettings;
@@ -163,6 +189,7 @@ export interface ProtocolSettings {
   harness: TestHarnessSettings;
   holographic: HolographicSettings;
   websocket: WebSocketBridgeSettings;
+  webrtcLoopback: WebRtcLoopbackSettings;
 }
 
 // Developer Mode Settings
@@ -292,6 +319,31 @@ export const DEFAULT_WEBSOCKET_SETTINGS: WebSocketBridgeSettings = {
   logFrameStats: false,
 };
 
+export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
+  enabled: true,
+  autoStart: true,
+  signalingTimeoutMs: 12000,
+  requireNativeBridge: true,
+  iceServers: [],
+  preferredCodec: 'auto',
+  enableAdaptiveBitrate: true,
+  enableAdaptiveResolution: true,
+  minBitrateKbps: 300,
+  targetBitrateKbps: 1200,
+  maxBitrateKbps: 0,
+  keepAliveIntervalMs: 5000,
+  statsIntervalMs: 4000,
+  enableDataChannel: true,
+  enableIceRestart: true,
+  enableSimulcast: false,
+  recordingEnabled: true,
+  ringBufferSeconds: 15,
+  ringSegmentSeconds: 3,
+  cacheRemoteVideos: true,
+  cacheTTLHours: 24,
+  cacheMaxSizeMB: 1024,
+};
+
 export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   standard: DEFAULT_STANDARD_SETTINGS,
   allowlist: DEFAULT_ALLOWLIST_SETTINGS,
@@ -299,6 +351,7 @@ export const DEFAULT_PROTOCOL_SETTINGS: ProtocolSettings = {
   harness: DEFAULT_HARNESS_SETTINGS,
   holographic: DEFAULT_HOLOGRAPHIC_SETTINGS,
   websocket: DEFAULT_WEBSOCKET_SETTINGS,
+  webrtcLoopback: DEFAULT_WEBRTC_LOOPBACK_SETTINGS,
 };
 
 export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
@@ -364,5 +417,13 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
+  },
+  'webrtc-loopback': {
+    id: 'webrtc-loopback',
+    name: 'Protocol 6: WebRTC Loopback (iOS)',
+    description: 'iOS-only WebRTC loopback that relies on a native bridge to provide a fake camera track.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
   },
 };

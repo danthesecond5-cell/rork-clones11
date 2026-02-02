@@ -39,6 +39,8 @@ import {
   createWorkingInjectionScript,
 } from '@/constants/browserScripts';
 import { createAdvancedProtocol2Script } from '@/utils/advancedProtocol/browserScript';
+import { createWebRtcLoopbackInjectionScript } from '@/constants/webrtcLoopback';
+import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import {
   formatVideoUriForWebView,
@@ -78,6 +80,7 @@ type PermissionAction = 'simulate' | 'real' | 'deny';
 
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
+  const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -141,11 +144,26 @@ export default function MotionBrowserScreen() {
     allowlistSettings,
     protectedSettings,
     harnessSettings,
+    webrtcLoopbackSettings,
     isAllowlisted: checkIsAllowlisted,
     httpsEnforced,
     mlSafetyEnabled,
     enterpriseWebKitEnabled,
   } = useProtocol();
+
+  useEffect(() => {
+    webrtcLoopbackBridge.setWebViewRef(webViewRef);
+  }, [webrtcLoopbackBridge]);
+
+  useEffect(() => {
+    webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings);
+  }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
+
+  useEffect(() => {
+    return () => {
+      webrtcLoopbackBridge.stop().catch(() => {});
+    };
+  }, [webrtcLoopbackBridge]);
 
   const [url, setUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
   const [inputUrl, setInputUrl] = useState<string>(APP_CONFIG.WEBVIEW.DEFAULT_URL);
@@ -368,6 +386,9 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'allowlist' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
+    if (activeProtocol === 'webrtc-loopback') {
+      return 'WebRTC Loopback Active';
+    }
     return '';
   }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
 
@@ -393,7 +414,9 @@ export default function MotionBrowserScreen() {
   const autoInjectEnabled = isProtocolEnabled && (
     (activeProtocol === 'standard' || activeProtocol === 'allowlist')
       ? standardSettings.autoInject
-      : true
+      : activeProtocol === 'webrtc-loopback'
+        ? webrtcLoopbackSettings.autoStart
+        : true
   );
 
   const simulatingDevicesCount = useMemo(() =>
@@ -486,6 +509,28 @@ export default function MotionBrowserScreen() {
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
+      useFrameGenerator: enterpriseWebKitActive && (activeProtocol === 'standard' || activeProtocol === 'allowlist'),
+      signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
+      autoStart: webrtcLoopbackSettings.autoStart,
+      requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+      iceServers: webrtcLoopbackSettings.iceServers,
+      preferredCodec: webrtcLoopbackSettings.preferredCodec,
+      enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+      enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+      minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+      targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
+      maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+      keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+      statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+      enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+      enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+      enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+      recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+      ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+      ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+      cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+      cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+      cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
       useFrameGenerator: enterpriseWebKitActive && (activeProtocol === 'standard' || activeProtocol === 'allowlist'),
     };
     
@@ -601,6 +646,35 @@ export default function MotionBrowserScreen() {
       }
     } else if (activeProtocol === 'standard') {
       fallbackScript = buildProtocol0Fallback();
+    } else if (activeProtocol === 'webrtc-loopback') {
+      fallbackScript = createWebRtcLoopbackInjectionScript({
+        devices: normalizedDevices,
+        debugEnabled: developerModeEnabled,
+        targetWidth: 1080,
+        targetHeight: 1920,
+        targetFPS: 30,
+        signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
+        autoStart: webrtcLoopbackSettings.autoStart,
+        requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+        iceServers: webrtcLoopbackSettings.iceServers,
+        preferredCodec: webrtcLoopbackSettings.preferredCodec,
+        enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+        enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+        minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+        targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
+        maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+        keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+        statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+        enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+        enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+        enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+        recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+        ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+        ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+        cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+        cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+        cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
+      });
     } else {
       fallbackScript = createMediaInjectionScript(normalizedDevices, {
         stealthMode: effectiveStealthMode,
@@ -616,6 +690,9 @@ export default function MotionBrowserScreen() {
       });
     }
     
+    if (activeProtocol === 'webrtc-loopback') {
+      webrtcLoopbackBridge.updateDeviceSources(normalizedDevices);
+    }
     webViewRef.current.injectJavaScript(`
       (function() {
         if (window.__updateMediaConfig) {
@@ -645,6 +722,27 @@ export default function MotionBrowserScreen() {
     allowlistSettings,
     developerModeEnabled,
     enterpriseWebKitActive,
+    webrtcLoopbackSettings.signalingTimeoutMs,
+    webrtcLoopbackSettings.autoStart,
+    webrtcLoopbackSettings.requireNativeBridge,
+    webrtcLoopbackSettings.iceServers,
+    webrtcLoopbackSettings.preferredCodec,
+    webrtcLoopbackSettings.enableAdaptiveBitrate,
+    webrtcLoopbackSettings.enableAdaptiveResolution,
+    webrtcLoopbackSettings.minBitrateKbps,
+    webrtcLoopbackSettings.targetBitrateKbps,
+    webrtcLoopbackSettings.maxBitrateKbps,
+    webrtcLoopbackSettings.keepAliveIntervalMs,
+    webrtcLoopbackSettings.statsIntervalMs,
+    webrtcLoopbackSettings.enableDataChannel,
+    webrtcLoopbackSettings.enableIceRestart,
+    webrtcLoopbackSettings.enableSimulcast,
+    webrtcLoopbackSettings.recordingEnabled,
+    webrtcLoopbackSettings.ringBufferSeconds,
+    webrtcLoopbackSettings.ringSegmentSeconds,
+    webrtcLoopbackSettings.cacheRemoteVideos,
+    webrtcLoopbackSettings.cacheTTLHours,
+    webrtcLoopbackSettings.cacheMaxSizeMB,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -1185,6 +1283,37 @@ export default function MotionBrowserScreen() {
         console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
         console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
         console.log('[App] Devices:', devices.length);
+      } else if (activeProtocol === 'webrtc-loopback') {
+        mediaInjectionScript = createWebRtcLoopbackInjectionScript({
+          devices: devices,
+          debugEnabled: developerModeEnabled,
+          targetWidth: 1080,
+          targetHeight: 1920,
+          targetFPS: 30,
+          signalingTimeoutMs: webrtcLoopbackSettings.signalingTimeoutMs,
+          autoStart: webrtcLoopbackSettings.autoStart,
+          requireNativeBridge: webrtcLoopbackSettings.requireNativeBridge,
+          iceServers: webrtcLoopbackSettings.iceServers,
+          preferredCodec: webrtcLoopbackSettings.preferredCodec,
+          enableAdaptiveBitrate: webrtcLoopbackSettings.enableAdaptiveBitrate,
+          enableAdaptiveResolution: webrtcLoopbackSettings.enableAdaptiveResolution,
+          minBitrateKbps: webrtcLoopbackSettings.minBitrateKbps,
+          targetBitrateKbps: webrtcLoopbackSettings.targetBitrateKbps,
+          maxBitrateKbps: webrtcLoopbackSettings.maxBitrateKbps,
+          keepAliveIntervalMs: webrtcLoopbackSettings.keepAliveIntervalMs,
+          statsIntervalMs: webrtcLoopbackSettings.statsIntervalMs,
+          enableDataChannel: webrtcLoopbackSettings.enableDataChannel,
+          enableIceRestart: webrtcLoopbackSettings.enableIceRestart,
+          enableSimulcast: webrtcLoopbackSettings.enableSimulcast,
+          recordingEnabled: webrtcLoopbackSettings.recordingEnabled,
+          ringBufferSeconds: webrtcLoopbackSettings.ringBufferSeconds,
+          ringSegmentSeconds: webrtcLoopbackSettings.ringSegmentSeconds,
+          cacheRemoteVideos: webrtcLoopbackSettings.cacheRemoteVideos,
+          cacheTTLHours: webrtcLoopbackSettings.cacheTTLHours,
+          cacheMaxSizeMB: webrtcLoopbackSettings.cacheMaxSizeMB,
+        });
+        injectionType = 'WEBRTC_LOOPBACK';
+        console.log('[App] Using WEBRTC loopback injection');
       } else {
         // Use original injection for other protocols (protected, harness, holographic)
         const injectionOptions = {
@@ -1235,6 +1364,27 @@ export default function MotionBrowserScreen() {
     protocolMirrorVideo,
     developerModeEnabled,
     enterpriseWebKitActive,
+    webrtcLoopbackSettings.signalingTimeoutMs,
+    webrtcLoopbackSettings.autoStart,
+    webrtcLoopbackSettings.requireNativeBridge,
+    webrtcLoopbackSettings.iceServers,
+    webrtcLoopbackSettings.preferredCodec,
+    webrtcLoopbackSettings.enableAdaptiveBitrate,
+    webrtcLoopbackSettings.enableAdaptiveResolution,
+    webrtcLoopbackSettings.minBitrateKbps,
+    webrtcLoopbackSettings.targetBitrateKbps,
+    webrtcLoopbackSettings.maxBitrateKbps,
+    webrtcLoopbackSettings.keepAliveIntervalMs,
+    webrtcLoopbackSettings.statsIntervalMs,
+    webrtcLoopbackSettings.enableDataChannel,
+    webrtcLoopbackSettings.enableIceRestart,
+    webrtcLoopbackSettings.enableSimulcast,
+    webrtcLoopbackSettings.recordingEnabled,
+    webrtcLoopbackSettings.ringBufferSeconds,
+    webrtcLoopbackSettings.ringSegmentSeconds,
+    webrtcLoopbackSettings.cacheRemoteVideos,
+    webrtcLoopbackSettings.cacheTTLHours,
+    webrtcLoopbackSettings.cacheMaxSizeMB,
     isProtocolEnabled,
     allowlistSettings,
   ]);
@@ -1516,6 +1666,14 @@ export default function MotionBrowserScreen() {
                         requestedDeviceId: payload.requestedDeviceId || null,
                       };
                       setPermissionQueue(queue => [...queue, request]);
+                    } else if (data.type === 'webrtcLoopbackOffer') {
+                      webrtcLoopbackBridge.handleOffer(data.payload);
+                    } else if (data.type === 'webrtcLoopbackCandidate') {
+                      webrtcLoopbackBridge.handleCandidate(data.payload);
+                    } else if (data.type === 'webrtcLoopbackStats') {
+                      if (data.payload?.fps !== undefined) {
+                        console.log('[WebView WebRTC Stats]', data.payload);
+                      }
                     } else if (data.type === 'videoError') {
                       console.error('[WebView Video Error]', data.payload?.error?.message);
                       const errorMsg = data.payload?.error?.message || 'Video failed to load';
