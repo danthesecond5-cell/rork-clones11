@@ -12,6 +12,8 @@ expo-env.d.ts
 # Native
 ios/
 android/
+!modules/native-media-bridge/ios/
+!modules/native-media-bridge/ios/**
 *.orig.*
 *.jks
 *.p8
