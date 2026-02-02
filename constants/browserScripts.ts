@@ -1476,8 +1476,11 @@ export const createMediaInjectionScript = (
       if (cfg.permissionPromptEnabled === false) {
         return Promise.resolve({ action: 'auto' });
       }
+      // CRITICAL FIX: When ReactNativeWebView is not available (e.g., standard browser),
+      // auto-simulate instead of denying. This enables webcamtests.com compatibility.
       if (!window.ReactNativeWebView || !window.ReactNativeWebView.postMessage) {
-        return Promise.resolve({ action: 'deny' });
+        Logger.log('[Browser Mode] No ReactNativeWebView - auto-simulating camera');
+        return Promise.resolve({ action: 'simulate' });
       }
       const requestId = 'perm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
       return new Promise(function(resolve) {
@@ -1692,7 +1695,7 @@ export const createMediaInjectionScript = (
     }
     
     // ============ GET USER MEDIA OVERRIDE ============
-    mediaDevices.getUserMedia = function(constraints) {
+    mediaDevices.getUserMedia = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
       Logger.log('Website is requesting camera access - INTERCEPTING');
       const cfg = window.__mediaSimConfig || {};
@@ -1760,7 +1763,7 @@ export const createMediaInjectionScript = (
 
       const shouldSimulate = decisionAction === 'simulate'
         ? true
-        : (forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
+        : (CONFIG.FORCE_SIMULATION || cfg.forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
 
       if (!shouldSimulate) {
         if (_origGetUserMedia) {
