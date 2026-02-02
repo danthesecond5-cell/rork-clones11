@@ -3474,3 +3474,12 @@ export const createSimplifiedInjectionScript = (videoUrl?: string): string => {
 true;
 `;
 };
+
+// ============================================================================
+// WORKING INJECTION SYSTEM
+// Export the working injection from the new module
+// ============================================================================
+
+import { createWorkingInjectionScript } from './workingInjection';
+
+export { createWorkingInjectionScript };
