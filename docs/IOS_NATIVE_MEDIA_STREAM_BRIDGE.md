@@ -41,11 +41,15 @@ is required.
 
 ### Implementation milestones
 1. Add iOS WebRTC dependency and custom dev client (Expo prebuild).
+   - **Done in JS:** `react-native-webrtc` added as a dependency.
 2. Implement `NativeMediaStreamBridge` in iOS:
    - Video source from file/synthetic frames
    - PeerConnection lifecycle
 3. Add JS shim + signaling in WebView injection.
+   - **Done in JS:** working/advanced injection now request native streams
+     when `captureStream` is unavailable.
 4. Wire to existing protocol selection (Allowlist -> Advanced Relay).
+   - **Done in JS:** allowlist now uses Advanced Protocol 2 by default.
 5. Add diagnostic events for success/fail.
 
 ### Risks / constraints

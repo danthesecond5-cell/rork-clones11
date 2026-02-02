@@ -47,6 +47,11 @@ import {
   isLocalFileUri,
 } from '@/utils/videoServing';
 import { isBundledSampleVideo } from '@/utils/sampleVideo';
+import {
+  handleNativeGumOffer,
+  handleNativeGumIceCandidate,
+  closeNativeGumSession,
+} from '@/utils/nativeMediaBridge';
 import { APP_CONFIG } from '@/constants/app';
 import type { SimulationConfig } from '@/types/browser';
 import BrowserHeader from '@/components/browser/BrowserHeader';
@@ -604,6 +609,20 @@ export default function MotionBrowserScreen() {
     webViewRef.current.injectJavaScript(`
       if (window.__resolveCameraPermission) {
         window.__resolveCameraPermission(${requestJson}, ${decisionJson});
+      }
+      true;
+    `);
+  }, []);
+
+  const sendNativeBridgeMessage = useCallback((handlerName: string, payload: unknown) => {
+    if (!webViewRef.current) {
+      console.warn('[App] Unable to send native bridge message - no WebView');
+      return;
+    }
+    const payloadJson = JSON.stringify(payload);
+    webViewRef.current.injectJavaScript(`
+      if (window.${handlerName}) {
+        window.${handlerName}(${payloadJson});
       }
       true;
     `);
@@ -1274,6 +1293,19 @@ export default function MotionBrowserScreen() {
                       console.log('[WebView Injection Ready]', data.payload);
                     } else if (data.type === 'mediaInjectionUnsupported') {
                       console.warn('[WebView Injection Unsupported]', data.payload?.reason || data.payload);
+                    } else if (data.type === 'nativeGumOffer') {
+                      const payload = data.payload || {};
+                      void handleNativeGumOffer(payload, {
+                        onAnswer: (answerPayload) => sendNativeBridgeMessage('__nativeGumAnswer', answerPayload),
+                        onIceCandidate: (icePayload) => sendNativeBridgeMessage('__nativeGumIce', icePayload),
+                        onError: (errorPayload) => sendNativeBridgeMessage('__nativeGumError', errorPayload),
+                      });
+                    } else if (data.type === 'nativeGumIce') {
+                      const payload = data.payload || {};
+                      void handleNativeGumIceCandidate(payload);
+                    } else if (data.type === 'nativeGumCancel') {
+                      const payload = data.payload || {};
+                      closeNativeGumSession({ requestId: payload.requestId });
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
                     } else if (data.type === 'cameraPermissionRequest') {

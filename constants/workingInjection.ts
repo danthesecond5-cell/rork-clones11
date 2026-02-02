@@ -169,8 +169,6 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   log('Video URI:', CONFIG.VIDEO_URI ? 'SET' : 'NONE (will use canvas)');
   log('Devices:', CONFIG.DEVICES.length);
   log('========================================');
-
-  detectCaptureSupport();
   
   // ============================================================================
   // STATE
@@ -222,6 +220,141 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       notifyUnsupported(State.unsupportedReason);
     }
   }
+
+  detectCaptureSupport();
+  
+  // ============================================================================
+  // NATIVE MEDIA BRIDGE (iOS fallback)
+  // ============================================================================
+  
+  const NativeBridge = {
+    pending: {},
+    
+    canUse: function() {
+      return !!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage && window.RTCPeerConnection);
+    },
+    
+    requestStream: function(constraints) {
+      const self = this;
+      if (!self.canUse()) {
+        return Promise.reject(new DOMException('Native bridge not available', 'NotSupportedError'));
+      }
+      
+      const requestId = 'native_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      
+      return new Promise(function(resolve, reject) {
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        const entry = { pc: pc, resolve: resolve, reject: reject, completed: false };
+        self.pending[requestId] = entry;
+        
+        pc.onicecandidate = function(event) {
+          if (event && event.candidate) {
+            try {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'nativeGumIce',
+                payload: { requestId: requestId, candidate: event.candidate }
+              }));
+            } catch (e) {}
+          }
+        };
+        
+        pc.ontrack = function(event) {
+          if (!event) return;
+          const stream = (event.streams && event.streams[0])
+            ? event.streams[0]
+            : new MediaStream([event.track]);
+          
+          // Ensure cleanup when tracks stop
+          try {
+            stream.getTracks().forEach(function(track) {
+              const origStop = track.stop;
+              track.stop = function() {
+                try { if (origStop) origStop.call(track); } catch (e) {}
+                NativeBridge.cleanup(requestId);
+              };
+            });
+          } catch (e) {}
+          
+          entry.completed = true;
+          resolve(stream);
+        };
+        
+        pc.onconnectionstatechange = function() {
+          if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+            if (!entry.completed) {
+              reject(new DOMException('Native bridge connection failed', 'NotReadableError'));
+            }
+            NativeBridge.cleanup(requestId);
+          }
+        };
+        
+        pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: false })
+          .then(function(offer) { return pc.setLocalDescription(offer); })
+          .then(function() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'nativeGumOffer',
+              payload: {
+                requestId: requestId,
+                offer: pc.localDescription,
+                constraints: constraints || null
+              }
+            }));
+          })
+          .catch(function(err) {
+            delete self.pending[requestId];
+            reject(err);
+          });
+        
+        setTimeout(function() {
+          if (self.pending[requestId] && !self.pending[requestId].completed) {
+            self.pending[requestId].reject(new DOMException('Native bridge timeout', 'NotReadableError'));
+            self.cleanup(requestId);
+          }
+        }, 15000);
+      });
+    },
+    
+    handleAnswer: function(payload) {
+      const entry = payload && this.pending[payload.requestId];
+      if (!entry) return;
+      try {
+        const desc = new RTCSessionDescription(payload.answer);
+        entry.pc.setRemoteDescription(desc);
+      } catch (e) {
+        entry.reject(e);
+        this.cleanup(payload.requestId);
+      }
+    },
+    
+    handleIce: function(payload) {
+      const entry = payload && this.pending[payload.requestId];
+      if (!entry || !payload.candidate) return;
+      try {
+        entry.pc.addIceCandidate(payload.candidate);
+      } catch (e) {}
+    },
+    
+    handleError: function(payload) {
+      const entry = payload && this.pending[payload.requestId];
+      if (!entry) return;
+      entry.reject(new Error(payload.message || 'Native bridge error'));
+      this.cleanup(payload.requestId);
+    },
+    
+    cleanup: function(requestId) {
+      const entry = this.pending[requestId];
+      if (!entry) return;
+      try { entry.pc.close(); } catch (e) {}
+      delete this.pending[requestId];
+    }
+  };
+  
+  window.__nativeMediaBridgeRequest = function(constraints) {
+    return NativeBridge.requestStream(constraints);
+  };
+  window.__nativeGumAnswer = function(payload) { NativeBridge.handleAnswer(payload); };
+  window.__nativeGumIce = function(payload) { NativeBridge.handleIce(payload); };
+  window.__nativeGumError = function(payload) { NativeBridge.handleError(payload); };
   
   // ============================================================================
   // SILENT AUDIO GENERATOR
@@ -759,6 +892,18 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     if (wantsVideo && State.unsupportedReason) {
       error('Injection not supported:', State.unsupportedReason);
+      if (typeof window.__nativeMediaBridgeRequest === 'function') {
+        log('Attempting native bridge fallback for video');
+        try {
+          const nativeStream = await window.__nativeMediaBridgeRequest(constraints);
+          if (nativeStream) {
+            spoofTrackMetadata(nativeStream, constraints);
+            return nativeStream;
+          }
+        } catch (e) {
+          error('Native bridge fallback failed:', e);
+        }
+      }
       if (!CONFIG.STEALTH && originalGetUserMedia) {
         log('Falling back to real getUserMedia due to unsupported injection');
         return originalGetUserMedia(constraints);

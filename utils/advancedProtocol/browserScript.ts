@@ -657,6 +657,19 @@ export function createAdvancedProtocol2Script(
     
     if (wantsVideo && !CaptureSupport.canvas && !CaptureSupport.video) {
       Logger.error('captureStream not supported in this WebView');
+      if (typeof window.__nativeMediaBridgeRequest === 'function') {
+        Logger.warn('Using native bridge fallback for video');
+        try {
+          const nativeStream = await window.__nativeMediaBridgeRequest(constraints);
+          if (nativeStream) {
+            if (wantsAudio) addSilentAudio(nativeStream);
+            spoofTrackMetadata(nativeStream, constraints);
+            return nativeStream;
+          }
+        } catch (e) {
+          Logger.warn('Native bridge fallback failed:', e);
+        }
+      }
       notifyReactNative('unsupported', {
         reason: 'captureStream not supported in this WebView',
         protocol: 'advancedProtocol2',
