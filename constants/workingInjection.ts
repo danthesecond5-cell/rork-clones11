@@ -135,11 +135,10 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       canvas.height = CONFIG.TARGET_HEIGHT;
       canvas.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
       
-      const ctx = canvas.getContext('2d', { 
-        alpha: false,
-        desynchronized: true,
-        willReadFrequently: false 
-      });
+      // Use the simplest 2D context options possible.
+      // Some WebViews / headless modes behave poorly with "desynchronized" and friends,
+      // and that can result in MediaRecorder producing 0-byte blobs.
+      const ctx = canvas.getContext('2d', { alpha: false });
       
       if (!ctx) {
         error('Failed to get canvas context');
@@ -320,25 +319,22 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
-    
-    // Add subtle noise for realism
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    
-    // Only add noise to every 10th pixel for performance
-    for (let i = 0; i < data.length; i += 40) {
-      const noise = (Math.random() - 0.5) * 10;
-      data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+
+    // Subtle noise without readbacks (readbacks can stall captureStream/MediaRecorder).
+    // Keep this extremely cheap to avoid starving the encoder.
+    ctx.fillStyle = 'rgba(0,0,0,0.03)';
+    for (let i = 0; i < 180; i++) {
+      const x = (Math.random() * width) | 0;
+      const y = (Math.random() * height) | 0;
+      ctx.fillRect(x, y, 2, 2);
     }
-    
-    ctx.putImageData(imageData, 0, 0);
   }
   
   // ============================================================================
   // STREAM CREATION
   // ============================================================================
   
-  function createInjectedStream() {
+  function createInjectedStream(wantsAudio) {
     const canvas = State.canvasElement;
     if (!canvas) {
       error('Cannot create stream: canvas not initialized');
@@ -372,17 +368,14 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       
       log('Stream created with', videoTracks.length, 'video track(s)');
       
-      // Add silent audio if enabled
-      if (CONFIG.AUDIO_ENABLED) {
+      // Add silent audio only when requested.
+      if (wantsAudio && CONFIG.AUDIO_ENABLED) {
         const audioTrack = createSilentAudioTrack();
         if (audioTrack) {
           stream.addTrack(audioTrack);
           log('Added audio track');
         }
       }
-      
-      // Store stream
-      State.stream = stream;
       
       // Spoof track metadata
       spoofTrackMetadata(stream);
@@ -519,19 +512,28 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       await initializeSync();
     }
     
-    // Try to create stream if not already created
-    if (!State.stream) {
-      log('Creating stream on demand...');
-      const stream = createInjectedStream();
-      if (!stream) {
-        error('Failed to create stream');
-        throw new DOMException('Could not start video source', 'NotReadableError');
+    // IMPORTANT: Create a fresh stream per call (closer to real getUserMedia),
+    // and wait a tick so the canvas has rendered at least one frame before recording starts.
+    await new Promise((resolve) => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => resolve());
+      } else {
+        setTimeout(resolve, 0);
       }
+    });
+    
+    log('Creating stream on demand...');
+    const stream = createInjectedStream(wantsAudio);
+    if (!stream) {
+      error('Failed to create stream');
+      throw new DOMException('Could not start video source', 'NotReadableError');
     }
     
-    // Return the stream
-    log('Returning stream with', State.stream.getTracks().length, 'tracks');
-    return State.stream;
+    // Store the most recent stream for debugging purposes.
+    State.stream = stream;
+    
+    log('Returning stream with', stream.getTracks().length, 'tracks');
+    return stream;
   };
   
   // ============================================================================
@@ -564,14 +566,6 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     
     // Start rendering
     startRenderLoop();
-    
-    // Create initial stream
-    const stream = createInjectedStream();
-    if (stream) {
-      log('Initial stream created successfully');
-    } else {
-      error('Failed to create initial stream');
-    }
     
     State.ready = true;
     log('Initialization complete - mode:', State.mode);
