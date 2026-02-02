@@ -1155,6 +1155,17 @@ export default function MotionBrowserScreen() {
     setPermissionSelectedVideo(null);
   }, []);
 
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.unsupportedContainer}>
+        <Text style={styles.unsupportedTitle}>iOS Only</Text>
+        <Text style={styles.unsupportedText}>
+          This build is optimized for iOS and does not support Android.
+        </Text>
+      </View>
+    );
+  }
+
   if (requiresSetup) {
     return (
       <SetupRequired
@@ -1625,6 +1636,26 @@ const styles = StyleSheet.create({
     color: '#0a0a0a',
     fontSize: 12,
     fontWeight: '600' as const,
+  },
+  unsupportedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+    backgroundColor: '#0a0a0a',
+  },
+  unsupportedTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  unsupportedText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center' as const,
+    lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
