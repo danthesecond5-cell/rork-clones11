@@ -3006,6 +3006,114 @@ export const VIDEO_SIMULATION_TEST_SCRIPT = `
       isRunning: window.__videoSimTest.isRunning
     };
   };
+
+  // Webcamtests.com/recorder-style compatibility check:
+  // validates that a simulated MediaStream can be recorded via MediaRecorder.
+  window.__runRecorderCompatibilityTest = async function(config) {
+    const result = {
+      timestamp: new Date().toISOString(),
+      success: false,
+      supported: {
+        mediaDevices: !!(navigator && navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        mediaRecorder: typeof MediaRecorder !== 'undefined'
+      },
+      requested: {
+        video: true,
+        audio: !!(config && config.audio)
+      },
+      recorder: {
+        mimeType: null,
+        stateTransitions: [],
+        chunks: 0,
+        blobSize: 0
+      },
+      errors: []
+    };
+
+    try {
+      if (!result.supported.mediaDevices) {
+        throw new Error('MediaDevices.getUserMedia is not available in this WebView');
+      }
+      if (!result.supported.mediaRecorder) {
+        // If MediaRecorder is missing, webcamtests.com/recorder cannot work reliably here
+        // regardless of which protocol we inject.
+        throw new Error('MediaRecorder is not available in this WebView');
+      }
+
+      const constraints = (config && config.constraints) || { video: true, audio: result.requested.audio };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      const chunks = [];
+      const mimeType = (config && config.mimeType) || '';
+      let recorder;
+      try {
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
+      } catch (e) {
+        // Retry without explicit mimeType
+        recorder = new MediaRecorder(stream);
+      }
+
+      result.recorder.mimeType = recorder.mimeType || null;
+
+      const finished = new Promise(function(resolve, reject) {
+        recorder.ondataavailable = function(ev) {
+          try {
+            if (ev && ev.data && ev.data.size > 0) {
+              chunks.push(ev.data);
+            }
+          } catch (e) {}
+        };
+
+        recorder.onerror = function(ev) {
+          reject(new Error('MediaRecorder error'));
+        };
+
+        recorder.onstop = function() {
+          try {
+            const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+            result.recorder.chunks = chunks.length;
+            result.recorder.blobSize = blob.size || 0;
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        };
+      });
+
+      result.recorder.stateTransitions.push({ t: Date.now(), state: recorder.state, event: 'created' });
+      recorder.start(200);
+      result.recorder.stateTransitions.push({ t: Date.now(), state: recorder.state, event: 'start' });
+
+      // Record briefly then stop
+      await new Promise(function(r) { setTimeout(r, 350); });
+      recorder.stop();
+      result.recorder.stateTransitions.push({ t: Date.now(), state: recorder.state, event: 'stop_called' });
+
+      await finished;
+
+      // Cleanup
+      try { stream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) {}
+
+      if (result.recorder.chunks > 0 && result.recorder.blobSize > 0) {
+        result.success = true;
+      } else {
+        result.errors.push('No recorded data produced (0 chunks or empty blob)');
+      }
+    } catch (err) {
+      result.errors.push(err && err.message ? err.message : String(err));
+    }
+
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'recorderCompatibilityResult',
+          payload: result
+        }));
+      }
+    } catch (e) {}
+
+    return result;
+  };
   
   window.__runQuickHealthCheck = function() {
     const metrics = window.__getSimulationMetrics ? window.__getSimulationMetrics() : null;
