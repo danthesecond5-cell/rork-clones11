@@ -95,7 +95,15 @@ describe('Claude Sonnet Protocol', () => {
         return 'success';
       };
 
-      const result = await monitoringHelpers.trackOperation('claude-sonnet', operation);
+      const pending = monitoringHelpers.trackOperation('claude-sonnet', operation);
+      // This repo enables fake timers globally in `jest.setup.js`.
+      // Advance timers so the `setTimeout` inside `operation()` resolves.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const advance = (jest as any).advanceTimersByTimeAsync
+        ? (jest as any).advanceTimersByTimeAsync(20)
+        : Promise.resolve(jest.advanceTimersByTime(20));
+      await advance;
+      const result = await pending;
       expect(result).toBe('success');
 
       const systemMetrics = protocolMonitor.getSystemMetrics();

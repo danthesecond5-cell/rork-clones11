@@ -38,6 +38,10 @@ jest.mock('@react-native-async-storage/async-storage');
 // Use fake timers for animations
 jest.useFakeTimers();
 
+// React Native Animated uses a native module in real apps; in Jest we must mock it.
+// RN 0.81+ uses the private module path; older guidance uses the Libraries path.
+jest.mock('react-native/src/private/animated/NativeAnimatedHelper');
+
 // Mock expo-sensors
 jest.mock('expo-sensors', () => ({
   Accelerometer: {
