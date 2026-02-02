@@ -13,6 +13,7 @@ export interface DiagnosticResult {
     getUserMedia: boolean;
     enumerateDevices: boolean;
     captureStream: boolean;
+    mediaRecorder: boolean;
   };
   injection: {
     detected: boolean;
@@ -62,6 +63,7 @@ export const createDiagnosticScript = (): string => {
       getUserMedia: false,
       enumerateDevices: false,
       captureStream: false,
+      mediaRecorder: false,
     },
     injection: {
       detected: false,
@@ -84,6 +86,8 @@ export const createDiagnosticScript = (): string => {
       !!(HTMLCanvasElement.prototype.captureStream || 
          HTMLCanvasElement.prototype.mozCaptureStream || 
          HTMLCanvasElement.prototype.webkitCaptureStream);
+
+    results.apiAvailable.mediaRecorder = typeof MediaRecorder !== 'undefined';
     
     console.log('[Diagnostics] API Availability:', results.apiAvailable);
   } catch (e) {
