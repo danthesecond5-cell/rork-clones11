@@ -220,26 +220,9 @@ export default function ProtocolSettingsModal({
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Native WebRTC Bridge</Text>
-                <Text style={styles.settingHint}>Use native MediaStream when available (dev client required)</Text>
+                <Text style={styles.settingHint}>Forced ON (native dev client required)</Text>
               </View>
-              <Switch
-                value={standardSettings.nativeBridgeEnabled}
-                onValueChange={(v) => updateStandardSettings({ nativeBridgeEnabled: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#7c4dff' }}
-                thumbColor={standardSettings.nativeBridgeEnabled ? '#ffffff' : '#888'}
-              />
-            </View>
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Force Native Bridge</Text>
-                <Text style={styles.settingHint}>Always use native stream, even if other injection is disabled</Text>
-              </View>
-              <Switch
-                value={standardSettings.nativeBridgeForce}
-                onValueChange={(v) => updateStandardSettings({ nativeBridgeForce: v })}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff9f1a' }}
-                thumbColor={standardSettings.nativeBridgeForce ? '#ffffff' : '#888'}
-              />
+              <Text style={styles.settingValue}>FORCED</Text>
             </View>
           </View>
         );
@@ -963,6 +946,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
+  },
+  settingValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00ff88',
   },
   mlNotice: {
     flexDirection: 'row',

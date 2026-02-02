@@ -20,8 +20,6 @@ export interface StandardProtocolSettings {
   respectSiteSettings: boolean;
   injectMotionData: boolean;
   loopVideo: boolean;
-  nativeBridgeEnabled: boolean;
-  nativeBridgeForce: boolean;
 }
 
 // Advanced Relay Protocol Settings (Protocol 2)
@@ -210,8 +208,6 @@ const DEFAULT_STANDARD_SETTINGS: StandardProtocolSettings = {
   respectSiteSettings: true,
   injectMotionData: true,
   loopVideo: true,
-  nativeBridgeEnabled: true,
-  nativeBridgeForce: true,
 };
 
 const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {

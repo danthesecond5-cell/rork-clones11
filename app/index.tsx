@@ -478,8 +478,8 @@ export default function MotionBrowserScreen() {
     
     const nativeBridgeConfig = {
       enabled: nativeBridgeEnabled,
-      preferNative: standardSettings.nativeBridgeForce,
-      forceNative: standardSettings.nativeBridgeForce,
+      preferNative: true,
+      forceNative: true,
       timeoutMs: 10000,
       debug: developerModeEnabled,
     };
@@ -544,7 +544,6 @@ export default function MotionBrowserScreen() {
     protocolMirrorVideo,
     developerModeEnabled,
     nativeBridgeEnabled,
-    standardSettings.nativeBridgeForce,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -926,20 +925,8 @@ export default function MotionBrowserScreen() {
     : undefined;
 
   const nativeBridgeEnabled = useMemo(() => {
-    if (isWeb || !webViewAvailable) return false;
-    if (!standardSettings.nativeBridgeEnabled && !standardSettings.nativeBridgeForce) return false;
-    if (!standardSettings.nativeBridgeForce) {
-      if (!isProtocolEnabled || allowlistBlocked) return false;
-    }
-    return true;
-  }, [
-    isWeb,
-    webViewAvailable,
-    standardSettings.nativeBridgeEnabled,
-    standardSettings.nativeBridgeForce,
-    isProtocolEnabled,
-    allowlistBlocked,
-  ]);
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1006,8 +993,8 @@ export default function MotionBrowserScreen() {
 
     const nativeBridgeConfig = {
       enabled: nativeBridgeEnabled,
-      preferNative: standardSettings.nativeBridgeForce,
-      forceNative: standardSettings.nativeBridgeForce,
+      preferNative: true,
+      forceNative: true,
       timeoutMs: 10000,
       debug: developerModeEnabled,
     };
@@ -1052,7 +1039,6 @@ export default function MotionBrowserScreen() {
     protocolOverlayLabel,
     showProtocolOverlayLabel,
     standardSettings.loopVideo,
-    standardSettings.nativeBridgeForce,
     protocolMirrorVideo,
     developerModeEnabled,
     isProtocolEnabled,
