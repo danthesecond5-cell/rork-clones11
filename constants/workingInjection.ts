@@ -350,7 +350,19 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   };
   
   window.__nativeMediaBridgeRequest = function(constraints) {
-    return NativeBridge.requestStream(constraints);
+    const nativeConstraints = (constraints && typeof constraints === 'object')
+      ? { ...constraints }
+      : {};
+    if (CONFIG.VIDEO_URI && (CONFIG.VIDEO_URI.startsWith('file://') || CONFIG.VIDEO_URI.startsWith('/'))) {
+      nativeConstraints.videoUri = CONFIG.VIDEO_URI;
+    } else {
+      nativeConstraints.videoUri = null;
+    }
+    nativeConstraints.targetWidth = CONFIG.TARGET_WIDTH;
+    nativeConstraints.targetHeight = CONFIG.TARGET_HEIGHT;
+    nativeConstraints.targetFPS = CONFIG.TARGET_FPS;
+    nativeConstraints.loopVideo = true;
+    return NativeBridge.requestStream(nativeConstraints);
   };
   window.__nativeGumAnswer = function(payload) { NativeBridge.handleAnswer(payload); };
   window.__nativeGumIce = function(payload) { NativeBridge.handleIce(payload); };

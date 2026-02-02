@@ -21,8 +21,8 @@ is required.
 - **Native bridge module** (Swift/Obj-C)
   - Creates `RTCPeerConnectionFactory`
   - Builds `RTCVideoSource` backed by:
-    - **Synthetic frames (implemented now)**
-    - `AVAssetReader` (file-backed video) **(next step)**
+    - **Synthetic frames (implemented)**
+    - **AVAssetReader (file-backed video) (implemented)**
   - Adds video track to a local `RTCMediaStream`
   - Handles SDP/ICE exchange with JS
 
@@ -56,6 +56,8 @@ is required.
 - Requires custom iOS build (cannot work in pure Expo Go).
 - WebRTC signaling must be robust to page reloads.
 - Track metadata spoofing still required for webcamtests compatibility.
+- **File capturer expects a local file URL** (`file://` or absolute path).
+  - `data:` or `ph://` URIs are not supported yet.
 
 ### Next steps
 - Implement the iOS native module + signaling.

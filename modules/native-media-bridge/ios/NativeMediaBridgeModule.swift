@@ -1,8 +1,14 @@
 import Foundation
+import AVFoundation
 import ExpoModulesCore
 import WebRTC
 
-private final class SyntheticVideoCapturer: RTCVideoCapturer {
+private protocol CapturerLifecycle: AnyObject {
+  func start()
+  func stop()
+}
+
+private final class SyntheticVideoCapturer: RTCVideoCapturer, CapturerLifecycle {
   private var timer: DispatchSourceTimer?
   private var frameCount: Int64 = 0
   private let width: Int
@@ -75,10 +81,105 @@ private final class SyntheticVideoCapturer: RTCVideoCapturer {
   }
 }
 
+private final class FileVideoCapturer: RTCVideoCapturer, CapturerLifecycle {
+  private let asset: AVAsset
+  private let track: AVAssetTrack
+  private let fps: Int
+  private let loop: Bool
+  private let queue: DispatchQueue
+  private var reader: AVAssetReader?
+  private var output: AVAssetReaderTrackOutput?
+  private var timer: DispatchSourceTimer?
+  private var isRunning = false
+
+  init?(delegate: RTCVideoCapturerDelegate, url: URL, fps: Int, loop: Bool) {
+    let asset = AVAsset(url: url)
+    guard let track = asset.tracks(withMediaType: .video).first else {
+      return nil
+    }
+    self.asset = asset
+    self.track = track
+    self.fps = fps
+    self.loop = loop
+    self.queue = DispatchQueue(label: "native.media.bridge.file.capturer")
+    super.init(delegate: delegate)
+  }
+
+  func start() {
+    if isRunning { return }
+    isRunning = true
+    configureReader()
+
+    let intervalMs = max(1, 1000 / max(1, fps))
+    let timer = DispatchSource.makeTimerSource(queue: queue)
+    timer.schedule(deadline: .now(), repeating: .milliseconds(intervalMs), leeway: .milliseconds(2))
+    timer.setEventHandler { [weak self] in
+      self?.readFrame()
+    }
+    self.timer = timer
+    timer.resume()
+  }
+
+  func stop() {
+    isRunning = false
+    timer?.cancel()
+    timer = nil
+    reader?.cancelReading()
+    reader = nil
+    output = nil
+  }
+
+  private func configureReader() {
+    reader?.cancelReading()
+    reader = nil
+    output = nil
+
+    guard let reader = try? AVAssetReader(asset: asset) else { return }
+    let settings: [String: Any] = [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+    ]
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+    output.alwaysCopiesSampleData = false
+    if reader.canAdd(output) {
+      reader.add(output)
+    }
+    reader.startReading()
+    self.reader = reader
+    self.output = output
+  }
+
+  private func readFrame() {
+    guard isRunning, let output = output, let reader = reader else { return }
+    if reader.status == .failed || reader.status == .completed {
+      handleEndOfFile()
+      return
+    }
+    guard let sampleBuffer = output.copyNextSampleBuffer() else {
+      handleEndOfFile()
+      return
+    }
+    guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+
+    let rtcBuffer = RTCCVPixelBuffer(pixelBuffer: imageBuffer)
+    let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+    let timeNs = Int64(presentationTime.seconds * 1_000_000_000)
+    let frame = RTCVideoFrame(buffer: rtcBuffer, rotation: ._0, timeStampNs: timeNs)
+    delegate?.capturer(self, didCapture: frame)
+  }
+
+  private func handleEndOfFile() {
+    if loop {
+      configureReader()
+    } else {
+      stop()
+    }
+  }
+}
+
 private final class NativeBridgeSession: NSObject, RTCPeerConnectionDelegate {
   let requestId: String
   let peerConnection: RTCPeerConnection
-  let capturer: SyntheticVideoCapturer
+  let capturer: CapturerLifecycle
   let stream: RTCMediaStream
   let eventSink: (String, [String: Any]) -> Void
 
@@ -128,6 +229,43 @@ public final class NativeMediaBridgeModule: Module {
   private var factory: RTCPeerConnectionFactory?
   private var sessions: [String: NativeBridgeSession] = [:]
 
+  private func parseBool(_ value: Any?, defaultValue: Bool) -> Bool {
+    if let v = value as? Bool { return v }
+    if let v = value as? String { return (v as NSString).boolValue }
+    return defaultValue
+  }
+
+  private func parseInt(_ value: Any?, defaultValue: Int) -> Int {
+    if let v = value as? Int { return v }
+    if let v = value as? Double { return Int(v) }
+    if let v = value as? String, let parsed = Int(v) { return parsed }
+    return defaultValue
+  }
+
+  private func parseVideoUri(_ constraints: [String: Any]?) -> URL? {
+    guard let constraints = constraints else { return nil }
+    if let uri = constraints["videoUri"] as? String {
+      return resolveVideoUri(uri)
+    }
+    if let video = constraints["video"] as? [String: Any],
+       let uri = video["videoUri"] as? String {
+      return resolveVideoUri(uri)
+    }
+    return nil
+  }
+
+  private func resolveVideoUri(_ uri: String) -> URL? {
+    let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty { return nil }
+    if trimmed.hasPrefix("file://") {
+      return URL(string: trimmed)
+    }
+    if trimmed.hasPrefix("/") {
+      return URL(fileURLWithPath: trimmed)
+    }
+    return nil
+  }
+
   public func definition() -> ModuleDefinition {
     Name("NativeMediaBridge")
     Events("nativeGumIce", "nativeGumError")
@@ -149,11 +287,19 @@ public final class NativeMediaBridgeModule: Module {
         throw NSError(domain: "NativeMediaBridge", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create RTCPeerConnection"])
       }
 
+      let targetWidth = parseInt(constraints?["targetWidth"], defaultValue: 1080)
+      let targetHeight = parseInt(constraints?["targetHeight"], defaultValue: 1920)
+      let targetFPS = parseInt(constraints?["targetFPS"], defaultValue: 30)
+      let loopVideo = parseBool(constraints?["loopVideo"], defaultValue: true)
+
       let videoSource = factory.videoSource()
-      let width = 1080
-      let height = 1920
-      let fps = 30
-      let capturer = SyntheticVideoCapturer(delegate: videoSource, width: width, height: height, fps: fps)
+      let videoUri = parseVideoUri(constraints)
+      let capturer: CapturerLifecycle
+      if let url = videoUri, let fileCapturer = FileVideoCapturer(delegate: videoSource, url: url, fps: targetFPS, loop: loopVideo) {
+        capturer = fileCapturer
+      } else {
+        capturer = SyntheticVideoCapturer(delegate: videoSource, width: targetWidth, height: targetHeight, fps: targetFPS)
+      }
       let videoTrack = factory.videoTrack(with: videoSource, trackId: "native_video_\(requestId)")
 
       let stream = factory.mediaStream(withStreamId: "native_stream_\(requestId)")
