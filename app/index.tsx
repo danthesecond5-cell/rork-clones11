@@ -36,6 +36,7 @@ import {
   createMediaInjectionScript,
   createProtocol0Script,
   createWebSocketInjectionScript,
+  createWorkingInjectionScript,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
 import {
@@ -158,7 +159,8 @@ export default function MotionBrowserScreen() {
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [safariModeEnabled, setSafariModeEnabled] = useState(true);
+  // Default OFF: the Safari spoof script is large and can reduce injection reliability/perf in WebViews.
+  const [safariModeEnabled, setSafariModeEnabled] = useState(false);
   const [toolbarExpanded, setToolbarExpanded] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
 
@@ -451,20 +453,6 @@ export default function MotionBrowserScreen() {
       };
     });
 
-    const config = {
-      stealthMode: effectiveStealthMode,
-      devices: normalizedDevices,
-      fallbackVideoUri,
-      forceSimulation: protocolForceSimulation,
-      protocolId: activeProtocol,
-      overlayLabelText: protocolOverlayLabel,
-      showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
-      mirrorVideo: protocolMirrorVideo,
-      debugEnabled: developerModeEnabled,
-      permissionPromptEnabled: true,
-    };
-
     console.log('[App] Injecting media config:', {
       stealthMode: effectiveStealthMode,
       deviceCount: activeTemplate.captureDevices.length,
@@ -474,31 +462,25 @@ export default function MotionBrowserScreen() {
     });
     
     lastInjectionTimeRef.current = Date.now();
+    const primaryDevice =
+      normalizedDevices.find(d => d.type === 'camera' && d.simulationEnabled) ||
+      normalizedDevices.find(d => d.type === 'camera') ||
+      normalizedDevices[0];
+    const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
     
-    const fallbackScript = createMediaInjectionScript(normalizedDevices, {
+    // Re-inject the compact working engine to apply updated device/video config.
+    // This avoids dynamically injecting the very large legacy script (which can be unreliable in WebViews).
+    const workingScript = createWorkingInjectionScript({
+      videoUri: videoUri,
+      devices: normalizedDevices,
       stealthMode: effectiveStealthMode,
-      fallbackVideoUri,
-      forceSimulation: protocolForceSimulation,
-      protocolId: activeProtocol,
-      protocolLabel: protocolOverlayLabel,
-      showOverlayLabel: showProtocolOverlayLabel,
-      loopVideo: standardSettings.loopVideo,
-      mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
-      permissionPromptEnabled: true,
+      targetWidth: 1080,
+      targetHeight: 1920,
+      targetFPS: 30,
     });
-
-    webViewRef.current.injectJavaScript(`
-      (function() {
-        if (window.__updateMediaConfig) {
-          window.__updateMediaConfig(${JSON.stringify(config)});
-          console.log('[MediaSim] Config injected from RN - devices:', ${activeTemplate.captureDevices.length});
-        } else {
-          ${fallbackScript}
-        }
-      })();
-      true;
-    `);
+    
+    webViewRef.current.injectJavaScript(workingScript);
   }, [
     activeTemplate,
     effectiveStealthMode,
@@ -920,10 +902,12 @@ export default function MotionBrowserScreen() {
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
     const shouldInjectMedia = isProtocolEnabled && !allowlistBlocked;
     
-    // Determine which injection script to use based on protocol
-    // PROTOCOL 0 is the primary injection method for standard/allowlist
+    // Determine which injection script to use based on protocol.
+    // NOTE: In WebViews, very large injected scripts can fail/truncate depending on platform.
+    // We keep a compact working-injection fallback for reliability.
     let mediaInjectionScript = '';
     let injectionType = 'NONE';
+    const maxInjectionScriptSize = 180000;
     
     if (shouldInjectMedia) {
       const primaryDevice = devices.find(d => d.type === 'camera' && d.simulationEnabled) || devices[0];
@@ -967,7 +951,7 @@ export default function MotionBrowserScreen() {
       } else if (activeProtocol === 'standard' || activeProtocol === 'allowlist') {
         // Use Protocol 0 (Ultra-Early Deep Hook) as the primary injection method
         // This is the most reliable method tested against webcamtests.com/recorder
-        mediaInjectionScript = createProtocol0Script({
+        const protocol0Script = createProtocol0Script({
           devices: devices,
           videoUri: videoUri,
           fallbackVideoUri: fallbackVideoUri,
@@ -979,7 +963,22 @@ export default function MotionBrowserScreen() {
           loopVideo: standardSettings.loopVideo,
           mirrorVideo: protocolMirrorVideo,
         });
-        injectionType = 'PROTOCOL0';
+        if (protocol0Script.length > maxInjectionScriptSize) {
+          mediaInjectionScript = createWorkingInjectionScript({
+            videoUri: videoUri,
+            devices: devices,
+            stealthMode: effectiveStealthMode,
+            debugEnabled: developerModeEnabled,
+            targetWidth: 1080,
+            targetHeight: 1920,
+            targetFPS: 30,
+          });
+          injectionType = 'WORKING_FALLBACK';
+          console.warn('[App] Protocol 0 script is large; using working injection fallback');
+        } else {
+          mediaInjectionScript = protocol0Script;
+          injectionType = 'PROTOCOL0';
+        }
         console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
         console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
         console.log('[App] Devices:', devices.length);
@@ -1216,6 +1215,14 @@ export default function MotionBrowserScreen() {
                 originWhitelist={originWhitelist}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
+                // Ensure injection runs in iframes too (important for some real-world sites).
+                injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
+                injectedJavaScriptForMainFrameOnly={false}
+                // Explicitly enable JS/DOM storage + media playback behaviors.
+                javaScriptEnabled
+                domStorageEnabled
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
                 onLoadStart={() => setIsLoading(true)}
                 onLoadEnd={() => {
                   setIsLoading(false);

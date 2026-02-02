@@ -11,8 +11,7 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { createDiagnosticScript, createGuaranteedInjection } from '@/utils/webcamTestDiagnostics';
-import { MEDIARECORDER_POLYFILL_SCRIPT } from '@/constants/browserScripts';
-import { createWorkingInjectionScript } from '@/constants/workingInjection';
+import { MEDIARECORDER_POLYFILL_SCRIPT, createWorkingInjectionScript } from '@/constants/browserScripts';
 import { createAdvancedProtocol2Script } from '@/utils/advancedProtocol/browserScript';
 import { createSonnetProtocolScript } from '@/constants/sonnetProtocol';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
@@ -105,7 +104,7 @@ export default function ProtocolTesterScreen() {
         return MEDIARECORDER_POLYFILL_SCRIPT + '\n' + createGuaranteedInjection();
       
       case 'protocol1':
-        // Match the app's primary WebView injection path (working injection).
+        // Use the compact "working" injection engine (more reliable in WebViews).
         return MEDIARECORDER_POLYFILL_SCRIPT + '\n' + createWorkingInjectionScript({
           videoUri: fallbackVideoUri,
           devices: normalizedDevices,
@@ -325,6 +324,8 @@ export default function ProtocolTesterScreen() {
             injectedJavaScriptBeforeContentLoaded={
               currentTest ? getInjectionScript(currentTest) : createDiagnosticScript()
             }
+            injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
+            injectedJavaScriptForMainFrameOnly={false}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
             onMessage={handleMessage}

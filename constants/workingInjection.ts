@@ -45,8 +45,13 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   // ============================================================================
   
   if (window.__workingInjectionActive) {
-    console.log('[WorkingInject] Already active');
-    return;
+    // Allow dynamic re-injection (e.g. when user changes selected video/device in RN):
+    // destroy the previous instance and continue booting a fresh one.
+    try {
+      if (window.__workingInjection && typeof window.__workingInjection.destroy === 'function') {
+        window.__workingInjection.destroy();
+      }
+    } catch (e) {}
   }
   window.__workingInjectionActive = true;
   
@@ -723,6 +728,46 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     getState: () => State,
     getStream: () => State.stream,
     reinitialize: () => initializeSync(),
+    destroy: () => {
+      try {
+        if (State.animationFrameId) {
+          cancelAnimationFrame(State.animationFrameId);
+          State.animationFrameId = null;
+        }
+      } catch (e) {}
+      
+      try {
+        if (State.stream) {
+          State.stream.getTracks().forEach(t => {
+            try { t.stop(); } catch (e) {}
+          });
+        }
+      } catch (e) {}
+      
+      try {
+        if (State.videoElement) {
+          try { State.videoElement.pause(); } catch (e) {}
+          try { State.videoElement.remove(); } catch (e) {}
+        }
+      } catch (e) {}
+      
+      try {
+        if (State.canvasElement) {
+          try { State.canvasElement.remove(); } catch (e) {}
+        }
+      } catch (e) {}
+      
+      State.ready = false;
+      State.videoElement = null;
+      State.canvasElement = null;
+      State.canvasContext = null;
+      State.stream = null;
+      State.videoLoaded = false;
+      State.mode = 'canvas';
+      
+      try { window.__workingInjectionActive = false; } catch (e) {}
+      try { delete window.__workingInjection; } catch (e) {}
+    },
   };
   
 })();
