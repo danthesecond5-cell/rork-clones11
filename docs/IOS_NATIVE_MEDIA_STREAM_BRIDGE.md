@@ -21,8 +21,8 @@ is required.
 - **Native bridge module** (Swift/Obj-C)
   - Creates `RTCPeerConnectionFactory`
   - Builds `RTCVideoSource` backed by:
-    - `AVAssetReader` (file-backed video)
-    - Or synthetic frames (canvas-like)
+    - **Synthetic frames (implemented now)**
+    - `AVAssetReader` (file-backed video) **(next step)**
   - Adds video track to a local `RTCMediaStream`
   - Handles SDP/ICE exchange with JS
 

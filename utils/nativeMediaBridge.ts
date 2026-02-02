@@ -1,4 +1,5 @@
-import { Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { requireNativeModule } from 'expo-modules-core';
 import {
   RTCPeerConnection,
   RTCSessionDescription,
@@ -27,6 +28,37 @@ type NativeBridgeSession = {
 };
 
 const sessions = new Map<string, NativeBridgeSession>();
+
+let nativeBridge: {
+  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: MediaStreamConstraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
+  addIceCandidate?: (requestId: string, candidate: RTCIceCandidateInit) => Promise<void>;
+  closeSession?: (requestId: string) => Promise<void>;
+} | null = null;
+
+try {
+  nativeBridge = (NativeModules as any).NativeMediaBridge || requireNativeModule('NativeMediaBridge');
+} catch {
+  nativeBridge = null;
+}
+
+let nativeEmitter: NativeEventEmitter | null = null;
+let nativeEmitterBound = false;
+
+const ensureNativeEmitter = (handlers: NativeBridgeHandlers) => {
+  if (!nativeBridge || nativeEmitterBound) return;
+  nativeEmitter = new NativeEventEmitter(nativeBridge as any);
+  nativeEmitter.addListener('nativeGumIce', (payload: NativeGumIcePayload) => {
+    if (payload && payload.requestId && payload.candidate) {
+      handlers.onIceCandidate(payload);
+    }
+  });
+  nativeEmitter.addListener('nativeGumError', (payload: NativeGumErrorPayload) => {
+    if (payload && payload.requestId) {
+      handlers.onError(payload);
+    }
+  });
+  nativeEmitterBound = true;
+};
 
 const DEFAULT_RTC_CONFIG: RTCConfiguration = {
   iceServers: [],
@@ -59,6 +91,23 @@ export async function handleNativeGumOffer(
   if (Platform.OS !== 'ios') {
     handlers.onError(buildError(requestId, 'Native bridge only enabled on iOS', 'platform'));
     return;
+  }
+
+  if (nativeBridge?.createSession) {
+    try {
+      ensureNativeEmitter(handlers);
+      const answer = await nativeBridge.createSession(
+        requestId,
+        payload.offer,
+        payload.constraints,
+        payload.rtcConfig
+      );
+      handlers.onAnswer({ requestId, answer });
+      return;
+    } catch (error) {
+      handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'native'));
+      return;
+    }
   }
 
   if (typeof RTCPeerConnection !== 'function' || !mediaDevices?.getUserMedia) {
@@ -114,6 +163,15 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
   const candidate = payload?.candidate;
   if (!requestId || !candidate) return;
 
+  if (nativeBridge?.addIceCandidate) {
+    try {
+      await nativeBridge.addIceCandidate(requestId, candidate);
+    } catch {
+      // Ignore ICE errors
+    }
+    return;
+  }
+
   const session = sessions.get(requestId);
   if (!session) return;
 
@@ -127,6 +185,11 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
 export function closeNativeGumSession(payload: NativeGumCancelPayload): void {
   const requestId = payload?.requestId;
   if (!requestId) return;
+
+  if (nativeBridge?.closeSession) {
+    nativeBridge.closeSession(requestId).catch(() => {});
+    return;
+  }
 
   const session = sessions.get(requestId);
   if (!session) return;
