@@ -180,6 +180,20 @@ navigator.mediaDevices.getUserMedia = async function(constraints) {
 
 **Not a solution**: Trying different `crossOrigin` modes (still blocked)
 
+### Missing canvas.captureStream in some WebViews
+
+**Problem**: Some mobile WebViews do not expose `HTMLCanvasElement.captureStream`, so canvas-based spoofing fails even if `getUserMedia` is overridden.
+
+**Alternative (now supported)**: Use **WebCodecs frame generation** when available.
+
+**Requirements**:
+1. `MediaStreamTrackGenerator` support
+2. `VideoFrame` support
+
+**Notes**:
+- If both `captureStream` and WebCodecs are missing, JavaScript-only spoofing is not possible.
+- In that case, a native virtual camera is required.
+
 ### Override Replacement
 
 **Problem**: Some sites detect override and replace it with original

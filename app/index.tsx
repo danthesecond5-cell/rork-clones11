@@ -463,6 +463,7 @@ export default function MotionBrowserScreen() {
       mirrorVideo: protocolMirrorVideo,
       debugEnabled: developerModeEnabled,
       permissionPromptEnabled: true,
+      useFrameGenerator: activeProtocol === 'standard' || activeProtocol === 'allowlist',
     };
 
     console.log('[App] Injecting media config:', {
@@ -937,6 +938,7 @@ export default function MotionBrowserScreen() {
           targetWidth: 1080,
           targetHeight: 1920,
           targetFPS: 30,
+          preferFrameGenerator: true,
         });
         
         console.log('[App] Using WORKING injection for', activeProtocol, 'with video:', videoUri ? 'YES' : 'NO');

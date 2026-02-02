@@ -53,6 +53,7 @@ export function createAdvancedProtocol2Script(
     targetWidth: 1080,
     targetHeight: 1920,
     targetFPS: 30,
+    preferFrameGenerator: true,
   });
 
   // Add advanced features on top

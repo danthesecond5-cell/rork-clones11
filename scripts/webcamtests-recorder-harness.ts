@@ -148,6 +148,7 @@ async function main() {
     targetWidth: 1080,
     targetHeight: 1920,
     targetFPS: 30,
+    preferFrameGenerator: true,
   });
   
   const postLoadConfigBase = {
@@ -161,6 +162,7 @@ async function main() {
     mirrorVideo: false,
     debugEnabled: false,
     permissionPromptEnabled: false,
+    useFrameGenerator: true,
   };
   
   const protocolRuns: ProtocolRun[] = [

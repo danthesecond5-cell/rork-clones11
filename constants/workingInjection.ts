@@ -20,6 +20,7 @@ export interface WorkingInjectionOptions {
   targetWidth?: number;
   targetHeight?: number;
   targetFPS?: number;
+  preferFrameGenerator?: boolean;
 }
 
 /**
@@ -34,6 +35,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     targetWidth = 1080,
     targetHeight = 1920,
     targetFPS = 30,
+    preferFrameGenerator = false,
   } = options;
 
   return `
@@ -61,6 +63,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     TARGET_HEIGHT: ${targetHeight},
     TARGET_FPS: ${targetFPS},
     AUDIO_ENABLED: true,
+    USE_FRAME_GENERATOR: ${preferFrameGenerator},
   };
   
   let log = CONFIG.DEBUG 
@@ -94,6 +97,10 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     stream: null,
     videoLoaded: false,
     mode: 'canvas', // 'video' or 'canvas'
+    generatorTrack: null,
+    generatorWriter: null,
+    generatorActive: false,
+    generatorWritePending: false,
   };
   
   function syncMediaSimConfig(partial) {
@@ -113,6 +120,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     fallbackVideoUri: CONFIG.VIDEO_URI,
     debugEnabled: CONFIG.DEBUG,
     protocolId: 'standard',
+    useFrameGenerator: CONFIG.USE_FRAME_GENERATOR,
   });
   
   // ============================================================================
@@ -194,6 +202,78 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     } catch (e) {
       error('Canvas initialization failed:', e);
       return false;
+    }
+  }
+  
+  function supportsFrameGenerator() {
+    return typeof MediaStreamTrackGenerator !== 'undefined' && typeof VideoFrame !== 'undefined';
+  }
+  
+  function supportsCaptureStream() {
+    const canvas = State.canvasElement || (document && document.createElement ? document.createElement('canvas') : null);
+    if (!canvas) return false;
+    return !!(canvas.captureStream || canvas.mozCaptureStream || canvas.webkitCaptureStream);
+  }
+  
+  function stopGenerator() {
+    if (State.generatorWriter) {
+      try {
+        State.generatorWriter.close();
+      } catch (e) {}
+    }
+    State.generatorWriter = null;
+    State.generatorTrack = null;
+    State.generatorActive = false;
+    State.generatorWritePending = false;
+  }
+  
+  function createGeneratorStream() {
+    if (!supportsFrameGenerator()) {
+      error('Frame generator not supported');
+      return null;
+    }
+    
+    try {
+      stopGenerator();
+      const generator = new MediaStreamTrackGenerator({ kind: 'video' });
+      const stream = new MediaStream([generator]);
+      
+      State.generatorTrack = generator;
+      State.generatorWriter = generator.writable.getWriter();
+      State.generatorActive = true;
+      
+      log('Frame generator stream created');
+      return stream;
+    } catch (e) {
+      error('Frame generator creation failed:', e);
+      return null;
+    }
+  }
+  
+  function pushGeneratorFrame(timestamp) {
+    if (!State.generatorActive || !State.generatorWriter || State.generatorWritePending) return;
+    if (!State.canvasElement) return;
+    
+    let frame = null;
+    try {
+      frame = new VideoFrame(State.canvasElement, {
+        timestamp: Math.max(0, Math.round(timestamp * 1000)),
+      });
+      
+      State.generatorWritePending = true;
+      State.generatorWriter.write(frame).then(() => {
+        State.generatorWritePending = false;
+        frame.close();
+      }).catch(err => {
+        State.generatorWritePending = false;
+        frame.close();
+        error('Frame generator write failed:', err);
+      });
+    } catch (e) {
+      if (frame && typeof frame.close === 'function') {
+        try { frame.close(); } catch (err) {}
+      }
+      error('Frame generator frame failed:', e);
     }
   }
   
@@ -386,6 +466,10 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
         drawGreenScreen(ctx, canvas.width, canvas.height, timestamp);
       }
       
+      if (State.generatorActive) {
+        pushGeneratorFrame(timestamp);
+      }
+      
       State.animationFrameId = requestAnimationFrame(render);
     }
     
@@ -432,21 +516,34 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
     
     try {
-      // Create video stream from canvas
+      // Create video stream from generator or canvas
       let stream;
-      if (canvas.captureStream) {
-        stream = canvas.captureStream(CONFIG.TARGET_FPS);
-      } else if (canvas.mozCaptureStream) {
-        stream = canvas.mozCaptureStream(CONFIG.TARGET_FPS);
-      } else if (canvas.webkitCaptureStream) {
-        stream = canvas.webkitCaptureStream(CONFIG.TARGET_FPS);
+      const generatorPreferred = CONFIG.USE_FRAME_GENERATOR === true;
+      const generatorSupported = supportsFrameGenerator();
+      const captureSupported = supportsCaptureStream();
+      
+      if ((generatorPreferred && generatorSupported) || (!captureSupported && generatorSupported)) {
+        stream = createGeneratorStream();
+        if (!stream) {
+          error('Frame generator failed');
+          return null;
+        }
       } else {
-        error('captureStream not supported');
-        return null;
+        stopGenerator();
+        if (canvas.captureStream) {
+          stream = canvas.captureStream(CONFIG.TARGET_FPS);
+        } else if (canvas.mozCaptureStream) {
+          stream = canvas.mozCaptureStream(CONFIG.TARGET_FPS);
+        } else if (canvas.webkitCaptureStream) {
+          stream = canvas.webkitCaptureStream(CONFIG.TARGET_FPS);
+        } else {
+          error('captureStream not supported');
+          return null;
+        }
       }
       
       if (!stream) {
-        error('captureStream returned null');
+        error('Stream creation failed');
         return null;
       }
       
@@ -677,6 +774,21 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     }
     if (typeof config.debugEnabled === 'boolean') {
       setDebug(config.debugEnabled);
+    }
+    if (typeof config.useFrameGenerator === 'boolean') {
+      const nextUseGenerator = config.useFrameGenerator;
+      if (nextUseGenerator !== CONFIG.USE_FRAME_GENERATOR) {
+        CONFIG.USE_FRAME_GENERATOR = nextUseGenerator;
+        if (nextUseGenerator && !State.generatorActive) {
+          State.stream = null;
+          State.ready = false;
+        }
+        if (!nextUseGenerator && State.generatorActive) {
+          stopGenerator();
+          State.stream = null;
+          State.ready = false;
+        }
+      }
     }
     if (typeof config.targetWidth === 'number' && config.targetWidth > 0) {
       CONFIG.TARGET_WIDTH = config.targetWidth;
