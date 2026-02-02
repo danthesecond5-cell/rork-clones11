@@ -33,10 +33,7 @@ import {
   CONSOLE_CAPTURE_SCRIPT,
   MEDIARECORDER_POLYFILL_SCRIPT,
   VIDEO_SIMULATION_TEST_SCRIPT,
-  BULLETPROOF_INJECTION_SCRIPT,
   createMediaInjectionScript,
-  createSimplifiedInjectionScript,
-  createWorkingInjectionScript,
   createProtocol0Script,
 } from '@/constants/browserScripts';
 import { clearAllDebugLogs } from '@/utils/logger';
@@ -923,32 +920,70 @@ export default function MotionBrowserScreen() {
     const shouldInjectMedia = isProtocolEnabled && !allowlistBlocked;
     
     // Determine which injection script to use based on protocol
-    // PROTOCOL 0 is now the PRIMARY injection method for all protocols
+    // PROTOCOL 0 is the primary injection method for standard/allowlist
     let mediaInjectionScript = '';
+    let injectionType = 'NONE';
     
     if (shouldInjectMedia) {
-      // Get video URI from primary camera device
       const primaryDevice = devices.find(d => d.type === 'camera' && d.simulationEnabled) || devices[0];
       const videoUri = primaryDevice?.assignedVideoUri || fallbackVideoUri;
       
-      // Use Protocol 0 (Ultra-Early Deep Hook) as the primary injection method
-      // This is the most reliable method tested against webcamtests.com/recorder
-      mediaInjectionScript = createProtocol0Script({
-        devices: devices,
-        videoUri: videoUri,
-        fallbackVideoUri: fallbackVideoUri,
-        width: 1080,
-        height: 1920,
-        fps: 30,
-        showDebugOverlay: developerModeEnabled,
-        stealthMode: effectiveStealthMode,
-        loopVideo: standardSettings.loopVideo,
-        mirrorVideo: protocolMirrorVideo,
-      });
-      
-      console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
-      console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
-      console.log('[App] Devices:', devices.length);
+      if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
+        // Use Sonnet Protocol for Protocol 5
+        const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
+        const sonnetConfig = {
+          enabled: true,
+          aiAdaptiveQuality: true,
+          behavioralMimicry: true,
+          neuralStyleTransfer: false,
+          predictiveFrameOptimization: true,
+          quantumTimingRandomness: true,
+          biometricSimulation: true,
+          realTimeProfiler: true,
+          adaptiveStealth: true,
+          performanceTarget: 'balanced' as const,
+          stealthIntensity: 'maximum' as const,
+          learningMode: true,
+        };
+        mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);
+        injectionType = 'SONNET';
+        console.log('[App] Using SONNET Protocol injection with video:', videoUri ? 'YES' : 'NO');
+      } else if (activeProtocol === 'standard' || activeProtocol === 'allowlist') {
+        // Use Protocol 0 (Ultra-Early Deep Hook) as the primary injection method
+        // This is the most reliable method tested against webcamtests.com/recorder
+        mediaInjectionScript = createProtocol0Script({
+          devices: devices,
+          videoUri: videoUri,
+          fallbackVideoUri: fallbackVideoUri,
+          width: 1080,
+          height: 1920,
+          fps: 30,
+          showDebugOverlay: developerModeEnabled,
+          stealthMode: effectiveStealthMode,
+          loopVideo: standardSettings.loopVideo,
+          mirrorVideo: protocolMirrorVideo,
+        });
+        injectionType = 'PROTOCOL0';
+        console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
+        console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
+        console.log('[App] Devices:', devices.length);
+      } else {
+        // Use original injection for other protocols (protected, harness, holographic)
+        const injectionOptions = {
+          stealthMode: effectiveStealthMode,
+          fallbackVideoUri,
+          forceSimulation: protocolForceSimulation,
+          protocolId: activeProtocol,
+          protocolLabel: protocolOverlayLabel,
+          showOverlayLabel: showProtocolOverlayLabel,
+          loopVideo: standardSettings.loopVideo,
+          mirrorVideo: protocolMirrorVideo,
+          debugEnabled: developerModeEnabled,
+          permissionPromptEnabled: true,
+        };
+        mediaInjectionScript = createMediaInjectionScript(devices, injectionOptions);
+        injectionType = 'LEGACY';
+      }
     }
     
     const script =
@@ -963,7 +998,7 @@ export default function MotionBrowserScreen() {
       allowlisted: shouldInjectMedia,
       protocol: activeProtocol,
       fallback: fallbackVideo?.name || 'none',
-      injectionType: shouldInjectMedia ? (activeProtocol === 'standard' || activeProtocol === 'allowlist' ? 'WORKING' : 'LEGACY') : 'NONE',
+      injectionType,
     });
     console.log('[App] Devices with videos:', devices.filter(d => d.assignedVideoUri).length);
     return script;
