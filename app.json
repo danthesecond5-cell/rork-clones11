@@ -21,6 +21,7 @@
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "RNCEnterpriseWebKit": true,
+        "RNCEnterpriseWebKitFrameworkPath": "frameworks://CustomWebKit.framework/CustomWebKit",
         "UIBackgroundModes": [
           "audio"
         ]
@@ -51,6 +52,13 @@
         "expo-router",
         {
           "origin": "https://rork.com/"
+        }
+      ],
+      [
+        "./plugins/withEnterpriseWebKit",
+        {
+          "frameworkPath": "enterprise/webkit/CustomWebKit.framework",
+          "iosFrameworksDir": "Frameworks"
         }
       ],
       "expo-font",

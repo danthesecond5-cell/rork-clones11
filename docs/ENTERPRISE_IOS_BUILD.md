@@ -47,6 +47,23 @@ your build to become available for KVC toggles.
 
 This is enterprise-only and may require entitlements or internal signing workflows.
 
+## Config plugin (auto-embed framework)
+If you place a custom framework in:
+
+```
+enterprise/webkit/CustomWebKit.framework
+```
+
+the `withEnterpriseWebKit` config plugin will:
+- Copy it into `ios/Frameworks/`
+- Embed it in the Xcode project
+
+This runs during:
+
+```
+npx expo prebuild --clean --platform ios
+```
+
  ## Build Steps (Enterprise)
  1. Install dependencies:
     ```

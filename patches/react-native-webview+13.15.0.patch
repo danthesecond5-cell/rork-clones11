@@ -11,7 +11,7 @@ index 1f6bbfd..a916a6f 100644
  @property (nonatomic, assign) BOOL allowsAirPlayForMediaPlayback;
  @property (nonatomic, assign) BOOL bounces;
 diff --git a/node_modules/react-native-webview/apple/RNCWebViewImpl.m b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
-index 7f5c24d..3f703fa 100644
+index 7f5c24d..4c8f7c3 100644
 --- a/node_modules/react-native-webview/apple/RNCWebViewImpl.m
 +++ b/node_modules/react-native-webview/apple/RNCWebViewImpl.m
 @@ -16,6 +16,7 @@
@@ -22,10 +22,31 @@ index 7f5c24d..3f703fa 100644
  
  static NSTimer *keyboardTimer;
  static NSString *const HistoryShimName = @"ReactNativeHistoryShim";
-@@ -23,6 +24,182 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
+@@ -23,6 +24,211 @@ static NSString *const MessageHandlerName = @"ReactNativeWebView";
  static NSURLCredential* clientAuthenticationCredential;
  static NSDictionary* customCertificatesForHost;
  
++static NSString *RNCNormalizeFrameworkPath(NSString *path) {
++  if (!path || path.length == 0) {
++    return path;
++  }
++  NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
++  NSString *expanded = path;
++  expanded = [expanded stringByReplacingOccurrencesOfString:@"$(APP_BUNDLE_PATH)" withString:bundlePath];
++  expanded = [expanded stringByReplacingOccurrencesOfString:@"${APP_BUNDLE_PATH}" withString:bundlePath];
++  
++  if ([expanded hasPrefix:@"frameworks://"]) {
++    NSString *relative = [expanded substringFromIndex:[@"frameworks://" length]];
++    return [bundlePath stringByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:relative]];
++  }
++  if ([expanded hasPrefix:@"bundle://"]) {
++    NSString *relative = [expanded substringFromIndex:[@"bundle://" length]];
++    return [bundlePath stringByAppendingPathComponent:relative];
++  }
++  
++  return expanded;
++}
++
 +static BOOL RNCEnterpriseWebKitEnabled(void) {
 +#if TARGET_OS_IOS
 +  NSNumber *flag = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"RNCEnterpriseWebKit"];
@@ -77,11 +98,19 @@ index 7f5c24d..3f703fa 100644
 +static NSArray<NSString *> *RNCEnterpriseFrameworkPaths(void) {
 +  NSArray<NSString *> *paths = RNCEnterpriseArrayFromPlist(@"RNCEnterpriseWebKitFrameworkPaths");
 +  if (paths && paths.count > 0) {
-+    return paths;
++    NSMutableArray<NSString *> *normalized = [NSMutableArray array];
++    for (NSString *entry in paths) {
++      NSString *resolved = RNCNormalizeFrameworkPath(entry);
++      if (resolved.length > 0) {
++        [normalized addObject:resolved];
++      }
++    }
++    return normalized;
 +  }
 +  NSString *single = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"RNCEnterpriseWebKitFrameworkPath"];
 +  if ([single isKindOfClass:[NSString class]] && single.length > 0) {
-+    return @[single];
++    NSString *resolved = RNCNormalizeFrameworkPath(single);
++    return resolved.length > 0 ? @[resolved] : @[];
 +  }
 +  return @[];
 +}
@@ -205,7 +234,7 @@ index 7f5c24d..3f703fa 100644
  NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
  
  #if TARGET_OS_IOS
-@@ -174,6 +351,7 @@ RCTAutoInsetsProtocol>
+@@ -174,6 +380,7 @@ RCTAutoInsetsProtocol>
      _mediaPlaybackRequiresUserAction = YES;
      _automaticallyAdjustContentInsets = YES;
      _autoManageStatusBarEnabled = YES;
@@ -213,7 +242,7 @@ index 7f5c24d..3f703fa 100644
      _contentInset = UIEdgeInsetsZero;
      _savedKeyboardDisplayRequiresUserAction = YES;
      _injectedJavaScript = nil;
-@@ -456,6 +634,9 @@ RCTAutoInsetsProtocol>
+@@ -456,6 +663,9 @@ RCTAutoInsetsProtocol>
      }
    }
  #endif
