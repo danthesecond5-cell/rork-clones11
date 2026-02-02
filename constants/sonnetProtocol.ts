@@ -599,6 +599,365 @@ export const createSonnetProtocolScript = (
     console.log('[Sonnet]   - Learning Mode:', CONFIG.learningMode);
   }
   
+  // ============ CAMERA INJECTION SYSTEM ============
+  // Critical addition: Sonnet Protocol now includes full camera injection capability
+  // for webcamtests.com and similar sites
+  
+  const CameraInjector = {
+    canvas: null,
+    ctx: null,
+    video: null,
+    stream: null,
+    outputStream: null,
+    isActive: false,
+    frameId: null,
+    
+    init: function(width, height) {
+      this.canvas = document.createElement('canvas');
+      this.canvas.width = width || 1080;
+      this.canvas.height = height || 1920;
+      this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
+      console.log('[Sonnet] Camera injector initialized:', this.canvas.width, 'x', this.canvas.height);
+    },
+    
+    loadVideo: async function(uri) {
+      if (!uri) return null;
+      
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', 'true');
+        video.preload = 'auto';
+        video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
+        
+        const timeout = setTimeout(() => {
+          console.warn('[Sonnet] Video load timeout');
+          resolve(null);
+        }, 15000);
+        
+        video.onloadeddata = () => {
+          clearTimeout(timeout);
+          console.log('[Sonnet] Video loaded:', video.videoWidth, 'x', video.videoHeight);
+          this.video = video;
+          resolve(video);
+        };
+        
+        video.onerror = () => {
+          clearTimeout(timeout);
+          console.error('[Sonnet] Video load failed');
+          resolve(null);
+        };
+        
+        document.body?.appendChild(video);
+        video.src = uri;
+        video.load();
+      });
+    },
+    
+    startRenderLoop: function() {
+      if (this.isActive) return;
+      this.isActive = true;
+      
+      const self = this;
+      const targetFrameTime = 1000 / 30;
+      let lastFrameTime = 0;
+      
+      function render(timestamp) {
+        if (!self.isActive) return;
+        
+        const elapsed = timestamp - lastFrameTime;
+        if (elapsed < targetFrameTime * 0.9) {
+          self.frameId = requestAnimationFrame(render);
+          return;
+        }
+        lastFrameTime = timestamp;
+        
+        // Apply behavioral mimicry - occasional frame skip
+        if (behavioralMimicry && behavioralMimicry.shouldSkipFrame()) {
+          self.frameId = requestAnimationFrame(render);
+          return;
+        }
+        
+        // Get biometrics for subtle adjustments
+        let biometrics = null;
+        if (biometricSim) {
+          biometrics = biometricSim.update(elapsed);
+        }
+        
+        // Get quality scale
+        let qualityScale = 1.0;
+        if (aiQuality) {
+          qualityScale = aiQuality.getQualityScale();
+        }
+        
+        // Render frame
+        if (self.video && self.video.readyState >= 2) {
+          self.ctx.drawImage(self.video, 0, 0, self.canvas.width, self.canvas.height);
+        } else {
+          // Fallback: animated green screen with realistic variations
+          self.drawSyntheticFrame(timestamp, biometrics);
+        }
+        
+        // Record metrics for AI quality adaptation
+        if (profiler) {
+          profiler.startFrame();
+          profiler.endFrame();
+        }
+        
+        self.frameId = requestAnimationFrame(render);
+      }
+      
+      requestAnimationFrame(render);
+      console.log('[Sonnet] Render loop started');
+    },
+    
+    drawSyntheticFrame: function(timestamp, biometrics) {
+      const t = timestamp / 1000;
+      const w = this.canvas.width;
+      const h = this.canvas.height;
+      
+      // Base green with subtle animated variation
+      const gradient = this.ctx.createLinearGradient(0, 0, 0, h);
+      const offset = Math.sin(t * 0.3) * 0.03;
+      
+      // Apply biometric breathing simulation
+      const breathingOffset = biometrics?.breathing || 0;
+      
+      gradient.addColorStop(0, \`rgb(0, \${Math.floor(255 + (offset + breathingOffset) * 20)}, 0)\`);
+      gradient.addColorStop(0.5, \`rgb(0, \${Math.floor(238 + (offset + breathingOffset) * 20)}, 0)\`);
+      gradient.addColorStop(1, \`rgb(0, \${Math.floor(255 + (offset + breathingOffset) * 20)}, 0)\`);
+      
+      this.ctx.fillStyle = gradient;
+      this.ctx.fillRect(0, 0, w, h);
+      
+      // Add subtle noise for realism (sensor noise simulation)
+      if (CONFIG.biometricSimulation) {
+        const noiseIntensity = 3;
+        const imageData = this.ctx.getImageData(0, 0, Math.min(100, w), Math.min(100, h));
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const noise = (getRandom() - 0.5) * noiseIntensity;
+          data[i] = Math.max(0, Math.min(255, data[i] + noise));
+          data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+          data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
+        }
+        this.ctx.putImageData(imageData, 0, 0);
+      }
+    },
+    
+    createStream: function() {
+      if (!this.canvas) {
+        this.init(1080, 1920);
+      }
+      
+      try {
+        this.outputStream = this.canvas.captureStream(30);
+        console.log('[Sonnet] Stream created, tracks:', this.outputStream.getTracks().length);
+        return this.outputStream;
+      } catch (e) {
+        console.error('[Sonnet] captureStream failed:', e);
+        return null;
+      }
+    },
+    
+    getStream: async function(device, wantsAudio) {
+      // Initialize if needed
+      if (!this.canvas) {
+        const res = device?.capabilities?.videoResolutions?.[0];
+        this.init(res?.width || 1080, res?.height || 1920);
+      }
+      
+      // Load video if URI provided
+      if (VIDEO_URI && !this.video) {
+        await this.loadVideo(VIDEO_URI);
+        if (this.video) {
+          await this.video.play().catch(e => console.warn('[Sonnet] Autoplay blocked:', e));
+        }
+      }
+      
+      // Start render loop
+      this.startRenderLoop();
+      
+      // Create stream
+      let stream = this.createStream();
+      if (!stream) {
+        throw new Error('Failed to create camera stream');
+      }
+      
+      // Spoof track metadata to look like real camera
+      this.spoofTrackMetadata(stream, device);
+      
+      // Add silent audio if requested
+      if (wantsAudio) {
+        this.addSilentAudio(stream);
+      }
+      
+      return stream;
+    },
+    
+    spoofTrackMetadata: function(stream, device) {
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) return;
+      
+      const deviceInfo = device || DEVICES[0] || {
+        name: 'FaceTime HD Camera',
+        id: 'camera_0',
+        facing: 'front'
+      };
+      
+      // Spoof getSettings to return camera-accurate values
+      videoTrack.getSettings = function() {
+        return {
+          width: 1080,
+          height: 1920,
+          frameRate: 30,
+          aspectRatio: 0.5625,
+          facingMode: deviceInfo.facing === 'back' ? 'environment' : 'user',
+          deviceId: deviceInfo.nativeDeviceId || deviceInfo.id || 'camera_0',
+          groupId: deviceInfo.groupId || 'default',
+          resizeMode: 'none',
+        };
+      };
+      
+      // Spoof getCapabilities
+      videoTrack.getCapabilities = function() {
+        return {
+          aspectRatio: { min: 0.5, max: 2.0 },
+          deviceId: deviceInfo.nativeDeviceId || deviceInfo.id || 'camera_0',
+          facingMode: [deviceInfo.facing === 'back' ? 'environment' : 'user'],
+          frameRate: { min: 1, max: 60 },
+          groupId: deviceInfo.groupId || 'default',
+          height: { min: 1, max: 4320 },
+          width: { min: 1, max: 7680 },
+          resizeMode: ['none', 'crop-and-scale'],
+        };
+      };
+      
+      // Spoof label
+      Object.defineProperty(videoTrack, 'label', {
+        get: function() { return deviceInfo.name || 'Camera'; },
+        configurable: true,
+      });
+      
+      console.log('[Sonnet] Track metadata spoofed for:', deviceInfo.name);
+    },
+    
+    addSilentAudio: function(stream) {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        
+        const ac = new AudioContext();
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        const dest = ac.createMediaStreamDestination();
+        
+        gain.gain.value = 0;
+        osc.connect(gain);
+        gain.connect(dest);
+        osc.start();
+        
+        dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+        console.log('[Sonnet] Silent audio added');
+      } catch (e) {
+        console.warn('[Sonnet] Failed to add silent audio:', e);
+      }
+    },
+    
+    stop: function() {
+      this.isActive = false;
+      if (this.frameId) {
+        cancelAnimationFrame(this.frameId);
+        this.frameId = null;
+      }
+      if (this.outputStream) {
+        this.outputStream.getTracks().forEach(t => t.stop());
+        this.outputStream = null;
+      }
+      if (this.video) {
+        this.video.pause();
+        this.video.src = '';
+        this.video = null;
+      }
+      console.log('[Sonnet] Camera injector stopped');
+    }
+  };
+  
+  // ============ MEDIADEVICES OVERRIDE ============
+  const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+  const originalEnumerateDevices = navigator.mediaDevices?.enumerateDevices?.bind(navigator.mediaDevices);
+  
+  if (!navigator.mediaDevices) {
+    navigator.mediaDevices = {};
+  }
+  
+  // Override enumerateDevices to return simulated devices
+  navigator.mediaDevices.enumerateDevices = async function() {
+    console.log('[Sonnet] enumerateDevices called');
+    
+    const simDevices = DEVICES.map(d => ({
+      deviceId: d.nativeDeviceId || d.id,
+      groupId: d.groupId || 'default',
+      kind: d.type === 'camera' ? 'videoinput' : 'audioinput',
+      label: d.name || 'Camera',
+      toJSON: function() { return this; }
+    }));
+    
+    console.log('[Sonnet] Returning', simDevices.length, 'simulated devices');
+    return simDevices;
+  };
+  
+  // Override getUserMedia to return simulated stream
+  navigator.mediaDevices.getUserMedia = async function(constraints) {
+    console.log('[Sonnet] getUserMedia called with:', constraints);
+    
+    const wantsVideo = !!constraints?.video;
+    const wantsAudio = !!constraints?.audio;
+    
+    if (!wantsVideo) {
+      // Audio-only, pass through
+      if (originalGetUserMedia) {
+        return originalGetUserMedia(constraints);
+      }
+      throw new DOMException('getUserMedia not available', 'NotSupportedError');
+    }
+    
+    // Get device selection from constraints
+    let requestedDeviceId = null;
+    let requestedFacing = null;
+    
+    if (typeof constraints.video === 'object') {
+      const v = constraints.video;
+      requestedDeviceId = v.deviceId?.exact || v.deviceId?.ideal || v.deviceId;
+      requestedFacing = v.facingMode?.exact || v.facingMode?.ideal || v.facingMode;
+    }
+    
+    // Select device
+    let selectedDevice = DEVICES.find(d => {
+      if (requestedDeviceId && (d.id === requestedDeviceId || d.nativeDeviceId === requestedDeviceId)) {
+        return true;
+      }
+      if (requestedFacing) {
+        const facing = requestedFacing === 'user' ? 'front' : requestedFacing === 'environment' ? 'back' : requestedFacing;
+        return d.facing === facing;
+      }
+      return false;
+    }) || DEVICES[0] || { name: 'Sonnet Camera', id: 'sonnet_cam', facing: 'front' };
+    
+    console.log('[Sonnet] Selected device:', selectedDevice.name);
+    
+    try {
+      const stream = await CameraInjector.getStream(selectedDevice, wantsAudio);
+      console.log('[Sonnet] Successfully returning simulated stream');
+      return stream;
+    } catch (e) {
+      console.error('[Sonnet] Camera injection failed:', e);
+      throw new DOMException('Could not start video source', 'NotReadableError');
+    }
+  };
+  
   // ============ PUBLIC API ============
   window.__sonnetProtocol = {
     getMetrics: () => profiler ? profiler.getMetrics() : null,
@@ -610,14 +969,24 @@ export const createSonnetProtocolScript = (
       if (aiQuality) {
         aiQuality.targetQualityLevel = Math.max(0.5, Math.min(1.0, level));
       }
-    }
+    },
+    // New camera control APIs
+    getInjectorState: () => ({
+      isActive: CameraInjector.isActive,
+      hasVideo: !!CameraInjector.video,
+      hasStream: !!CameraInjector.outputStream
+    }),
+    stopInjection: () => CameraInjector.stop(),
+    loadVideo: (uri) => CameraInjector.loadVideo(uri)
   };
   
   // Start initialization
   initialize();
   
   console.log('[Sonnet Protocol] ========================================');
-  console.log('[Sonnet Protocol] Ready - Most Advanced Protocol Active');
+  console.log('[Sonnet Protocol] Ready - Full Camera Injection Active');
+  console.log('[Sonnet Protocol] Features: AI Quality, Behavioral Mimicry,');
+  console.log('[Sonnet Protocol]          Biometric Sim, Camera Injection');
   console.log('[Sonnet Protocol] ========================================');
 })();
 true;
