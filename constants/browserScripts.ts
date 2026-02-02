@@ -3818,3 +3818,6 @@ true;
 // Re-export deep injection protocols for convenience
 export { DEEP_INJECTION_PROTOCOLS } from '@/utils/deepInjectionProtocols';
 export type { InjectionConfig } from '@/utils/deepInjectionProtocols';
+
+// Re-export working injection builder (used by `app/index.tsx`).
+export { createWorkingInjectionScript } from '@/constants/workingInjection';
