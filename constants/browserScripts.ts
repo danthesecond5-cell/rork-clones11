@@ -1524,21 +1524,89 @@ export const createMediaInjectionScript = (
   };
   
   function buildSimulatedDevices(devices) {
-    return (devices || []).map(function(d) {
-      const info = {
-        deviceId: d.nativeDeviceId || d.id || 'sim_' + Math.random().toString(36).substr(2, 9),
-        groupId: d.groupId || 'default',
-        kind: d.type === 'camera' ? 'videoinput' : 'audioinput',
-        label: d.name || 'Camera',
-        toJSON: function() { return this; }
+    const result = [];
+    const defaultGroupId = generateUUID();
+    
+    // Add video input devices from config
+    (devices || []).forEach(function(d) {
+      if (d.type === 'camera' || !d.type) {
+        const deviceId = d.nativeDeviceId || d.id || generateUUID();
+        const groupId = d.groupId || defaultGroupId;
+        const info = {
+          deviceId: deviceId,
+          groupId: groupId,
+          kind: 'videoinput',
+          label: d.name || 'Camera'
+        };
+        
+        // Add toJSON method
+        info.toJSON = function() {
+          return {
+            deviceId: this.deviceId,
+            groupId: this.groupId,
+            kind: this.kind,
+            label: this.label
+          };
+        };
+        
+        // Try to set prototype for better compatibility
+        try {
+          if (typeof MediaDeviceInfo !== 'undefined' && MediaDeviceInfo.prototype) {
+            Object.setPrototypeOf(info, MediaDeviceInfo.prototype);
+          }
+        } catch(e) {}
+        
+        result.push(info);
+      }
+    });
+    
+    // Add a default audio input if we have video devices (sites often expect this)
+    if (result.length > 0) {
+      const audioInput = {
+        deviceId: generateUUID(),
+        groupId: defaultGroupId,
+        kind: 'audioinput',
+        label: 'Default Audio Input'
+      };
+      audioInput.toJSON = function() {
+        return {
+          deviceId: this.deviceId,
+          groupId: this.groupId,
+          kind: this.kind,
+          label: this.label
+        };
       };
       try {
-        if (typeof MediaDeviceInfo !== 'undefined') {
-          Object.setPrototypeOf(info, MediaDeviceInfo.prototype);
+        if (typeof MediaDeviceInfo !== 'undefined' && MediaDeviceInfo.prototype) {
+          Object.setPrototypeOf(audioInput, MediaDeviceInfo.prototype);
         }
       } catch(e) {}
-      return info;
-    });
+      result.push(audioInput);
+      
+      // Add a default audio output
+      const audioOutput = {
+        deviceId: 'default',
+        groupId: defaultGroupId,
+        kind: 'audiooutput',
+        label: 'Default Audio Output'
+      };
+      audioOutput.toJSON = function() {
+        return {
+          deviceId: this.deviceId,
+          groupId: this.groupId,
+          kind: this.kind,
+          label: this.label
+        };
+      };
+      try {
+        if (typeof MediaDeviceInfo !== 'undefined' && MediaDeviceInfo.prototype) {
+          Object.setPrototypeOf(audioOutput, MediaDeviceInfo.prototype);
+        }
+      } catch(e) {}
+      result.push(audioOutput);
+    }
+    
+    return result;
   }
   
   // ============ PORTRAIT RESOLUTION HELPERS ============
@@ -1565,6 +1633,267 @@ export const createMediaInjectionScript = (
     
     Logger.log('Portrait resolution:', w, 'x', h, '(9:16 enforced)');
     return { width: w, height: h };
+  }
+  
+  // ============ COMPREHENSIVE STREAM/TRACK SPOOFING FOR WEBCAM TEST SITES ============
+  // This function makes our canvas-based stream indistinguishable from a real camera stream
+  // by properly spoofing all properties that webcam test sites like webcamtests.com check
+  function spoofStreamForWebcamTests(stream, device, res) {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      Logger.warn('No video track to spoof');
+      return;
+    }
+    
+    // Device info from template
+    const deviceName = device?.name || 'Front Camera';
+    const deviceId = device?.nativeDeviceId || device?.id || generateUUID();
+    const groupId = device?.groupId || generateUUID();
+    const facingMode = device?.facing === 'back' ? 'environment' : 'user';
+    const caps = device?.capabilities || {};
+    
+    // Resolution info
+    const width = res?.width || CONFIG.PORTRAIT_WIDTH;
+    const height = res?.height || CONFIG.PORTRAIT_HEIGHT;
+    const fps = CONFIG.TARGET_FPS;
+    
+    // Get max resolution from capabilities
+    const videoResolutions = caps.videoResolutions || [];
+    const maxWidth = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.width; })) : 4032;
+    const maxHeight = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.height; })) : 3024;
+    const maxFps = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.maxFps || 60; })) : 60;
+    
+    // Generate track ID like a real camera would
+    const trackId = generateUUID();
+    
+    // ============ CRITICAL: Spoof readyState to 'live' ============
+    try {
+      Object.defineProperty(videoTrack, 'readyState', {
+        get: function() { return 'live'; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {
+      Logger.warn('Could not spoof readyState:', e.message);
+    }
+    
+    // ============ CRITICAL: Spoof muted to false ============
+    try {
+      Object.defineProperty(videoTrack, 'muted', {
+        get: function() { return false; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {
+      Logger.warn('Could not spoof muted:', e.message);
+    }
+    
+    // ============ Spoof enabled (make sure it's true) ============
+    try {
+      let _enabled = true;
+      Object.defineProperty(videoTrack, 'enabled', {
+        get: function() { return _enabled; },
+        set: function(val) { _enabled = !!val; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {
+      Logger.warn('Could not spoof enabled:', e.message);
+    }
+    
+    // ============ Spoof kind to 'video' ============
+    try {
+      Object.defineProperty(videoTrack, 'kind', {
+        get: function() { return 'video'; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ Spoof track id ============
+    try {
+      Object.defineProperty(videoTrack, 'id', {
+        get: function() { return trackId; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ Spoof label ============
+    try {
+      Object.defineProperty(videoTrack, 'label', {
+        get: function() { return deviceName; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ Spoof contentHint ============
+    try {
+      let _contentHint = '';
+      Object.defineProperty(videoTrack, 'contentHint', {
+        get: function() { return _contentHint; },
+        set: function(val) { _contentHint = val || ''; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ Spoof getSettings ============
+    videoTrack.getSettings = function() {
+      return {
+        width: width,
+        height: height,
+        frameRate: fps,
+        aspectRatio: width / height,
+        facingMode: facingMode,
+        deviceId: deviceId,
+        groupId: groupId,
+        resizeMode: 'none',
+        // Additional properties some sites check
+        brightness: 128,
+        colorTemperature: 6500,
+        contrast: 128,
+        exposureCompensation: 0,
+        exposureMode: 'continuous',
+        exposureTime: 100,
+        focusDistance: 0,
+        focusMode: 'continuous',
+        iso: 100,
+        pan: 0,
+        pointsOfInterest: [],
+        saturation: 128,
+        sharpness: 128,
+        tilt: 0,
+        whiteBalanceMode: 'continuous',
+        zoom: 1
+      };
+    };
+    
+    // ============ Spoof getCapabilities ============
+    videoTrack.getCapabilities = function() {
+      return {
+        aspectRatio: { min: 0.5625, max: 1.7778 },
+        deviceId: deviceId,
+        facingMode: [facingMode],
+        frameRate: { min: 1, max: maxFps },
+        groupId: groupId,
+        height: { min: 1, max: maxHeight },
+        width: { min: 1, max: maxWidth },
+        resizeMode: ['none', 'crop-and-scale'],
+        // Extended capabilities
+        brightness: { min: 0, max: 255, step: 1 },
+        colorTemperature: { min: 2850, max: 7000, step: 50 },
+        contrast: { min: 0, max: 255, step: 1 },
+        exposureCompensation: { min: -3, max: 3, step: 0.1 },
+        exposureMode: ['continuous', 'manual'],
+        exposureTime: { min: 1, max: 10000, step: 1 },
+        focusDistance: { min: 0, max: 1000, step: 10 },
+        focusMode: ['continuous', 'manual'],
+        iso: { min: 50, max: 3200, step: 50 },
+        pan: { min: -180, max: 180, step: 1 },
+        saturation: { min: 0, max: 255, step: 1 },
+        sharpness: { min: 0, max: 255, step: 1 },
+        tilt: { min: -180, max: 180, step: 1 },
+        whiteBalanceMode: ['continuous', 'manual'],
+        zoom: { min: 1, max: 10, step: 0.1 }
+      };
+    };
+    
+    // ============ Spoof getConstraints ============
+    videoTrack.getConstraints = function() {
+      return {
+        facingMode: facingMode,
+        width: { ideal: width },
+        height: { ideal: height },
+        frameRate: { ideal: fps },
+        deviceId: { exact: deviceId }
+      };
+    };
+    
+    // ============ Spoof applyConstraints ============
+    videoTrack.applyConstraints = function(constraints) {
+      Logger.log('applyConstraints called:', constraints);
+      return Promise.resolve();
+    };
+    
+    // ============ Spoof clone method ============
+    const originalClone = videoTrack.clone ? videoTrack.clone.bind(videoTrack) : null;
+    videoTrack.clone = function() {
+      const clonedTrack = originalClone ? originalClone() : videoTrack;
+      // Re-apply spoofing to cloned track
+      try {
+        Object.defineProperty(clonedTrack, 'readyState', { get: function() { return 'live'; }, configurable: true });
+        Object.defineProperty(clonedTrack, 'muted', { get: function() { return false; }, configurable: true });
+        Object.defineProperty(clonedTrack, 'label', { get: function() { return deviceName; }, configurable: true });
+        clonedTrack.getSettings = videoTrack.getSettings;
+        clonedTrack.getCapabilities = videoTrack.getCapabilities;
+        clonedTrack.getConstraints = videoTrack.getConstraints;
+      } catch (e) {}
+      return clonedTrack;
+    };
+    
+    // ============ Spoof stop method to update readyState ============
+    const originalStop = videoTrack.stop ? videoTrack.stop.bind(videoTrack) : function() {};
+    let trackStopped = false;
+    videoTrack.stop = function() {
+      trackStopped = true;
+      try {
+        Object.defineProperty(videoTrack, 'readyState', {
+          get: function() { return 'ended'; },
+          configurable: true
+        });
+      } catch (e) {}
+      originalStop();
+      // Dispatch ended event
+      try {
+        videoTrack.dispatchEvent(new Event('ended'));
+      } catch (e) {}
+    };
+    
+    // ============ STREAM-LEVEL SPOOFING ============
+    
+    // Spoof stream.active to true
+    try {
+      Object.defineProperty(stream, 'active', {
+        get: function() { return !trackStopped && stream.getTracks().some(function(t) { return t.readyState === 'live'; }); },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // Generate stream ID
+    const streamId = generateUUID();
+    try {
+      Object.defineProperty(stream, 'id', {
+        get: function() { return streamId; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    Logger.log('Stream/Track spoofed for webcam tests:', {
+      deviceName: deviceName,
+      deviceId: deviceId.substring(0, 8) + '...',
+      trackId: trackId.substring(0, 8) + '...',
+      streamId: streamId.substring(0, 8) + '...',
+      resolution: width + 'x' + height + '@' + fps,
+      facingMode: facingMode
+    });
+  }
+  
+  // ============ UUID GENERATOR ============
+  function generateUUID() {
+    // Generate a UUID v4
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    // Fallback implementation
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0;
+      var v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   }
   
   // ============ ORIGINAL API REFERENCES ============
@@ -1620,6 +1949,49 @@ export const createMediaInjectionScript = (
       }
       
       return [];
+    };
+    
+    // ============ GET SUPPORTED CONSTRAINTS OVERRIDE ============
+    // Webcam test sites often check this to verify camera support
+    navigator.mediaDevices.getSupportedConstraints = function() {
+      Logger.log('getSupportedConstraints called - returning full constraint support');
+      return {
+        aspectRatio: true,
+        deviceId: true,
+        facingMode: true,
+        frameRate: true,
+        groupId: true,
+        height: true,
+        width: true,
+        resizeMode: true,
+        // Extended constraints
+        brightness: true,
+        colorTemperature: true,
+        contrast: true,
+        exposureCompensation: true,
+        exposureMode: true,
+        exposureTime: true,
+        focusDistance: true,
+        focusMode: true,
+        iso: true,
+        pan: true,
+        pointsOfInterest: true,
+        saturation: true,
+        sharpness: true,
+        tilt: true,
+        torch: true,
+        whiteBalanceMode: true,
+        zoom: true,
+        // Audio constraints (in case checked)
+        autoGainControl: true,
+        channelCount: true,
+        echoCancellation: true,
+        latency: true,
+        noiseSuppression: true,
+        sampleRate: true,
+        sampleSize: true,
+        volume: true
+      };
     };
 
     // ============ PERMISSION PROMPT SYSTEM ============
@@ -1692,7 +2064,7 @@ export const createMediaInjectionScript = (
     }
     
     // ============ GET USER MEDIA OVERRIDE ============
-    mediaDevices.getUserMedia = function(constraints) {
+    mediaDevices.getUserMedia = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
       Logger.log('Website is requesting camera access - INTERCEPTING');
       const cfg = window.__mediaSimConfig || {};
@@ -1760,7 +2132,7 @@ export const createMediaInjectionScript = (
 
       const shouldSimulate = decisionAction === 'simulate'
         ? true
-        : (forceSimulation || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
+        : (CONFIG.FORCE_SIMULATION || cfg.stealthMode || (device?.simulationEnabled && hasVideoUri));
 
       if (!shouldSimulate) {
         if (_origGetUserMedia) {
@@ -2419,68 +2791,8 @@ export const createMediaInjectionScript = (
           
           if (wantsAudio) addSilentAudio(stream);
           
-          // ============ ENHANCED TRACK SPOOFING FROM DEVICE TEMPLATE ============
-          const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) {
-            // Get device template data for spoofing
-            const deviceName = device?.name || 'Camera';
-            const deviceId = device?.id || 'default_camera';
-            const groupId = device?.groupId || 'default';
-            const facingMode = device?.facing === 'back' ? 'environment' : 'user';
-            const caps = device?.capabilities || {};
-            
-            // Get max resolution from capabilities
-            const videoResolutions = caps.videoResolutions || [];
-            const maxWidth = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.width; })) : res.width;
-            const maxHeight = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.height; })) : res.height;
-            const maxFps = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.maxFps || 30; })) : CONFIG.TARGET_FPS;
-            
-            // Spoof getSettings - derived from device template
-            videoTrack.getSettings = function() {
-              return {
-                width: res.width,
-                height: res.height,
-                frameRate: CONFIG.TARGET_FPS,
-                aspectRatio: res.width / res.height,
-                facingMode: facingMode,
-                deviceId: deviceId,
-                groupId: groupId,
-                resizeMode: 'none'
-              };
-            };
-            
-            // Spoof getCapabilities - derived from device template capabilities
-            videoTrack.getCapabilities = function() {
-              return {
-                aspectRatio: { min: 0.5, max: 2.0 },
-                deviceId: deviceId,
-                facingMode: [facingMode],
-                frameRate: { min: 1, max: maxFps },
-                groupId: groupId,
-                height: { min: 1, max: maxHeight },
-                width: { min: 1, max: maxWidth },
-                resizeMode: ['none', 'crop-and-scale']
-              };
-            };
-            
-            // Spoof getConstraints - derived from device template
-            videoTrack.getConstraints = function() {
-              return {
-                facingMode: facingMode,
-                width: { ideal: res.width },
-                height: { ideal: res.height },
-                deviceId: { exact: deviceId }
-              };
-            };
-            
-            // Make label match device template name
-            Object.defineProperty(videoTrack, 'label', {
-              get: function() { return deviceName; },
-              configurable: true
-            });
-            
-            Logger.log('Track spoofed from template:', deviceName, '| facing:', facingMode, '| caps:', maxWidth + 'x' + maxHeight + '@' + maxFps);
-          }
+          // ============ COMPREHENSIVE TRACK AND STREAM SPOOFING FOR WEBCAM TEST SITES ============
+          spoofStreamForWebcamTests(stream, device, res);
           
           // Cleanup function
           stream._cleanup = function() {
@@ -2646,62 +2958,8 @@ export const createMediaInjectionScript = (
           
           if (wantsAudio) addSilentAudio(stream);
           
-          // ============ TRACK SPOOFING FROM DEVICE TEMPLATE (GREEN SCREEN) ============
-          const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) {
-            const deviceName = device?.name || 'Camera';
-            const deviceId = device?.id || 'default_camera';
-            const groupId = device?.groupId || 'default';
-            const facingMode = device?.facing === 'back' ? 'environment' : 'user';
-            const caps = device?.capabilities || {};
-            
-            const videoResolutions = caps.videoResolutions || [];
-            const maxWidth = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.width; })) : w;
-            const maxHeight = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.height; })) : h;
-            const maxFps = videoResolutions.length > 0 ? Math.max.apply(null, videoResolutions.map(function(r) { return r.maxFps || 30; })) : CONFIG.TARGET_FPS;
-            
-            videoTrack.getSettings = function() {
-              return {
-                width: w,
-                height: h,
-                frameRate: CONFIG.TARGET_FPS,
-                aspectRatio: w / h,
-                facingMode: facingMode,
-                deviceId: deviceId,
-                groupId: groupId,
-                resizeMode: 'none'
-              };
-            };
-            
-            videoTrack.getCapabilities = function() {
-              return {
-                aspectRatio: { min: 0.5, max: 2.0 },
-                deviceId: deviceId,
-                facingMode: [facingMode],
-                frameRate: { min: 1, max: maxFps },
-                groupId: groupId,
-                height: { min: 1, max: maxHeight },
-                width: { min: 1, max: maxWidth },
-                resizeMode: ['none', 'crop-and-scale']
-              };
-            };
-            
-            videoTrack.getConstraints = function() {
-              return {
-                facingMode: facingMode,
-                width: { ideal: w },
-                height: { ideal: h },
-                deviceId: { exact: deviceId }
-              };
-            };
-            
-            Object.defineProperty(videoTrack, 'label', {
-              get: function() { return deviceName; },
-              configurable: true
-            });
-            
-            Logger.log('Green screen track spoofed:', deviceName, '| facing:', facingMode);
-          }
+          // ============ COMPREHENSIVE TRACK SPOOFING FOR WEBCAM TEST SITES ============
+          spoofStreamForWebcamTests(stream, device, { width: w, height: h });
           
           stream._cleanup = function() { 
             isRunning = false; 

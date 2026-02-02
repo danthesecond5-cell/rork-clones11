@@ -715,18 +715,60 @@ export function createAdvancedProtocol2Script(
     
     const device = CONFIG.DEVICES.find(d => d.type === 'camera') || CONFIG.DEVICES[0];
     const recommendedRes = ASIModule.getRecommendedResolution();
+    const deviceId = device?.nativeDeviceId || device?.id || generateUUID();
+    const groupId = device?.groupId || generateUUID();
+    const facingMode = device?.facing === 'back' ? 'environment' : 'user';
+    const deviceName = device?.name || 'Camera';
+    const trackId = generateUUID();
+    
+    // ============ CRITICAL: Spoof readyState to 'live' ============
+    try {
+      Object.defineProperty(videoTrack, 'readyState', {
+        get: function() { return 'live'; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ CRITICAL: Spoof muted to false ============
+    try {
+      Object.defineProperty(videoTrack, 'muted', {
+        get: function() { return false; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ Spoof enabled ============
+    try {
+      let _enabled = true;
+      Object.defineProperty(videoTrack, 'enabled', {
+        get: function() { return _enabled; },
+        set: function(val) { _enabled = !!val; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    // ============ Spoof track id ============
+    try {
+      Object.defineProperty(videoTrack, 'id', {
+        get: function() { return trackId; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
     
     // Spoof getSettings
-    const originalGetSettings = videoTrack.getSettings?.bind(videoTrack);
     videoTrack.getSettings = function() {
       return {
         width: recommendedRes.width,
         height: recommendedRes.height,
         frameRate: CONFIG.TARGET_FPS,
         aspectRatio: recommendedRes.width / recommendedRes.height,
-        facingMode: device?.facing === 'back' ? 'environment' : 'user',
-        deviceId: device?.nativeDeviceId || device?.id || 'camera_0',
-        groupId: device?.groupId || 'default',
+        facingMode: facingMode,
+        deviceId: deviceId,
+        groupId: groupId,
         resizeMode: 'none',
       };
     };
@@ -735,23 +777,69 @@ export function createAdvancedProtocol2Script(
     videoTrack.getCapabilities = function() {
       return {
         aspectRatio: { min: 0.5, max: 2.0 },
-        deviceId: device?.nativeDeviceId || device?.id || 'camera_0',
-        facingMode: [device?.facing === 'back' ? 'environment' : 'user'],
+        deviceId: deviceId,
+        facingMode: [facingMode],
         frameRate: { min: 1, max: 60 },
-        groupId: device?.groupId || 'default',
+        groupId: groupId,
         height: { min: 1, max: 4320 },
         width: { min: 1, max: 7680 },
         resizeMode: ['none', 'crop-and-scale'],
       };
     };
     
+    // Spoof getConstraints
+    videoTrack.getConstraints = function() {
+      return {
+        facingMode: facingMode,
+        width: { ideal: recommendedRes.width },
+        height: { ideal: recommendedRes.height },
+        deviceId: { exact: deviceId }
+      };
+    };
+    
+    // Spoof applyConstraints
+    videoTrack.applyConstraints = function(constraints) {
+      Logger.log('applyConstraints called:', constraints);
+      return Promise.resolve();
+    };
+    
     // Spoof label
     Object.defineProperty(videoTrack, 'label', {
-      get: function() { return device?.name || 'Camera'; },
+      get: function() { return deviceName; },
       configurable: true,
     });
     
-    Logger.log('Track metadata spoofed');
+    // ============ STREAM-LEVEL SPOOFING ============
+    try {
+      Object.defineProperty(stream, 'active', {
+        get: function() { return stream.getTracks().some(function(t) { return t.readyState === 'live'; }); },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    const streamId = generateUUID();
+    try {
+      Object.defineProperty(stream, 'id', {
+        get: function() { return streamId; },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {}
+    
+    Logger.log('Track metadata spoofed:', deviceName, trackId.substring(0, 8));
+  }
+  
+  // UUID Generator
+  function generateUUID() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0;
+      var v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   }
   
   function notifyReactNative(type, payload) {
