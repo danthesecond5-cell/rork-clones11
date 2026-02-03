@@ -10,9 +10,18 @@
  * 2. Android: Uses Camera2 API to create a virtual camera device that
  *    provides frames from a video file
  * 
+ * NOTE: This module is NOT available in Expo Go. It requires a development
+ * build with custom native modules.
+ * 
  * Usage:
  * ```typescript
  * import VirtualCamera from '@/modules/virtual-camera';
+ * 
+ * // Check if available (will be false in Expo Go)
+ * if (!VirtualCamera.isAvailable()) {
+ *   console.log('VirtualCamera not available - use WebView-based injection');
+ *   return;
+ * }
  * 
  * // Set the video source
  * await VirtualCamera.setVideoSource('/path/to/video.mp4');
@@ -27,8 +36,21 @@
  * ```
  */
 
-import { NativeModulesProxy, EventEmitter, Subscription } from 'expo-modules-core';
-import VirtualCameraModule from './VirtualCameraModule';
+import { EventEmitter, Subscription } from 'expo-modules-core';
+import Constants from 'expo-constants';
+
+// Check if running in Expo Go
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Try to load the native module, but handle the case when it's not available
+let VirtualCameraModule: any = null;
+if (!isExpoGo) {
+  try {
+    VirtualCameraModule = require('./VirtualCameraModule').default;
+  } catch (error) {
+    console.log('[VirtualCamera] Native module not available');
+  }
+}
 
 export type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
 
@@ -64,11 +86,18 @@ export type VirtualCameraEvent = {
   payload: any;
 };
 
-// Get the native module
+// Get the native module (may be null in Expo Go)
 const VirtualCameraNative = VirtualCameraModule;
 
-// Event emitter for native events
-const emitter = new EventEmitter(VirtualCameraNative);
+// Event emitter for native events (only create if module is available)
+let emitter: EventEmitter | null = null;
+if (VirtualCameraNative) {
+  try {
+    emitter = new EventEmitter(VirtualCameraNative);
+  } catch (error) {
+    console.log('[VirtualCamera] Could not create event emitter');
+  }
+}
 
 /**
  * Virtual Camera API
@@ -76,9 +105,20 @@ const emitter = new EventEmitter(VirtualCameraNative);
 export const VirtualCamera = {
   /**
    * Check if the virtual camera module is available
+   * Returns false in Expo Go as native modules are not supported
    */
   isAvailable(): boolean {
+    if (isExpoGo) {
+      return false;
+    }
     return VirtualCameraNative !== null && VirtualCameraNative !== undefined;
+  },
+
+  /**
+   * Check if running in Expo Go
+   */
+  isExpoGo(): boolean {
+    return isExpoGo;
   },
 
   /**
@@ -225,8 +265,15 @@ export const VirtualCamera = {
 
   /**
    * Subscribe to virtual camera events
+   * Returns a no-op subscription if module is not available
    */
   addListener(callback: (event: VirtualCameraEvent) => void): Subscription {
+    if (!emitter) {
+      // Return a no-op subscription for Expo Go compatibility
+      return {
+        remove: () => {},
+      } as Subscription;
+    }
     return emitter.addListener('onVirtualCameraEvent', callback);
   },
 
@@ -234,7 +281,22 @@ export const VirtualCamera = {
    * Remove event listener
    */
   removeSubscription(subscription: Subscription): void {
-    subscription.remove();
+    if (subscription && subscription.remove) {
+      subscription.remove();
+    }
+  },
+
+  /**
+   * Get info about why the module might not be available
+   */
+  getUnavailableReason(): string | null {
+    if (isExpoGo) {
+      return 'VirtualCamera is not available in Expo Go. Create a development build to use native camera injection.';
+    }
+    if (!VirtualCameraNative) {
+      return 'VirtualCamera native module is not installed or configured properly.';
+    }
+    return null;
   },
 };
 

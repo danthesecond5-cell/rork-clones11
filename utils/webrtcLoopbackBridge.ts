@@ -2,6 +2,7 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
+import { isExpoGo, isWebRTCLoopbackAvailable } from '@/utils/expoGoCompatibility';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -51,13 +52,38 @@ export class WebRtcLoopbackBridge {
     label?: string;
     loop?: boolean;
   }> = [];
+  private isAvailable: boolean = false;
 
   constructor() {
+    // Check Expo Go compatibility first
+    if (isExpoGo) {
+      console.log('[WebRtcLoopbackBridge] Not available in Expo Go');
+      this.isAvailable = false;
+      return;
+    }
+
+    // Check platform and module availability
+    const availability = isWebRTCLoopbackAvailable();
+    if (!availability.available) {
+      console.log('[WebRtcLoopbackBridge] Not available:', availability.reason);
+      this.isAvailable = false;
+      return;
+    }
+
     this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
     if (this.nativeModule) {
       this.emitter = new NativeEventEmitter(this.nativeModule as any);
       this.attachNativeEvents();
+      this.isAvailable = true;
+      console.log('[WebRtcLoopbackBridge] Initialized successfully');
     }
+  }
+
+  /**
+   * Check if the bridge is available for use
+   */
+  checkAvailability(): boolean {
+    return this.isAvailable;
   }
 
   setWebViewRef(ref: RefObject<WebView>) {
@@ -134,6 +160,17 @@ export class WebRtcLoopbackBridge {
   }
 
   async handleOffer(payload: LoopbackOfferPayload) {
+    // Check Expo Go compatibility first
+    if (isExpoGo) {
+      this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify('WebRTC Loopback is not available in Expo Go. Please use the WebSocket bridge protocol instead.')});`);
+      return;
+    }
+
+    if (!this.isAvailable) {
+      this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify('WebRTC Loopback is not available on this platform.')});`);
+      return;
+    }
+
     const requireNative = this.settings?.requireNativeBridge ?? true;
     if (!this.ensureNativeAvailable(requireNative)) return;
     if (!payload?.sdp || !payload?.type) {

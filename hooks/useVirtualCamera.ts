@@ -44,6 +44,8 @@ import VirtualCamera, {
   VirtualCameraEvent 
 } from '../modules/virtual-camera/src';
 
+import { isExpoGo } from '@/utils/expoGoCompatibility';
+
 export type VirtualCameraHookState = {
   /** Whether the virtual camera module is available (native build required) */
   isAvailable: boolean;
@@ -67,6 +69,10 @@ export type VirtualCameraHookState = {
   error: string | null;
   /** Loading state */
   isLoading: boolean;
+  /** Whether running in Expo Go (module will not be available) */
+  isExpoGo: boolean;
+  /** Reason why module is unavailable */
+  unavailableReason: string | null;
 };
 
 export type VirtualCameraHookActions = {
@@ -102,6 +108,10 @@ const initialState: VirtualCameraHookState = {
   videoUri: null,
   error: null,
   isLoading: false,
+  isExpoGo: isExpoGo,
+  unavailableReason: isExpoGo 
+    ? 'VirtualCamera is not available in Expo Go. Use WebView-based injection instead.'
+    : null,
 };
 
 export function useVirtualCamera(): UseVirtualCameraReturn {
@@ -111,7 +121,15 @@ export function useVirtualCamera(): UseVirtualCameraReturn {
   // Check if module is available on mount
   useEffect(() => {
     const isAvailable = VirtualCamera.isAvailable();
-    setState(prev => ({ ...prev, isAvailable }));
+    const unavailableReason = VirtualCamera.getUnavailableReason?.() || 
+      (isExpoGo ? 'VirtualCamera is not available in Expo Go. Use WebView-based injection instead.' : null);
+    
+    setState(prev => ({ 
+      ...prev, 
+      isAvailable,
+      isExpoGo,
+      unavailableReason,
+    }));
 
     if (isAvailable) {
       // Subscribe to events
@@ -119,6 +137,9 @@ export function useVirtualCamera(): UseVirtualCameraReturn {
 
       // Get initial state
       refreshState();
+    } else if (isExpoGo) {
+      console.log('[useVirtualCamera] Running in Expo Go - VirtualCamera not available');
+      console.log('[useVirtualCamera] Use Protocol 6 (WebSocket Bridge) or Protocol 1 (Standard Injection) instead');
     }
 
     return () => {

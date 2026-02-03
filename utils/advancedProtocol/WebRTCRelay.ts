@@ -4,6 +4,10 @@
  * This system creates a local WebRTC relay that intercepts and manipulates
  * WebRTC connections to inject video streams at the signaling level.
  * This provides superior stealth compared to canvas-based injection.
+ * 
+ * NOTE: This module has limited functionality in Expo Go as it relies on
+ * native WebRTC APIs. In Expo Go, it will operate in a degraded mode that
+ * only works with WebView-based WebRTC (not native).
  */
 
 import {
@@ -12,6 +16,8 @@ import {
   VirtualIceCandidate,
   DEFAULT_WEBRTC_RELAY_CONFIG,
 } from '@/types/advancedProtocol';
+
+import { isExpoGo, isWebRTCAvailable } from '@/utils/expoGoCompatibility';
 
 // ============================================================================
 // TYPES
@@ -506,20 +512,41 @@ export class WebRTCRelay {
 
   /**
    * Initialize the WebRTC relay
+   * 
+   * Note: In Expo Go, this operates in degraded mode since native WebRTC
+   * is not available. It can still intercept WebView-based WebRTC.
    */
   async initialize(): Promise<void> {
     console.log('[WebRTCRelay] Initializing...');
     
+    // Check Expo Go compatibility
+    if (isExpoGo) {
+      console.log('[WebRTCRelay] Running in Expo Go - limited functionality');
+      console.log('[WebRTCRelay] Will intercept WebView-based WebRTC only');
+      // In Expo Go, we can still initialize for WebView interception
+      // but native RTCPeerConnection won't be available
+    }
+    
+    // Check for RTCPeerConnection (only available in WebView context or dev build)
     if (typeof RTCPeerConnection === 'undefined') {
-      console.warn('[WebRTCRelay] RTCPeerConnection not available');
+      if (isExpoGo) {
+        console.log('[WebRTCRelay] RTCPeerConnection not available in Expo Go - this is expected');
+        console.log('[WebRTCRelay] WebRTC interception will work via WebView injection scripts');
+      } else {
+        console.warn('[WebRTCRelay] RTCPeerConnection not available');
+      }
+      // Still mark as active for WebView-based interception
+      this.state.isActive = true;
       return;
     }
     
     // Store original RTCPeerConnection
     this.originalRTCPeerConnection = RTCPeerConnection;
     
-    // Start intercepting WebRTC connections
-    this.startInterception();
+    // Start intercepting WebRTC connections (only if not in Expo Go with native)
+    if (!isExpoGo || isWebRTCAvailable().available) {
+      this.startInterception();
+    }
     
     this.state.isActive = true;
     console.log('[WebRTCRelay] Initialized');
