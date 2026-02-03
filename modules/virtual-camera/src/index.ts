@@ -28,7 +28,11 @@
  */
 
 import { NativeModulesProxy, EventEmitter, Subscription } from 'expo-modules-core';
+import Constants from 'expo-constants';
 import VirtualCameraModule from './VirtualCameraModule';
+
+// Expo Go compatibility detection
+const isExpoGo = Constants.appOwnership === 'expo';
 
 export type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
 
@@ -72,13 +76,30 @@ const emitter = new EventEmitter(VirtualCameraNative);
 
 /**
  * Virtual Camera API
+ * 
+ * EXPO GO COMPATIBILITY:
+ * This module requires native code and is NOT available in Expo Go.
+ * For video injection in Expo Go, use Protocol 6 (WebSocket Bridge) instead.
+ * To enable native virtual camera, create a development build with EAS Build.
  */
 export const VirtualCamera = {
   /**
    * Check if the virtual camera module is available
+   * Returns false in Expo Go
    */
   isAvailable(): boolean {
+    // Not available in Expo Go
+    if (isExpoGo) {
+      return false;
+    }
     return VirtualCameraNative !== null && VirtualCameraNative !== undefined;
+  },
+
+  /**
+   * Check if running in Expo Go
+   */
+  isRunningInExpoGo(): boolean {
+    return isExpoGo;
   },
 
   /**
@@ -86,6 +107,10 @@ export const VirtualCamera = {
    */
   async getState(): Promise<VirtualCameraState> {
     if (!this.isAvailable()) {
+      const errorMessage = isExpoGo 
+        ? 'Virtual Camera not available in Expo Go. Use Protocol 6 (WebSocket Bridge) for video injection, or create a development build.'
+        : 'Module not available';
+      
       return {
         status: 'disabled',
         videoUri: null,
@@ -95,7 +120,7 @@ export const VirtualCamera = {
         fps: 0,
         width: 0,
         height: 0,
-        error: 'Module not available',
+        error: errorMessage,
       };
     }
     return await VirtualCameraNative.getState();
@@ -106,7 +131,11 @@ export const VirtualCamera = {
    */
   async enable(config: VirtualCameraConfig): Promise<boolean> {
     if (!this.isAvailable()) {
-      console.warn('[VirtualCamera] Module not available');
+      if (isExpoGo) {
+        console.warn('[VirtualCamera] Not available in Expo Go. Use Protocol 6 (WebSocket Bridge) for video injection, or create a development build with EAS Build.');
+      } else {
+        console.warn('[VirtualCamera] Module not available');
+      }
       return false;
     }
 
