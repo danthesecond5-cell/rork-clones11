@@ -62,6 +62,7 @@ class Logger {
   private static logHistory: LogEntry[] = [];
   private static maxHistory = 2000;
   private static enabled = true;
+  private static warningsSuppressed = false;
   private static activeRecordingId: string | null = null;
   private static recordings: Map<string, DebugRecording> = new Map();
   private static recordingCounter = 0;
@@ -89,6 +90,14 @@ class Logger {
 
   static setEnabled(enabled: boolean): void {
     Logger.enabled = enabled;
+  }
+
+  static setWarningsSuppressed(suppressed: boolean): void {
+    Logger.warningsSuppressed = suppressed;
+  }
+
+  static areWarningsSuppressed(): boolean {
+    return Logger.warningsSuppressed;
   }
 
   static getHistory(): LogEntry[] {
@@ -395,7 +404,9 @@ class Logger {
         consoleTarget.log(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
         break;
       case 'warn':
-        consoleTarget.warn(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
+        if (!Logger.warningsSuppressed) {
+          consoleTarget.warn(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
+        }
         break;
       case 'error':
         consoleTarget.error(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
@@ -466,6 +477,9 @@ export const clearAllDebugLogs = (): void => {
   Logger.clearRecordings();
 };
 
+export const setConsoleWarningsSuppressed = Logger.setWarningsSuppressed.bind(Logger);
+export const areConsoleWarningsSuppressed = Logger.areWarningsSuppressed.bind(Logger);
+
 let consoleCaptureInstalled = false;
 export const installConsoleCapture = (): void => {
   if (consoleCaptureInstalled) return;
@@ -507,7 +521,9 @@ export const installConsoleCapture = (): void => {
   };
 
   console.warn = (...args: unknown[]) => {
-    original.warn(...args);
+    if (!Logger.areWarningsSuppressed()) {
+      original.warn(...args);
+    }
     if (inCaptureRef.current) return;
     inCaptureRef.current = true;
     try {
