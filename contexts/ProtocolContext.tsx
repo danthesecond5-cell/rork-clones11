@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
+import { isExpoGo } from '@/utils/expoEnv';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -414,13 +415,23 @@ const isProtocolType = (value: string): value is ProtocolType => {
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
+  const runningInExpoGo = useMemo(() => isExpoGo(), []);
   const [isLoading, setIsLoading] = useState(true);
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [developerPin, setDeveloperPinState] = useState<string | null>(null);
   const [presentationMode, setPresentationMode] = useState(true);
   const [showTestingWatermark, setShowTestingWatermarkState] = useState(true);
   const [activeProtocol, setActiveProtocolState] = useState<ProtocolType>('standard');
-  const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
+  const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(() => {
+    if (!runningInExpoGo) return DEFAULT_PROTOCOLS;
+    return {
+      ...DEFAULT_PROTOCOLS,
+      'webrtc-loopback': {
+        ...DEFAULT_PROTOCOLS['webrtc-loopback'],
+        enabled: false,
+      },
+    };
+  });
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
   const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
@@ -489,7 +500,14 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
         if (activeProto) {
           if (isProtocolType(activeProto)) {
-            setActiveProtocolState(activeProto);
+            const nextActive =
+              runningInExpoGo && activeProto === 'webrtc-loopback'
+                ? 'websocket'
+                : activeProto;
+            setActiveProtocolState(nextActive);
+            if (nextActive !== activeProto) {
+              await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, nextActive);
+            }
           } else {
             console.warn('[Protocol] Invalid active protocol found:', activeProto);
             setActiveProtocolState('standard');
@@ -499,7 +517,17 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);
-            setProtocols({ ...DEFAULT_PROTOCOLS, ...parsed });
+            const merged: Record<ProtocolType, ProtocolConfig> = { ...DEFAULT_PROTOCOLS, ...parsed };
+            if (runningInExpoGo) {
+              merged['webrtc-loopback'] = {
+                ...merged['webrtc-loopback'],
+                enabled: false,
+              };
+            }
+            setProtocols(merged);
+            if (runningInExpoGo) {
+              await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(merged));
+            }
           } catch (e) {
             console.warn('[Protocol] Failed to parse protocols config:', e);
           }
@@ -559,7 +587,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     };
 
     loadSettings();
-  }, []);
+  }, [runningInExpoGo]);
 
   const toggleDeveloperMode = useCallback(async () => {
     const newValue = !developerModeEnabled;
@@ -622,22 +650,29 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, []);
 
   const setActiveProtocol = useCallback(async (protocol: ProtocolType) => {
-    setActiveProtocolState(protocol);
-    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, protocol);
-    console.log('[Protocol] Active protocol set:', protocol);
-  }, []);
+    const nextProtocol =
+      runningInExpoGo && protocol === 'webrtc-loopback'
+        ? 'websocket'
+        : protocol;
+    setActiveProtocolState(nextProtocol);
+    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, nextProtocol);
+    console.log('[Protocol] Active protocol set:', nextProtocol);
+  }, [runningInExpoGo]);
 
   const updateProtocolConfig = useCallback(async <T extends ProtocolType>(
     protocol: T,
     updates: Partial<ProtocolConfig>
   ) => {
+    if (runningInExpoGo && protocol === 'webrtc-loopback') {
+      updates = { ...updates, enabled: false };
+    }
     const newProtocols = {
       ...protocols,
       [protocol]: { ...protocols[protocol], ...updates },
     };
     setProtocols(newProtocols);
     await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(newProtocols));
-  }, [protocols]);
+  }, [protocols, runningInExpoGo]);
 
   const updateStandardSettings = useCallback(async (settings: Partial<StandardProtocolSettings>) => {
     const newSettings = { ...standardSettings, ...settings };

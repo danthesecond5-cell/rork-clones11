@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  NativeModules,
 } from 'react-native';
 import {
   X,
@@ -34,6 +35,7 @@ import {
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
 import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
+import { isExpoGo } from '@/utils/expoEnv';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -81,9 +83,13 @@ export default function ProtocolSettingsModal({
     setEnterpriseWebKitEnabled,
   } = useProtocol();
 
+  const runningInExpoGo = useMemo(() => isExpoGo(), []);
   const [pinInput, setPinInput] = useState('');
   const [showPinEntry, setShowPinEntry] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+  const loopbackExportAvailable = useMemo(() => {
+    return Platform.OS === 'ios' && Boolean((NativeModules as any)?.WebRtcLoopback?.exportRingBufferToPhotos);
+  }, []);
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
     if (!developerModeEnabled) {
@@ -239,9 +245,13 @@ export default function ProtocolSettingsModal({
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Native WebRTC Bridge</Text>
-                <Text style={styles.settingHint}>Forced ON (native dev client required)</Text>
+                <Text style={styles.settingHint}>
+                  {runningInExpoGo
+                    ? 'Disabled in Expo Go (requires native dev client)'
+                    : 'Forced ON (native dev client required)'}
+                </Text>
               </View>
-              <Text style={styles.settingValue}>FORCED</Text>
+              <Text style={styles.settingValue}>{runningInExpoGo ? 'OFF' : 'FORCED'}</Text>
             </View>
           </View>
         );
@@ -439,6 +449,18 @@ export default function ProtocolSettingsModal({
         );
 
       case 'webrtc-loopback':
+        if (runningInExpoGo) {
+          return (
+            <View style={styles.settingsGroup}>
+              <View style={styles.infoNotice}>
+                <AlertTriangle size={14} color="#ffcc00" />
+                <Text style={styles.infoNoticeText}>
+                  Not available in Expo Go. This protocol requires a custom native WebRTC loopback module.
+                </Text>
+              </View>
+            </View>
+          );
+        }
         return (
           <View style={styles.settingsGroup}>
             <View style={styles.settingRow}>
@@ -766,21 +788,23 @@ export default function ProtocolSettingsModal({
               />
             </View>
 
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={async () => {
-                try {
-                  await exportRingBufferToPhotos();
-                  Alert.alert('Ring Buffer Exported', 'Saved to Photos.');
-                } catch (err) {
-                  Alert.alert('Export Failed', err instanceof Error ? err.message : 'Unable to export ring buffer.');
-                }
-              }}
-            >
-              <Video size={16} color="#00ff88" />
-              <Text style={styles.actionButtonText}>Export Ring Buffer to Photos</Text>
-              <ChevronRight size={16} color="rgba(255,255,255,0.4)" />
-            </TouchableOpacity>
+            {loopbackExportAvailable && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={async () => {
+                  try {
+                    await exportRingBufferToPhotos();
+                    Alert.alert('Ring Buffer Exported', 'Saved to Photos.');
+                  } catch (err) {
+                    Alert.alert('Export Failed', err instanceof Error ? err.message : 'Unable to export ring buffer.');
+                  }
+                }}
+              >
+                <Video size={16} color="#00ff88" />
+                <Text style={styles.actionButtonText}>Export Ring Buffer to Photos</Text>
+                <ChevronRight size={16} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            )}
 
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -1185,6 +1209,7 @@ export default function ProtocolSettingsModal({
                 const protocol = protocols[protocolId];
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
+                const blockedInExpoGo = runningInExpoGo && protocolId === 'webrtc-loopback';
 
                 return (
                   <View
@@ -1192,6 +1217,7 @@ export default function ProtocolSettingsModal({
                     style={[
                       styles.protocolCard,
                       isActive && styles.protocolCardActive,
+                      blockedInExpoGo && { opacity: 0.6 },
                     ]}
                   >
                     <TouchableOpacity
@@ -1229,7 +1255,7 @@ export default function ProtocolSettingsModal({
                           {protocol.description}
                         </Text>
 
-                        {!isActive && (
+                        {!isActive && !blockedInExpoGo && (
                           <TouchableOpacity
                             style={styles.setActiveButton}
                             onPress={() => setActiveProtocol(protocolId)}
@@ -1237,6 +1263,14 @@ export default function ProtocolSettingsModal({
                             <Check size={14} color="#0a0a0a" />
                             <Text style={styles.setActiveButtonText}>Set as Active</Text>
                           </TouchableOpacity>
+                        )}
+                        {!isActive && blockedInExpoGo && (
+                          <View style={styles.lockedNotice}>
+                            <Lock size={14} color="rgba(255,255,255,0.4)" />
+                            <Text style={styles.lockedNoticeText}>
+                              Requires a native dev build (not supported in Expo Go)
+                            </Text>
+                          </View>
                         )}
 
                         {renderProtocolSettings(protocolId)}

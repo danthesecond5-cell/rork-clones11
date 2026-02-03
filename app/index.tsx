@@ -44,6 +44,7 @@ import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { NATIVE_WEBRTC_BRIDGE_SCRIPT } from '@/constants/nativeWebRTCBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { NativeWebRTCBridge } from '@/utils/nativeWebRTCBridge';
+import { isExpoGo } from '@/utils/expoEnv';
 import {
   formatVideoUriForWebView,
   getDefaultFallbackVideoUri,
@@ -593,6 +594,22 @@ export default function MotionBrowserScreen() {
         mirrorVideo: protocolMirrorVideo,
       });
       if (protocol0Script.length > maxInjectionScriptSize) {
+        // Expo Go cannot use the native media bridge that `createWorkingInjectionScript` relies on.
+        // Fall back to a compact JS-only injection.
+        if (runningInExpoGo) {
+          return createMediaInjectionScript(normalizedDevices, {
+            stealthMode: effectiveStealthMode,
+            fallbackVideoUri,
+            forceSimulation: protocolForceSimulation,
+            protocolId: activeProtocol,
+            protocolLabel: protocolOverlayLabel,
+            showOverlayLabel: showProtocolOverlayLabel,
+            loopVideo: standardSettings.loopVideo,
+            mirrorVideo: protocolMirrorVideo,
+            debugEnabled: developerModeEnabled,
+            permissionPromptEnabled: true,
+          });
+        }
         return createWorkingInjectionScript({
           videoUri: videoUri,
           devices: normalizedDevices,
@@ -768,6 +785,7 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.cacheTTLHours,
     webrtcLoopbackSettings.cacheMaxSizeMB,
     nativeBridgeEnabled,
+    runningInExpoGo,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -1150,6 +1168,7 @@ export default function MotionBrowserScreen() {
   }, [inputUrl, normalizeUrl]);
 
   const isWeb = Platform.OS === 'web';
+  const runningInExpoGo = useMemo(() => isExpoGo(), []);
   const webViewAvailable = !isWeb && Boolean(
     UIManager.getViewManagerConfig?.('RNCWebView') ||
     UIManager.getViewManagerConfig?.('RCTWebView')
@@ -1163,8 +1182,9 @@ export default function MotionBrowserScreen() {
     : undefined;
 
   const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
+    // Expo Go cannot load custom native modules like react-native-webrtc.
+    return !isWeb && webViewAvailable && !runningInExpoGo;
+  }, [isWeb, webViewAvailable, runningInExpoGo]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1215,6 +1235,26 @@ export default function MotionBrowserScreen() {
           mirrorVideo: protocolMirrorVideo,
         });
         if (protocol0Script.length > maxInjectionScriptSize) {
+          // Expo Go cannot use the native media bridge that `createWorkingInjectionScript` relies on.
+          // Fall back to a compact JS-only injection.
+          if (runningInExpoGo) {
+            return {
+              script: createMediaInjectionScript(devices, {
+                stealthMode: effectiveStealthMode,
+                fallbackVideoUri,
+                forceSimulation: protocolForceSimulation,
+                protocolId: activeProtocol,
+                protocolLabel: protocolOverlayLabel,
+                showOverlayLabel: showProtocolOverlayLabel,
+                loopVideo: standardSettings.loopVideo,
+                mirrorVideo: protocolMirrorVideo,
+                debugEnabled: developerModeEnabled,
+                permissionPromptEnabled: true,
+              }),
+              type: 'JS_FALLBACK',
+              usedFallback: true,
+            };
+          }
           return {
             script: createWorkingInjectionScript({
               videoUri: videoUri,
@@ -1438,6 +1478,7 @@ export default function MotionBrowserScreen() {
     isProtocolEnabled,
     allowlistSettings,
     nativeBridgeEnabled,
+    runningInExpoGo,
   ]);
 
   const afterLoadScript = useMemo(
