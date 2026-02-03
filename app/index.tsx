@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ComponentPropsWithRef, type ComponentType } from 'react';
 import { 
   View, 
   Text,
@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   UIManager,
   Linking,
+  ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,6 +69,11 @@ import ControlToolbar, { SiteSettingsModal } from '@/components/browser/ControlT
 import { ProtocolSettingsModal, PermissionRequestModal } from '@/components/browser/modals';
 import SetupRequired from '@/components/SetupRequired';
 
+type EnterpriseWebViewProps = ComponentPropsWithRef<typeof WebView> & {
+  enterpriseWebKitEnabled?: boolean;
+};
+const EnterpriseWebView = WebView as unknown as ComponentType<EnterpriseWebViewProps>;
+
 type CameraPermissionRequest = {
   requestId: string;
   url?: string;
@@ -81,7 +87,7 @@ type CameraPermissionRequest = {
 type PermissionAction = 'simulate' | 'real' | 'deny';
 
 export default function MotionBrowserScreen() {
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<WebView | null>(null);
   const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
 
   useEffect(() => {
@@ -98,15 +104,6 @@ export default function MotionBrowserScreen() {
     };
   }, []);
   
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
-      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
-      console.log('[App] Enterprise WebKit toggled - reloading WebView');
-      setWebViewKey(prev => prev + 1);
-    }
-  }, [enterpriseWebKitEnabled]);
-
   useEffect(() => {
     nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
     return () => {
@@ -204,6 +201,15 @@ export default function MotionBrowserScreen() {
   const capabilityAlertShownRef = useRef<boolean>(false);
   const enterpriseWebKitRef = useRef<boolean>(enterpriseWebKitEnabled);
   const nativeBridgeRef = useRef<NativeWebRTCBridge | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   // Default OFF: the Safari spoof script is large and can reduce injection reliability/perf in WebViews.
@@ -383,6 +389,14 @@ export default function MotionBrowserScreen() {
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
   const enterpriseWebKitActive = Platform.OS === 'ios' ? enterpriseWebKitEnabled : true;
+  const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+  const nativeBridgeEnabled = useMemo(() => {
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -1149,11 +1163,6 @@ export default function MotionBrowserScreen() {
     setInputUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
-  const isWeb = Platform.OS === 'web';
-  const webViewAvailable = !isWeb && Boolean(
-    UIManager.getViewManagerConfig?.('RNCWebView') ||
-    UIManager.getViewManagerConfig?.('RCTWebView')
-  );
   const allowLocalFileAccess = Platform.OS === 'android'
     && requiresFileAccess
     && isProtocolEnabled
@@ -1161,10 +1170,6 @@ export default function MotionBrowserScreen() {
   const mixedContentMode = Platform.OS === 'android'
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
-
-  const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1624,7 +1629,7 @@ export default function MotionBrowserScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <WebView
+              <EnterpriseWebView
                 key={`webview-${webViewKey}`}
                 ref={webViewRef}
                 source={{ uri: url }}
@@ -1796,11 +1801,7 @@ export default function MotionBrowserScreen() {
 
                   return isNavigationAllowed(requestUrl);
                 }}
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
                 startInLoadingState
-                mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
                 thirdPartyCookiesEnabled

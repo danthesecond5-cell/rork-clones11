@@ -30,8 +30,9 @@ export type CameraMode =
 export interface VideoResolution {
   width: number;
   height: number;
-  label: string;
-  maxFps: number;
+  label?: string;
+  maxFps?: number;
+  fps?: number;
 }
 
 export interface PhotoResolution {

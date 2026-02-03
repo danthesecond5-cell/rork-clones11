@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import type WebSocket from 'ws';
+import type { Request, Response } from 'express';
+import type { IncomingMessage } from 'http';
 import crypto from 'node:crypto';
 import { RemoteBrowserSession, type RemoteClientMessage } from './session';
 
@@ -17,11 +19,11 @@ function newId() {
   return crypto.randomBytes(12).toString('hex');
 }
 
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true, sessions: sessions.size });
 });
 
-app.post('/session', async (req, res) => {
+app.post('/session', async (req: Request, res: Response) => {
   const startUrl = String(req.body?.url || 'https://webcamtests.com/recorder');
   const fps = req.body?.fps ? Number(req.body.fps) : 5;
   const viewport = req.body?.viewport || undefined;
@@ -43,7 +45,7 @@ app.post('/session', async (req, res) => {
   }
 });
 
-app.delete('/session/:id', async (req, res) => {
+app.delete('/session/:id', async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const s = sessions.get(id);
   if (!s) return res.status(404).json({ error: 'not_found' });
@@ -58,7 +60,7 @@ const server = app.listen(PORT, () => {
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });
-wss.on('connection', (ws: WebSocket, req) => {
+wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
   const sessionId = url.searchParams.get('sessionId');
   if (!sessionId) {

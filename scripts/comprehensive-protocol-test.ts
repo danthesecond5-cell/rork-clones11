@@ -471,7 +471,7 @@ async function main() {
     console.log(`  Injection Detected: ${result.details.injectionDetected ? '✓' : '✗'}`);
     console.log(`  getUserMedia: ${result.details.getUserMediaSuccess ? '✓' : '✗'}`);
     console.log(`  Video Playback: ${result.details.canPlayVideo ? '✓' : '✗'}`);
-    console.log(`  Recording: ${result.details.recordingSuccess ? '✓' : '✗'}`);
+    console.log(`  Recording: ${result.details.recordingStarted ? '✓' : '✗'}`);
     
     if (result.details.streamTracks) {
       console.log(`  Tracks: ${result.details.streamTracks.video}V / ${result.details.streamTracks.audio}A`);

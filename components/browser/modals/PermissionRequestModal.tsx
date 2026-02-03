@@ -53,6 +53,9 @@ export default function PermissionRequestModal({
     holographic: <VideoIcon size={18} color="#ff00ff" />,
     websocket: <Globe size={18} color="#00aaff" />,
     'webrtc-loopback': <Wifi size={18} color="#00aaff" />,
+    claude: <Zap size={18} color="#ffcc00" />,
+    sonnet: <Zap size={18} color="#ffcc00" />,
+    'claude-sonnet': <Zap size={18} color="#ffcc00" />,
   };
 
   const handleSimulate = () => {

@@ -506,7 +506,10 @@ export default function TestHarnessScreen() {
             <Text style={styles.toggleLabel}>Show Debug Info</Text>
             <Switch
               value={harnessSettings.showDebugInfo}
-              onValueChange={(v) => developerModeEnabled && updateHarnessSettings({ showDebugInfo: v })}
+              onValueChange={(v) => {
+                if (!developerModeEnabled) return;
+                void updateHarnessSettings({ showDebugInfo: v });
+              }}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00aaff' }}
               thumbColor={harnessSettings.showDebugInfo ? '#ffffff' : '#888888'}
               disabled={!developerModeEnabled}
@@ -610,9 +613,10 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={harnessSettings.enableAudioPassthrough}
-              onValueChange={(val) =>
-                developerModeEnabled && updateHarnessSettings({ enableAudioPassthrough: val })
-              }
+              onValueChange={(val) => {
+                if (!developerModeEnabled) return;
+                void updateHarnessSettings({ enableAudioPassthrough: val });
+              }}
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={harnessSettings.enableAudioPassthrough ? '#ffffff' : '#888888'}
@@ -626,9 +630,10 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={harnessSettings.testPatternOnNoVideo}
-              onValueChange={(val) =>
-                developerModeEnabled && updateHarnessSettings({ testPatternOnNoVideo: val })
-              }
+              onValueChange={(val) => {
+                if (!developerModeEnabled) return;
+                void updateHarnessSettings({ testPatternOnNoVideo: val });
+              }}
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={harnessSettings.testPatternOnNoVideo ? '#ffffff' : '#888888'}
@@ -642,7 +647,10 @@ export default function TestHarnessScreen() {
             </View>
             <Switch
               value={isHighFrameRate}
-              onValueChange={(val) => developerModeEnabled && setHighFrameRate(val)}
+              onValueChange={(val) => {
+                if (!developerModeEnabled) return;
+                setHighFrameRate(val);
+              }}
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
               thumbColor={isHighFrameRate ? '#ffffff' : '#888888'}

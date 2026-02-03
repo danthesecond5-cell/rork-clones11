@@ -7,6 +7,7 @@ import {
   mediaDevices,
   type MediaStream as RTCMediaStream,
 } from 'react-native-webrtc';
+import type { Constraints } from 'react-native-webrtc/lib/typescript/getUserMedia';
 
 import type {
   NativeGumOfferPayload,
@@ -14,6 +15,8 @@ import type {
   NativeGumIcePayload,
   NativeGumErrorPayload,
   NativeGumCancelPayload,
+  NativeWebRTCSessionDescription,
+  NativeWebRTCMediaConstraints,
 } from '@/types/nativeMediaBridge';
 
 type NativeBridgeHandlers = {
@@ -30,7 +33,7 @@ type NativeBridgeSession = {
 const sessions = new Map<string, NativeBridgeSession>();
 
 let nativeBridge: {
-  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: MediaStreamConstraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
+  createSession?: (requestId: string, offer: NativeWebRTCSessionDescription, constraints?: NativeWebRTCMediaConstraints, rtcConfig?: RTCConfiguration) => Promise<NativeWebRTCSessionDescription>;
   addIceCandidate?: (requestId: string, candidate: RTCIceCandidateInit) => Promise<void>;
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
@@ -70,13 +73,13 @@ const buildError = (requestId: string, message: string, code?: string): NativeGu
   code,
 });
 
-const normalizeConstraints = (constraints?: MediaStreamConstraints): MediaStreamConstraints => {
+const normalizeConstraints = (constraints?: NativeWebRTCMediaConstraints): Constraints => {
   if (!constraints) {
     return { video: true, audio: false };
   }
   const wantsVideo = constraints.video ?? true;
   const wantsAudio = constraints.audio ?? false;
-  return { video: wantsVideo, audio: wantsAudio };
+  return { video: wantsVideo as Constraints['video'], audio: wantsAudio as Constraints['audio'] };
 };
 
 export async function handleNativeGumOffer(
@@ -119,8 +122,9 @@ export async function handleNativeGumOffer(
     const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
-      if (event.candidate) {
+    const pcAny = pc as any;
+    pcAny.onicecandidate = (event: any) => {
+      if (event?.candidate) {
         handlers.onIceCandidate({
           requestId,
           candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
@@ -128,7 +132,7 @@ export async function handleNativeGumOffer(
       }
     };
 
-    pc.onconnectionstatechange = () => {
+    pcAny.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         handlers.onError(buildError(requestId, 'Native WebRTC connection failed', pc.connectionState));
         closeNativeGumSession({ requestId });
@@ -148,9 +152,16 @@ export async function handleNativeGumOffer(
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
+    const localDescription = pc.localDescription;
+    if (!localDescription) {
+      throw new Error('Failed to create local description');
+    }
     handlers.onAnswer({
       requestId,
-      answer: pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!,
+      answer: localDescription.toJSON ? localDescription.toJSON() : {
+        sdp: localDescription.sdp,
+        type: localDescription.type,
+      },
     });
   } catch (error) {
     handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'exception'));

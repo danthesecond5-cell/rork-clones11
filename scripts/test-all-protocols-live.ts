@@ -241,19 +241,23 @@ async function testProtocol(
       log(`   Stream: ${testResult.streamCreated ? 'Created' : 'Failed'}`);
       log(`   Video tracks: ${testResult.videoTracks}`);
       log(`   Audio tracks: ${testResult.audioTracks}`);
-      log(`   Resolution: ${testResult.resolution.width}x${testResult.resolution.height}`);
+      if (testResult.resolution) {
+        log(`   Resolution: ${testResult.resolution.width}x${testResult.resolution.height}`);
+      } else {
+        log('   Resolution: unknown');
+      }
       log(`   Frame rate: ${testResult.frameRate || 'unknown'}`);
       log(`   Device ID: ${testResult.deviceId || 'unknown'}`);
       log(`   Facing mode: ${testResult.facingMode || 'unknown'}`);
       log(`   Label: ${testResult.label || 'unknown'}`);
       log(`   MediaRecorder: ${testResult.mediaRecorderWorks ? 'WORKS' : 'FAILED'}`);
       log(`   Recorded size: ${testResult.recordedSize} bytes`);
-      log(`   Injection status:`, JSON.stringify(testResult.injectionStatus, null, 2));
+      log(`   Injection status: ${JSON.stringify(testResult.injectionStatus, null, 2)}`);
     } else {
       result.success = false;
       result.error = testResult.error;
       log(`❌ FAILED: ${testResult.error}`);
-      log(`   Injection status:`, JSON.stringify(testResult.injectionStatus, null, 2));
+      log(`   Injection status: ${JSON.stringify(testResult.injectionStatus, null, 2)}`);
     }
 
   } catch (error: any) {
