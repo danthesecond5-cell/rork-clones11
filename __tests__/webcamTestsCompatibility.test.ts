@@ -20,6 +20,19 @@ import { createSonnetProtocolScript, SonnetProtocolConfig } from '@/constants/so
 import { createAdvancedProtocol2Script, AdvancedProtocol2ScriptOptions } from '@/utils/advancedProtocol/browserScript';
 import type { CaptureDevice } from '@/types/device';
 
+type VideoElementCheckResult = {
+  success: boolean;
+  videoWidth?: number;
+  videoHeight?: number;
+  error?: string;
+};
+
+type MediaRecorderCheckResult = {
+  success: boolean;
+  supported: boolean;
+  error?: string;
+};
+
 // ============================================================================
 // TEST DEVICE FIXTURES
 // ============================================================================
@@ -31,15 +44,19 @@ const createTestDevices = (): CaptureDevice[] => [
     name: 'FaceTime HD Camera',
     type: 'camera',
     facing: 'front',
+    lensType: 'standard',
     isDefault: true,
     isPrimary: true,
     groupId: 'group_1',
+    tested: true,
     simulationEnabled: true,
     capabilities: {
+      photoResolutions: [],
       videoResolutions: [
         { width: 1920, height: 1080, fps: 30 },
         { width: 1280, height: 720, fps: 30 },
       ],
+      supportedModes: [],
     },
   },
   {
@@ -48,15 +65,19 @@ const createTestDevices = (): CaptureDevice[] => [
     name: 'Back Camera',
     type: 'camera',
     facing: 'back',
+    lensType: 'standard',
     isDefault: false,
     isPrimary: false,
     groupId: 'group_2',
+    tested: true,
     simulationEnabled: true,
     capabilities: {
+      photoResolutions: [],
       videoResolutions: [
         { width: 3840, height: 2160, fps: 30 },
         { width: 1920, height: 1080, fps: 60 },
       ],
+      supportedModes: [],
     },
   },
 ];
@@ -387,12 +408,7 @@ class WebcamTestsSiteSimulator {
    * Step 3: Check video element properties
    * webcamtests.com displays the stream in a video element and checks dimensions
    */
-  async checkVideoElement(stream: any): Promise<{
-    success: boolean;
-    videoWidth?: number;
-    videoHeight?: number;
-    error?: string;
-  }> {
+  async checkVideoElement(stream: any): Promise<VideoElementCheckResult> {
     try {
       // Simulate video element receiving stream
       const mockVideo = {
@@ -427,11 +443,7 @@ class WebcamTestsSiteSimulator {
    * Step 4: Test MediaRecorder compatibility
    * webcamtests.com uses MediaRecorder to record the webcam
    */
-  async checkMediaRecorder(stream: any): Promise<{
-    success: boolean;
-    supported: boolean;
-    error?: string;
-  }> {
+  async checkMediaRecorder(stream: any): Promise<MediaRecorderCheckResult> {
     try {
       // Check if MediaRecorder would work with the stream
       const mimeTypes = [
@@ -494,7 +506,7 @@ class WebcamTestsSiteSimulator {
     }
     
     // Step 3: Check video element
-    let videoElement = { success: false, error: 'No stream to test' };
+    let videoElement: VideoElementCheckResult = { success: false, error: 'No stream to test' };
     if (getUserMedia.stream) {
       videoElement = await this.checkVideoElement(getUserMedia.stream);
       if (!videoElement.success) {
@@ -503,7 +515,7 @@ class WebcamTestsSiteSimulator {
     }
     
     // Step 4: Check MediaRecorder
-    let mediaRecorder = { success: false, supported: false, error: 'No stream to test' };
+    let mediaRecorder: MediaRecorderCheckResult = { success: false, supported: false, error: 'No stream to test' };
     if (getUserMedia.stream) {
       mediaRecorder = await this.checkMediaRecorder(getUserMedia.stream);
       if (!mediaRecorder.success || !mediaRecorder.supported) {

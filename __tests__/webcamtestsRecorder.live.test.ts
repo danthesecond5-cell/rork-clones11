@@ -107,7 +107,7 @@ describeLive('webcamtests.com/recorder - protocol smoke', () => {
 
           const recordedPromise = new Promise((resolve, reject) => {
             try {
-              const chunks = [];
+              const chunks: BlobPart[] = [];
               const recorder = new MediaRecorder(stream);
               recorder.ondataavailable = (e) => {
                 if (e && e.data && e.data.size > 0) chunks.push(e.data);

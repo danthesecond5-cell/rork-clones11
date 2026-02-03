@@ -128,14 +128,14 @@ export class RemoteBrowserSession {
         await page.keyboard.press(msg.key);
         return;
       case 'viewport': {
-        const ctx = this.context;
-        if (!ctx) return;
+        const page = this.page;
+        if (!page) return;
         this.viewport = {
           width: Math.max(200, Math.min(1200, msg.width)),
           height: Math.max(200, Math.min(2000, msg.height)),
           deviceScaleFactor: msg.deviceScaleFactor ?? this.viewport.deviceScaleFactor,
         };
-        await ctx.setViewportSize({ width: this.viewport.width, height: this.viewport.height });
+        await page.setViewportSize({ width: this.viewport.width, height: this.viewport.height });
         this.broadcast({ type: 'meta', viewport: this.viewport });
         return;
       }
