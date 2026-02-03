@@ -82,7 +82,10 @@ type PermissionAction = 'simulate' | 'real' | 'deny';
 
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
-  const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
+  const webrtcLoopbackBridge = useMemo(
+    () => (isExpoGo ? null : new WebRtcLoopbackBridge()),
+    [isExpoGo]
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -108,12 +111,16 @@ export default function MotionBrowserScreen() {
   }, [enterpriseWebKitEnabled]);
 
   useEffect(() => {
+    if (isExpoGo) {
+      nativeBridgeRef.current = null;
+      return;
+    }
     nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
     return () => {
       nativeBridgeRef.current?.dispose();
       nativeBridgeRef.current = null;
     };
-  }, []);
+  }, [isExpoGo]);
 
   const { 
     activeTemplate, 
@@ -159,19 +166,22 @@ export default function MotionBrowserScreen() {
     httpsEnforced,
     mlSafetyEnabled,
     enterpriseWebKitEnabled,
+    isExpoGo,
   } = useProtocol();
 
   useEffect(() => {
+    if (!webrtcLoopbackBridge) return;
     webrtcLoopbackBridge.setWebViewRef(webViewRef);
   }, [webrtcLoopbackBridge]);
 
   useEffect(() => {
+    if (!webrtcLoopbackBridge) return;
     webrtcLoopbackBridge.updateSettings(webrtcLoopbackSettings);
   }, [webrtcLoopbackBridge, webrtcLoopbackSettings]);
 
   useEffect(() => {
     return () => {
-      webrtcLoopbackBridge.stop().catch(() => {});
+      webrtcLoopbackBridge?.stop().catch(() => {});
     };
   }, [webrtcLoopbackBridge]);
 
@@ -382,6 +392,7 @@ export default function MotionBrowserScreen() {
   );
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
+  const webrtcLoopbackActive = activeProtocol === 'webrtc-loopback' && !isExpoGo;
   const enterpriseWebKitActive = Platform.OS === 'ios' ? enterpriseWebKitEnabled : true;
 
   const protocolOverlayLabel = useMemo(() => {
@@ -397,11 +408,18 @@ export default function MotionBrowserScreen() {
     if (activeProtocol === 'allowlist' && allowlistEnabled) {
       return allowlistBlocked ? 'Allowlist Blocked' : 'Allowlist Active';
     }
-    if (activeProtocol === 'webrtc-loopback') {
+    if (webrtcLoopbackActive) {
       return 'WebRTC Loopback Active';
     }
     return '';
-  }, [activeProtocol, harnessSettings.overlayEnabled, allowlistEnabled, allowlistBlocked, isProtocolEnabled]);
+  }, [
+    activeProtocol,
+    harnessSettings.overlayEnabled,
+    allowlistEnabled,
+    allowlistBlocked,
+    isProtocolEnabled,
+    webrtcLoopbackActive,
+  ]);
 
   const showProtocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
@@ -425,7 +443,7 @@ export default function MotionBrowserScreen() {
   const autoInjectEnabled = isProtocolEnabled && (
     (activeProtocol === 'standard' || activeProtocol === 'allowlist')
       ? standardSettings.autoInject
-      : activeProtocol === 'webrtc-loopback'
+      : webrtcLoopbackActive
         ? webrtcLoopbackSettings.autoStart
         : true
   );
@@ -608,6 +626,7 @@ export default function MotionBrowserScreen() {
     };
     
     let fallbackScript = '';
+    const shouldUseWebRtcLoopback = activeProtocol === 'webrtc-loopback' && !isExpoGo;
     if (activeProtocol === 'websocket') {
       fallbackScript = createWebSocketInjectionScript({
         width: 1080,
@@ -663,7 +682,7 @@ export default function MotionBrowserScreen() {
       }
     } else if (activeProtocol === 'standard') {
       fallbackScript = buildProtocol0Fallback();
-    } else if (activeProtocol === 'webrtc-loopback') {
+    } else if (shouldUseWebRtcLoopback) {
       fallbackScript = createWebRtcLoopbackInjectionScript({
         devices: normalizedDevices,
         debugEnabled: developerModeEnabled,
@@ -707,8 +726,8 @@ export default function MotionBrowserScreen() {
       });
     }
     
-    if (activeProtocol === 'webrtc-loopback') {
-      webrtcLoopbackBridge.updateDeviceSources(normalizedDevices);
+    if (shouldUseWebRtcLoopback) {
+      webrtcLoopbackBridge?.updateDeviceSources(normalizedDevices);
     }
     webViewRef.current.injectJavaScript(`
       (function() {
@@ -768,6 +787,8 @@ export default function MotionBrowserScreen() {
     webrtcLoopbackSettings.cacheTTLHours,
     webrtcLoopbackSettings.cacheMaxSizeMB,
     nativeBridgeEnabled,
+    webrtcLoopbackBridge,
+    isExpoGo,
   ]);
 
   const injectMediaConfig = useCallback(() => {
@@ -1163,8 +1184,8 @@ export default function MotionBrowserScreen() {
     : undefined;
 
   const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
+    return !isWeb && webViewAvailable && !isExpoGo;
+  }, [isWeb, webViewAvailable, isExpoGo]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1190,6 +1211,7 @@ export default function MotionBrowserScreen() {
     
     const spoofScript = safariModeEnabled ? SAFARI_SPOOFING_SCRIPT : NO_SPOOFING_SCRIPT;
     const shouldInjectMedia = isProtocolEnabled && !allowlistBlocked;
+    const shouldUseWebRtcLoopback = activeProtocol === 'webrtc-loopback' && !isExpoGo;
     
     // Determine which injection script to use based on protocol.
     // NOTE: In WebViews, very large injected scripts can fail/truncate depending on platform.
@@ -1312,7 +1334,7 @@ export default function MotionBrowserScreen() {
         console.log('[App] Using PROTOCOL 0 (Ultra-Early Deep Hook) for', activeProtocol);
         console.log('[App] Video URI:', videoUri ? 'YES' : 'NO (green screen)');
         console.log('[App] Devices:', devices.length);
-      } else if (activeProtocol === 'webrtc-loopback') {
+      } else if (shouldUseWebRtcLoopback) {
         mediaInjectionScript = createWebRtcLoopbackInjectionScript({
           devices: devices,
           debugEnabled: developerModeEnabled,
@@ -1438,6 +1460,7 @@ export default function MotionBrowserScreen() {
     isProtocolEnabled,
     allowlistSettings,
     nativeBridgeEnabled,
+    isExpoGo,
   ]);
 
   const afterLoadScript = useMemo(
@@ -1679,6 +1702,16 @@ export default function MotionBrowserScreen() {
                       console.warn('[WebView Injection Unsupported]', data.payload?.reason || data.payload);
                     } else if (data.type === 'nativeGumOffer') {
                       const payload = data.payload || {};
+                      if (isExpoGo) {
+                        if (payload.requestId) {
+                          sendNativeBridgeMessage('__nativeGumError', {
+                            requestId: payload.requestId,
+                            message: 'Native media bridge is unavailable in Expo Go.',
+                            code: 'expo_go',
+                          });
+                        }
+                        return;
+                      }
                       void handleNativeGumOffer(payload, {
                         onAnswer: (answerPayload) => sendNativeBridgeMessage('__nativeGumAnswer', answerPayload),
                         onIceCandidate: (icePayload) => sendNativeBridgeMessage('__nativeGumIce', icePayload),
@@ -1686,9 +1719,15 @@ export default function MotionBrowserScreen() {
                       });
                     } else if (data.type === 'nativeGumIce') {
                       const payload = data.payload || {};
+                      if (isExpoGo) {
+                        return;
+                      }
                       void handleNativeGumIceCandidate(payload);
                     } else if (data.type === 'nativeGumCancel') {
                       const payload = data.payload || {};
+                      if (isExpoGo) {
+                        return;
+                      }
                       closeNativeGumSession({ requestId: payload.requestId });
                     } else if (data.type === 'mediaAccess') {
                       console.log('[WebView Media Access]', data.device, data.action);
@@ -1735,9 +1774,9 @@ export default function MotionBrowserScreen() {
                       };
                       setPermissionQueue(queue => [...queue, request]);
                     } else if (data.type === 'webrtcLoopbackOffer') {
-                      webrtcLoopbackBridge.handleOffer(data.payload);
+                      webrtcLoopbackBridge?.handleOffer(data.payload);
                     } else if (data.type === 'webrtcLoopbackCandidate') {
-                      webrtcLoopbackBridge.handleCandidate(data.payload);
+                      webrtcLoopbackBridge?.handleCandidate(data.payload);
                     } else if (data.type === 'webrtcLoopbackStats') {
                       if (data.payload?.fps !== undefined) {
                         console.log('[WebView WebRTC Stats]', data.payload);
