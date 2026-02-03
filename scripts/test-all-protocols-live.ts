@@ -33,7 +33,11 @@ interface TestResult {
 
 const results: TestResult[] = [];
 
-function log(message: string) {
+function log(message: string, ...args: unknown[]) {
+  if (args.length > 0) {
+    console.log(`[TestRunner] ${message}`, ...args);
+    return;
+  }
   console.log(`[TestRunner] ${message}`);
 }
 
@@ -227,12 +231,13 @@ async function testProtocol(
     });
 
     if (testResult.success) {
+      const resolution = testResult.resolution ?? { width: 0, height: 0 };
       result.success = true;
       result.details = {
         streamCreated: testResult.streamCreated,
         videoTracks: testResult.videoTracks,
         audioTracks: testResult.audioTracks,
-        resolution: testResult.resolution,
+        resolution,
         mediaRecorderWorks: testResult.mediaRecorderWorks,
         recordedSize: testResult.recordedSize,
       };
@@ -241,7 +246,7 @@ async function testProtocol(
       log(`   Stream: ${testResult.streamCreated ? 'Created' : 'Failed'}`);
       log(`   Video tracks: ${testResult.videoTracks}`);
       log(`   Audio tracks: ${testResult.audioTracks}`);
-      log(`   Resolution: ${testResult.resolution.width}x${testResult.resolution.height}`);
+      log(`   Resolution: ${resolution.width}x${resolution.height}`);
       log(`   Frame rate: ${testResult.frameRate || 'unknown'}`);
       log(`   Device ID: ${testResult.deviceId || 'unknown'}`);
       log(`   Facing mode: ${testResult.facingMode || 'unknown'}`);

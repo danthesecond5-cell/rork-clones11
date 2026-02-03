@@ -24,6 +24,7 @@ interface TestResult {
     videoSettings?: any;
     canPlayVideo: boolean;
     recordingStarted: boolean;
+    recordingSuccess?: boolean;
     recordedDataSize?: number;
     errors: string[];
     pageErrors: string[];
@@ -76,6 +77,7 @@ async function testProtocol(
       getUserMediaSuccess: false,
       canPlayVideo: false,
       recordingStarted: false,
+      recordingSuccess: false,
       errors: [],
       pageErrors: [],
     },

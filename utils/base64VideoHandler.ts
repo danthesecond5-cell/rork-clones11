@@ -599,6 +599,7 @@ export async function createOptimizedVideoElement(
     return null;
   }
 
+  const objectUrl = result.objectUrl!;
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     video.muted = true;
@@ -607,11 +608,11 @@ export async function createOptimizedVideoElement(
     
     video.onloadeddata = () => resolve(video);
     video.onerror = () => {
-      revokeBlobUrl(result.objectUrl);
+      revokeBlobUrl(objectUrl);
       reject(new Error('Video element failed to load'));
     };
     
-    video.src = result.objectUrl;
+    video.src = objectUrl;
   });
 }
 

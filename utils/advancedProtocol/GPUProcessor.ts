@@ -722,9 +722,10 @@ export class GPUProcessor {
     
     let location = this.uniforms.get(name);
     if (!location) {
-      location = this.gl.getUniformLocation(this.activeProgram, name);
-      if (location) {
-        this.uniforms.set(name, location);
+      const resolvedLocation = this.gl.getUniformLocation(this.activeProgram, name);
+      if (resolvedLocation) {
+        location = resolvedLocation;
+        this.uniforms.set(name, resolvedLocation);
       }
     }
     
@@ -742,9 +743,10 @@ export class GPUProcessor {
     
     let location = this.uniforms.get(name);
     if (!location) {
-      location = this.gl.getUniformLocation(this.activeProgram, name);
-      if (location) {
-        this.uniforms.set(name, location);
+      const resolvedLocation = this.gl.getUniformLocation(this.activeProgram, name);
+      if (resolvedLocation) {
+        location = resolvedLocation;
+        this.uniforms.set(name, resolvedLocation);
       }
     }
     

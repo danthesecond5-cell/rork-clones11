@@ -116,7 +116,10 @@ export async function handleNativeGumOffer(
   }
 
   try {
-    const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
+    const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG) as RTCPeerConnection & {
+      onicecandidate?: (event: RTCPeerConnectionIceEvent) => void;
+      onconnectionstatechange?: () => void;
+    };
     sessions.set(requestId, { pc, stream: null });
 
     pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
@@ -137,20 +140,39 @@ export async function handleNativeGumOffer(
 
     // NOTE: This currently uses the real camera. Replace with a custom video capturer
     // for file-backed or synthetic streams once the iOS native module is ready.
-    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
+    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints) as any);
     sessions.set(requestId, { pc, stream });
 
     stream.getTracks().forEach((track) => {
       pc.addTrack(track, stream);
     });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+    if (!payload.offer?.sdp) {
+      handlers.onError(buildError(requestId, 'Invalid WebRTC offer (missing SDP)', 'invalid_offer'));
+      closeNativeGumSession({ requestId });
+      return;
+    }
+    const normalizedOffer = {
+      type: payload.offer.type ?? 'offer',
+      sdp: payload.offer.sdp,
+    };
+    await pc.setRemoteDescription(new RTCSessionDescription(normalizedOffer as any));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
+    const localDescription = pc.localDescription;
+    if (!localDescription?.sdp) {
+      handlers.onError(buildError(requestId, 'Failed to generate WebRTC answer', 'missing_answer'));
+      closeNativeGumSession({ requestId });
+      return;
+    }
+    const answerPayload: RTCSessionDescriptionInit = {
+      type: (localDescription.type ?? 'answer') as RTCSdpType,
+      sdp: localDescription.sdp,
+    };
     handlers.onAnswer({
       requestId,
-      answer: pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!,
+      answer: answerPayload,
     });
   } catch (error) {
     handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'exception'));

@@ -549,6 +549,9 @@ export function validateProtocolSettings(settings: Partial<ProtocolSettings>): R
     holographic: validateHolographicSettings(settings.holographic || {}),
     websocket: validateWebSocketSettings(settings.websocket || {}),
     'webrtc-loopback': validateWebRtcLoopbackSettings(settings.webrtcLoopback || {}),
+    sonnet: validateStandardSettings(settings.standard || {}),
+    claude: validateStandardSettings(settings.standard || {}),
+    'claude-sonnet': validateStandardSettings(settings.standard || {}),
   };
 }
 
@@ -596,6 +599,18 @@ export function getProtocolCapabilities(protocolId: ProtocolId): ProtocolCapabil
         requiresNetwork: false,
         stealthLevel: 'none',
         performanceImpact: 'low',
+      };
+    case 'sonnet':
+    case 'claude':
+    case 'claude-sonnet':
+      return {
+        supportsVideo: true,
+        supportsAudio: true,
+        supportsMotion: true,
+        requiresCamera: false,
+        requiresNetwork: false,
+        stealthLevel: 'advanced',
+        performanceImpact: 'medium',
       };
     case 'holographic':
       return {

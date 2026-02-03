@@ -3,7 +3,7 @@
  * Defines configuration for all 4 testing protocols
  */
 
-export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback' | 'sonnet' | 'claude' | 'claude-sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -422,6 +422,30 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
     id: 'webrtc-loopback',
     name: 'Protocol 6: WebRTC Loopback (iOS)',
     description: 'iOS-only WebRTC loopback that relies on a native bridge to provide a fake camera track.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
+  },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol 7: Sonnet Protocol',
+    description: 'AI-powered adaptive injection with behavioral mimicry and continuous optimization.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
+  },
+  claude: {
+    id: 'claude',
+    name: 'Protocol 8: Claude Protocol',
+    description: 'Neural optimization engine with advanced stealth and adaptive performance tuning.',
+    enabled: true,
+    isLive: true,
+    requiresDeveloperMode: true,
+  },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol 9: Claude Sonnet Protocol',
+    description: 'Combined adaptive injection with protocol chaining and AI-driven quality control.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,

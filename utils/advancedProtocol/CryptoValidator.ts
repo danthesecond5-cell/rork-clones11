@@ -93,15 +93,17 @@ class CryptoUtils {
    */
   static async hmacSha256(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
     if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const keyBuffer = new Uint8Array(key).buffer;
+      const messageBuffer = new Uint8Array(message).buffer;
       const cryptoKey = await crypto.subtle.importKey(
         'raw',
-        key,
+        keyBuffer,
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         ['sign']
       );
       
-      const signature = await crypto.subtle.sign('HMAC', cryptoKey, message);
+      const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBuffer);
       return new Uint8Array(signature);
     }
     
