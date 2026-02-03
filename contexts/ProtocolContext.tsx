@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 
+import { isExpoGo } from '@/utils/expoGo';
+
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
 
@@ -261,32 +263,32 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
     
     // WebRTC Relay - maximum stealth
     webrtc: {
-      enabled: true,
-      virtualTurnEnabled: true,
-      sdpManipulationEnabled: true,
-      stealthMode: true,
+      enabled: !isExpoGo,
+      virtualTurnEnabled: !isExpoGo,
+      sdpManipulationEnabled: !isExpoGo,
+      stealthMode: !isExpoGo,
     },
     
     // GPU Processing - balanced quality
     gpu: {
-      enabled: true,
-      qualityPreset: 'high',
-      noiseInjection: true,
-      noiseIntensity: 0.02,
+      enabled: !isExpoGo,
+      qualityPreset: isExpoGo ? 'medium' : 'high',
+      noiseInjection: !isExpoGo,
+      noiseIntensity: isExpoGo ? 0 : 0.02,
     },
     
     // ASI - intelligent adaptation
     asi: {
-      enabled: true,
-      siteFingerprinting: true,
+      enabled: !isExpoGo,
+      siteFingerprinting: !isExpoGo,
       autoResolutionMatching: true,
-      antiDetectionMeasures: true,
-      storeHistory: true,
+      antiDetectionMeasures: !isExpoGo,
+      storeHistory: !isExpoGo,
     },
     
     // Cross-Device - ready for pairing
     crossDevice: {
-      enabled: true,
+      enabled: !isExpoGo,
       discoveryMethod: 'qr',
       targetLatencyMs: 100,
       autoReconnect: true,
@@ -295,9 +297,9 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
     
     // Crypto - secure by default
     crypto: {
-      enabled: true,
-      frameSigning: true,
-      tamperDetection: true,
+      enabled: !isExpoGo,
+      frameSigning: !isExpoGo,
+      tamperDetection: !isExpoGo,
     },
   },
 };
@@ -333,10 +335,10 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
 };
 
 const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
-  enabled: true,
+  enabled: !isExpoGo,
   autoStart: true,
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: !isExpoGo,
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -404,7 +406,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     id: 'webrtc-loopback',
     name: 'Protocol 6: WebRTC Loopback (iOS)',
     description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
-    enabled: true,
+    enabled: !isExpoGo,
     settings: {},
   },
 };
@@ -423,7 +425,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
-  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
+  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(!isExpoGo);
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
@@ -560,6 +562,16 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
 
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    const activeConfig = protocols[activeProtocol];
+    if (activeConfig?.enabled) return;
+    const fallbackProtocol = (Object.values(protocols).find((protocol) => protocol.enabled)?.id || 'standard') as ProtocolType;
+    if (fallbackProtocol !== activeProtocol) {
+      setActiveProtocolState(fallbackProtocol);
+      AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, fallbackProtocol).catch(() => {});
+    }
+  }, [activeProtocol, protocols]);
 
   const toggleDeveloperMode = useCallback(async () => {
     const newValue = !developerModeEnabled;
