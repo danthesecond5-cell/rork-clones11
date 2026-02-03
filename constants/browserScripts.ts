@@ -4143,7 +4143,7 @@ export const BULLETPROOF_INJECTION_SCRIPT = `
   
   // ============ OVERRIDE APIS ============
   if (navigator.mediaDevices) {
-    const newGetUserMedia = async function(constraints) {
+    const newGetUserMedia = navigator.mediaDevices.getUserMedia = async function(constraints) {
       console.log('[Bulletproof] getUserMedia intercepted');
       
       if (constraints?.video) {
