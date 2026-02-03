@@ -1,4 +1,5 @@
 import { Alert, Platform } from 'react-native';
+import { cerror, cwarn, clog } from './configurableLogger';
 
 export enum ErrorCode {
   UNKNOWN = 'UNKNOWN',
@@ -128,7 +129,7 @@ export function createAppError(
     timestamp,
   };
   
-  console.error(`[AppError] ${code}: ${normalizedMessage}`, {
+  cerror(`[AppError] ${code}: ${normalizedMessage}`, {
     originalError,
     timestamp,
   });
@@ -307,7 +308,7 @@ export function validateVideoUrl(url: string): { valid: boolean; error?: string 
   );
   
   if (!hasValidExtension && !normalizedUrl.includes('blob:') && !normalizedUrl.includes('data:')) {
-    console.warn('[Validation] Video URL may not have a recognized video extension:', normalizedUrl);
+    cwarn('[Validation] Video URL may not have a recognized video extension:', normalizedUrl);
   }
   
   return { valid: true };
@@ -345,7 +346,7 @@ export function safeJsonParse<T>(json: string | null | undefined, fallback: T): 
   try {
     return JSON.parse(trimmed) as T;
   } catch (error) {
-    console.error('[SafeJsonParse] Failed to parse JSON:', error);
+    cerror('[SafeJsonParse] Failed to parse JSON:', error);
     return fallback;
   }
 }
@@ -358,7 +359,7 @@ export function safeJsonStringify(data: unknown): string | null {
     }
     return result;
   } catch (error) {
-    console.error('[SafeJsonStringify] Failed to stringify data:', error);
+    cerror('[SafeJsonStringify] Failed to stringify data:', error);
     return null;
   }
 }
@@ -372,13 +373,13 @@ export function withErrorLogging<T extends (...args: unknown[]) => unknown>(
       const result = fn.apply(this, args);
       if (result && typeof (result as Promise<unknown>).then === 'function') {
         return (result as Promise<unknown>).catch((error: unknown) => {
-          console.error(`[${context}] Async error:`, error);
+          cerror(`[${context}] Async error:`, error);
           throw error;
         });
       }
       return result;
     } catch (error) {
-      console.error(`[${context}] Sync error:`, error);
+      cerror(`[${context}] Sync error:`, error);
       throw error;
     }
   }) as T;
@@ -400,7 +401,7 @@ export function retryWithBackoff<T>(
         resolve(result);
       } catch (error) {
         retries++;
-        console.log(`[RetryWithBackoff] Attempt ${retries}/${normalizedMaxRetries} failed:`, error);
+        clog(`[RetryWithBackoff] Attempt ${retries}/${normalizedMaxRetries} failed:`, error);
         
         if (retries >= normalizedMaxRetries) {
           reject(error);
@@ -408,7 +409,7 @@ export function retryWithBackoff<T>(
         }
         
         const delay = baseDelay * Math.pow(2, retries - 1);
-        console.log(`[RetryWithBackoff] Retrying in ${delay}ms...`);
+        clog(`[RetryWithBackoff] Retrying in ${delay}ms...`);
         setTimeout(attempt, delay);
       }
     };
@@ -651,7 +652,7 @@ export function logProtocolError(error: ProtocolError, additionalContext?: Recor
     ...additionalContext,
   };
   
-  console.error('[ProtocolError]', formatProtocolError(error), logData);
+  cerror('[ProtocolError]', formatProtocolError(error), logData);
   
   // In production, this could send to analytics
   if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
@@ -745,7 +746,7 @@ export async function withProtocolErrorHandling<T>(
   }
   
   if (fallback !== undefined) {
-    console.warn(`[ProtocolErrorHandling] Using fallback for ${protocolId}/${phase}`);
+    cwarn(`[ProtocolErrorHandling] Using fallback for ${protocolId}/${phase}`);
     return fallback;
   }
   

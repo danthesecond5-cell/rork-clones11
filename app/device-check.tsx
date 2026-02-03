@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { CheckCircle, ChevronRight, ArrowRight, Save, Activity } from 'lucide-react-native';
+import { CheckCircle, ChevronRight, ArrowRight, Save, Activity, Settings2 } from 'lucide-react-native';
 import { useDeviceTemplate } from '@/contexts/DeviceTemplateContext';
 import { useDeviceEnumeration } from '@/hooks/useDeviceEnumeration';
 import type { CheckStep } from '@/types/browser';
@@ -221,10 +221,18 @@ export default function DeviceCheckScreen() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Camera Check</Text>
-          <Text style={styles.headerSubtitle}>
-            Step {STEPS.indexOf(currentStep) + 1} of {STEPS.length}
-          </Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Camera Check</Text>
+            <Text style={styles.headerSubtitle}>
+              Step {STEPS.indexOf(currentStep) + 1} of {STEPS.length}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.push('/settings')}
+          >
+            <Settings2 size={20} color="#00ff88" />
+          </TouchableOpacity>
         </View>
 
         {renderStepIndicator()}
@@ -272,9 +280,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,255,136,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
   },
   headerTitle: {
     fontSize: 28,
