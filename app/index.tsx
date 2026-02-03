@@ -98,23 +98,6 @@ export default function MotionBrowserScreen() {
       }
     };
   }, []);
-  
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
-      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
-      console.log('[App] Enterprise WebKit toggled - reloading WebView');
-      setWebViewKey(prev => prev + 1);
-    }
-  }, [enterpriseWebKitEnabled]);
-
-  useEffect(() => {
-    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
-    return () => {
-      nativeBridgeRef.current?.dispose();
-      nativeBridgeRef.current = null;
-    };
-  }, []);
 
   const { 
     activeTemplate, 
@@ -161,6 +144,23 @@ export default function MotionBrowserScreen() {
     mlSafetyEnabled,
     enterpriseWebKitEnabled,
   } = useProtocol();
+  
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
+
+  useEffect(() => {
+    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
+    return () => {
+      nativeBridgeRef.current?.dispose();
+      nativeBridgeRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     webrtcLoopbackBridge.setWebViewRef(webViewRef);
@@ -203,7 +203,7 @@ export default function MotionBrowserScreen() {
   const lastInjectionTimeRef = useRef<number>(0);
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capabilityAlertShownRef = useRef<boolean>(false);
-  const enterpriseWebKitRef = useRef<boolean>(enterpriseWebKitEnabled);
+  const enterpriseWebKitRef = useRef<boolean>(true);
   const nativeBridgeRef = useRef<NativeWebRTCBridge | null>(null);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -245,6 +245,16 @@ export default function MotionBrowserScreen() {
     origin: string;
   } | null>(null);
   const [permissionSelectedVideo, setPermissionSelectedVideo] = useState<SavedVideo | null>(null);
+
+  const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+  
+  const nativeBridgeEnabled = useMemo(() => {
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
 
   const isProtocolEnabled = useMemo(
     () => protocols[activeProtocol]?.enabled ?? true,
@@ -1133,11 +1143,6 @@ export default function MotionBrowserScreen() {
     setInputUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
-  const isWeb = Platform.OS === 'web';
-  const webViewAvailable = !isWeb && Boolean(
-    UIManager.getViewManagerConfig?.('RNCWebView') ||
-    UIManager.getViewManagerConfig?.('RCTWebView')
-  );
   const allowLocalFileAccess = Platform.OS === 'android'
     && requiresFileAccess
     && isProtocolEnabled
@@ -1145,10 +1150,6 @@ export default function MotionBrowserScreen() {
   const mixedContentMode = Platform.OS === 'android'
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
-
-  const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
