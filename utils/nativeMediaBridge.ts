@@ -6,6 +6,8 @@ import {
   RTCIceCandidate,
   mediaDevices,
   type MediaStream as RTCMediaStream,
+  type Constraints,
+  type RTCSessionDescriptionInit,
 } from 'react-native-webrtc';
 
 import type {
@@ -30,7 +32,7 @@ type NativeBridgeSession = {
 const sessions = new Map<string, NativeBridgeSession>();
 
 let nativeBridge: {
-  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: MediaStreamConstraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
+  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: Constraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
   addIceCandidate?: (requestId: string, candidate: RTCIceCandidateInit) => Promise<void>;
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
@@ -70,7 +72,7 @@ const buildError = (requestId: string, message: string, code?: string): NativeGu
   code,
 });
 
-const normalizeConstraints = (constraints?: MediaStreamConstraints): MediaStreamConstraints => {
+const normalizeConstraints = (constraints?: Constraints): Constraints => {
   if (!constraints) {
     return { video: true, audio: false };
   }
@@ -116,7 +118,10 @@ export async function handleNativeGumOffer(
   }
 
   try {
-    const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
+    const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG) as RTCPeerConnection & {
+      onicecandidate?: (event: RTCPeerConnectionIceEvent) => void;
+      onconnectionstatechange?: () => void;
+    };
     sessions.set(requestId, { pc, stream: null });
 
     pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
@@ -144,13 +149,31 @@ export async function handleNativeGumOffer(
       pc.addTrack(track, stream);
     });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+    if (!payload.offer?.sdp) {
+      handlers.onError(buildError(requestId, 'Invalid WebRTC offer (missing SDP)', 'invalid_offer'));
+      closeNativeGumSession({ requestId });
+      return;
+    }
+    const normalizedOffer: RTCSessionDescriptionInit = {
+      type: payload.offer.type ?? 'offer',
+      sdp: payload.offer.sdp,
+    };
+    await pc.setRemoteDescription(new RTCSessionDescription(normalizedOffer));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
+    const localDescription = pc.localDescription;
+    if (!localDescription?.sdp) {
+      handlers.onError(buildError(requestId, 'Failed to generate WebRTC answer', 'missing_answer'));
+      closeNativeGumSession({ requestId });
+      return;
+    }
+    const answerPayload: RTCSessionDescriptionInit = localDescription.toJSON
+      ? localDescription.toJSON()
+      : { type: localDescription.type, sdp: localDescription.sdp };
     handlers.onAnswer({
       requestId,
-      answer: pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!,
+      answer: answerPayload,
     });
   } catch (error) {
     handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'exception'));

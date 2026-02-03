@@ -1,7 +1,13 @@
+import type {
+  Constraints,
+  RTCIceCandidateInit,
+  RTCSessionDescriptionInit,
+} from 'react-native-webrtc';
+
 export type NativeGumOfferPayload = {
   requestId: string;
   offer: RTCSessionDescriptionInit;
-  constraints?: MediaStreamConstraints;
+  constraints?: Constraints;
   rtcConfig?: RTCConfiguration;
 };
 
