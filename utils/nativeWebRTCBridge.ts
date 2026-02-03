@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { Platform } from 'react-native';
 import type { WebView } from 'react-native-webview';
+import { isExpoGo, safeRequireWebRTC, getFeatureFlags } from './expoGoCompatibility';
 
 type WebRTCOfferMessage = {
   type: 'nativeWebRTCOffer';
@@ -33,13 +34,36 @@ type Session = {
   stream?: any;
 };
 
+/**
+ * NativeWebRTCBridge - Handles native WebRTC communication
+ * 
+ * EXPO GO COMPATIBILITY:
+ * - In Expo Go, react-native-webrtc is not available
+ * - The bridge will gracefully report this and suggest fallback protocols
+ * - WebSocket Bridge (Protocol 6) is the recommended alternative in Expo Go
+ */
 export class NativeWebRTCBridge {
   private webViewRef: RefObject<WebView>;
   private sessions = new Map<string, Session>();
   private webrtcModule: any | null | undefined = undefined;
+  private isExpoGoMode: boolean;
 
   constructor(webViewRef: RefObject<WebView>) {
     this.webViewRef = webViewRef;
+    this.isExpoGoMode = isExpoGo;
+    
+    if (this.isExpoGoMode) {
+      console.log('[NativeWebRTCBridge] Running in Expo Go - native WebRTC disabled');
+      console.log('[NativeWebRTCBridge] Use WebSocket Bridge protocol for compatibility');
+    }
+  }
+
+  /**
+   * Check if native WebRTC is available
+   */
+  isAvailable(): boolean {
+    const flags = getFeatureFlags();
+    return flags.nativeWebRTC;
   }
 
   dispose() {
@@ -51,6 +75,17 @@ export class NativeWebRTCBridge {
 
   async handleSignalMessage(message: any) {
     if (!message || !message.type || !message.payload) return;
+    
+    // In Expo Go, send error message to WebView
+    if (this.isExpoGoMode) {
+      this.sendToWebView({
+        type: 'error',
+        requestId: message.payload.requestId,
+        message: 'Native WebRTC not available in Expo Go. Use WebSocket Bridge protocol instead.',
+      });
+      return;
+    }
+    
     const payload = message.payload;
     if (message.type === 'nativeWebRTCOffer') {
       await this.handleOffer(payload);
@@ -62,16 +97,12 @@ export class NativeWebRTCBridge {
   }
 
   private getWebRTCModule() {
-    if (Platform.OS === 'web') return null;
+    if (Platform.OS === 'web' || this.isExpoGoMode) return null;
     if (this.webrtcModule !== undefined) {
       return this.webrtcModule;
     }
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      this.webrtcModule = require('react-native-webrtc');
-    } catch (e) {
-      this.webrtcModule = null;
-    }
+    
+    this.webrtcModule = safeRequireWebRTC();
     return this.webrtcModule;
   }
 
