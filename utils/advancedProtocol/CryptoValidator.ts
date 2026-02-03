@@ -93,8 +93,8 @@ class CryptoUtils {
    */
   static async hmacSha256(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
     if (typeof crypto !== 'undefined' && crypto.subtle) {
-      const keyBuffer = key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength);
-      const messageBuffer = message.buffer.slice(message.byteOffset, message.byteOffset + message.byteLength);
+      const keyBuffer = new Uint8Array(key).buffer;
+      const messageBuffer = new Uint8Array(message).buffer;
       const cryptoKey = await crypto.subtle.importKey(
         'raw',
         keyBuffer,

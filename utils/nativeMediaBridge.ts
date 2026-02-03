@@ -6,8 +6,6 @@ import {
   RTCIceCandidate,
   mediaDevices,
   type MediaStream as RTCMediaStream,
-  type Constraints,
-  type RTCSessionDescriptionInit,
 } from 'react-native-webrtc';
 
 import type {
@@ -32,7 +30,7 @@ type NativeBridgeSession = {
 const sessions = new Map<string, NativeBridgeSession>();
 
 let nativeBridge: {
-  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: Constraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
+  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: MediaStreamConstraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
   addIceCandidate?: (requestId: string, candidate: RTCIceCandidateInit) => Promise<void>;
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
@@ -72,7 +70,7 @@ const buildError = (requestId: string, message: string, code?: string): NativeGu
   code,
 });
 
-const normalizeConstraints = (constraints?: Constraints): Constraints => {
+const normalizeConstraints = (constraints?: MediaStreamConstraints): MediaStreamConstraints => {
   if (!constraints) {
     return { video: true, audio: false };
   }
@@ -142,7 +140,7 @@ export async function handleNativeGumOffer(
 
     // NOTE: This currently uses the real camera. Replace with a custom video capturer
     // for file-backed or synthetic streams once the iOS native module is ready.
-    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
+    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints) as any);
     sessions.set(requestId, { pc, stream });
 
     stream.getTracks().forEach((track) => {

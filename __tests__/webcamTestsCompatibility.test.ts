@@ -31,9 +31,11 @@ const createTestDevices = (): CaptureDevice[] => [
     name: 'FaceTime HD Camera',
     type: 'camera',
     facing: 'front',
+    lensType: 'standard',
     isDefault: true,
     isPrimary: true,
     groupId: 'group_1',
+    tested: true,
     simulationEnabled: true,
     capabilities: {
       photoResolutions: [],
@@ -50,9 +52,11 @@ const createTestDevices = (): CaptureDevice[] => [
     name: 'Back Camera',
     type: 'camera',
     facing: 'back',
+    lensType: 'standard',
     isDefault: false,
     isPrimary: false,
     groupId: 'group_2',
+    tested: true,
     simulationEnabled: true,
     capabilities: {
       photoResolutions: [],

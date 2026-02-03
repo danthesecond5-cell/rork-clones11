@@ -599,8 +599,8 @@ export async function createOptimizedVideoElement(
     return null;
   }
 
+  const objectUrl = result.objectUrl!;
   return new Promise((resolve, reject) => {
-    const objectUrl = result.objectUrl;
     const video = document.createElement('video');
     video.muted = true;
     video.playsInline = true;
