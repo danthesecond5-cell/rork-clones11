@@ -1,5 +1,87 @@
 import { Alert, Platform } from 'react-native';
 
+// ============ CONSOLE WARNINGS CONFIGURATION ============
+
+/**
+ * Configuration object for controlling console warning behavior.
+ * This allows suppressing warnings from protocol diagnostics/error-handling
+ * tests while still allowing them in development.
+ */
+export interface ConsoleWarningsConfig {
+  /** Whether to suppress console warnings (errors are never suppressed) */
+  suppressWarnings: boolean;
+  /** Whether to suppress console.log from internal error handling */
+  suppressInfoLogs: boolean;
+  /** Categories of warnings to always allow (even when suppressed) */
+  alwaysShowCategories: string[];
+}
+
+// Global configuration for console warnings
+let consoleWarningsConfig: ConsoleWarningsConfig = {
+  suppressWarnings: false,
+  suppressInfoLogs: false,
+  alwaysShowCategories: ['security', 'critical'],
+};
+
+/**
+ * Configure console warnings behavior globally.
+ * Call this from the app initialization or settings to control warning output.
+ */
+export function configureConsoleWarnings(config: Partial<ConsoleWarningsConfig>): void {
+  consoleWarningsConfig = { ...consoleWarningsConfig, ...config };
+}
+
+/**
+ * Get current console warnings configuration
+ */
+export function getConsoleWarningsConfig(): ConsoleWarningsConfig {
+  return { ...consoleWarningsConfig };
+}
+
+/**
+ * Suppress all console warnings (useful for tests or user preference)
+ */
+export function suppressConsoleWarnings(suppress: boolean = true): void {
+  consoleWarningsConfig.suppressWarnings = suppress;
+}
+
+/**
+ * Check if warnings are currently suppressed
+ */
+export function areWarningsSuppressed(): boolean {
+  return consoleWarningsConfig.suppressWarnings;
+}
+
+/**
+ * Wrapper for console.warn that respects suppression settings.
+ * Use this instead of console.warn directly in protocol/error handling code.
+ */
+export function safeWarn(message: string, ...args: unknown[]): void {
+  if (consoleWarningsConfig.suppressWarnings) {
+    return;
+  }
+  console.warn(message, ...args);
+}
+
+/**
+ * Wrapper for console.log that respects suppression settings.
+ * Use this instead of console.log directly in protocol/error handling code.
+ */
+export function safeLog(message: string, ...args: unknown[]): void {
+  if (consoleWarningsConfig.suppressInfoLogs) {
+    return;
+  }
+  console.log(message, ...args);
+}
+
+/**
+ * Always log a warning regardless of suppression (for critical issues).
+ * Use sparingly for truly important warnings that should never be suppressed.
+ */
+export function criticalWarn(message: string, ...args: unknown[]): void {
+  console.warn(`[CRITICAL] ${message}`, ...args);
+}
+
 export enum ErrorCode {
   UNKNOWN = 'UNKNOWN',
   NETWORK = 'NETWORK',
@@ -307,7 +389,7 @@ export function validateVideoUrl(url: string): { valid: boolean; error?: string 
   );
   
   if (!hasValidExtension && !normalizedUrl.includes('blob:') && !normalizedUrl.includes('data:')) {
-    console.warn('[Validation] Video URL may not have a recognized video extension:', normalizedUrl);
+    safeWarn('[Validation] Video URL may not have a recognized video extension:', normalizedUrl);
   }
   
   return { valid: true };
@@ -400,7 +482,7 @@ export function retryWithBackoff<T>(
         resolve(result);
       } catch (error) {
         retries++;
-        console.log(`[RetryWithBackoff] Attempt ${retries}/${normalizedMaxRetries} failed:`, error);
+        safeLog(`[RetryWithBackoff] Attempt ${retries}/${normalizedMaxRetries} failed:`, error);
         
         if (retries >= normalizedMaxRetries) {
           reject(error);
@@ -408,7 +490,7 @@ export function retryWithBackoff<T>(
         }
         
         const delay = baseDelay * Math.pow(2, retries - 1);
-        console.log(`[RetryWithBackoff] Retrying in ${delay}ms...`);
+        safeLog(`[RetryWithBackoff] Retrying in ${delay}ms...`);
         setTimeout(attempt, delay);
       }
     };
@@ -745,7 +827,7 @@ export async function withProtocolErrorHandling<T>(
   }
   
   if (fallback !== undefined) {
-    console.warn(`[ProtocolErrorHandling] Using fallback for ${protocolId}/${phase}`);
+    safeWarn(`[ProtocolErrorHandling] Using fallback for ${protocolId}/${phase}`);
     return fallback;
   }
   

@@ -15,7 +15,28 @@ import {
   withProtocolErrorHandling,
   createAppError,
   isAppError,
+  suppressConsoleWarnings,
 } from '@/utils/errorHandling';
+
+// Suppress console warnings during tests to avoid noise from expected error scenarios
+beforeAll(() => {
+  suppressConsoleWarnings(true);
+});
+
+afterAll(() => {
+  suppressConsoleWarnings(false);
+});
+
+// Mock console.error to prevent noisy output from expected error creation
+let consoleErrorSpy: jest.SpyInstance;
+
+beforeEach(() => {
+  consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  consoleErrorSpy.mockRestore();
+});
 
 describe('Protocol Error Handling', () => {
   describe('createProtocolError', () => {

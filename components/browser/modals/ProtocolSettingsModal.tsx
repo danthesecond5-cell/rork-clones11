@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,10 +30,12 @@ import {
   Video,
   Activity,
   ZapOff,
+  BellOff,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
 import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
+import { suppressConsoleWarnings } from '@/utils/errorHandling';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -79,11 +81,18 @@ export default function ProtocolSettingsModal({
     setMlSafetyEnabled,
     enterpriseWebKitEnabled,
     setEnterpriseWebKitEnabled,
+    consoleWarningsSuppressed,
+    setConsoleWarningsSuppressed,
   } = useProtocol();
 
   const [pinInput, setPinInput] = useState('');
   const [showPinEntry, setShowPinEntry] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+
+  // Synchronize console warnings suppression with global error handling config
+  useEffect(() => {
+    suppressConsoleWarnings(consoleWarningsSuppressed);
+  }, [consoleWarningsSuppressed]);
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
     if (!developerModeEnabled) {
@@ -96,6 +105,13 @@ export default function ProtocolSettingsModal({
       'This setting requires the WebView to reload. The browser view will restart automatically.',
       [{ text: 'OK' }]
     );
+  };
+
+  const handleToggleConsoleWarnings = async (nextValue: boolean) => {
+    // Update the global error handling configuration
+    suppressConsoleWarnings(nextValue);
+    // Persist the setting
+    await setConsoleWarningsSuppressed(nextValue);
   };
   const [expandedProtocol, setExpandedProtocol] = useState<ProtocolType | null>(activeProtocol);
 
@@ -1130,6 +1146,21 @@ export default function ProtocolSettingsModal({
                   onValueChange={setShowTestingWatermark}
                   trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ffcc00' }}
                   thumbColor={showTestingWatermark ? '#ffffff' : '#888'}
+                />
+              </View>
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingLabelRow}>
+                    <BellOff size={12} color="#ff6b35" />
+                    <Text style={styles.settingLabel}>Hide Console Warnings</Text>
+                  </View>
+                  <Text style={styles.settingHint}>Suppress protocol diagnostics warnings</Text>
+                </View>
+                <Switch
+                  value={consoleWarningsSuppressed}
+                  onValueChange={handleToggleConsoleWarnings}
+                  trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#ff6b35' }}
+                  thumbColor={consoleWarningsSuppressed ? '#ffffff' : '#888'}
                 />
               </View>
             </View>
