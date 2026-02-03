@@ -1,4 +1,7 @@
 import { requireNativeModule } from 'expo-modules-core';
+import Constants from 'expo-constants';
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 // Type definitions for the native module
 export interface VirtualCameraModuleType {
@@ -41,13 +44,20 @@ export interface VirtualCameraModuleType {
 let VirtualCameraModule: VirtualCameraModuleType;
 
 try {
+  if (isExpoGo) {
+    throw new Error('Not available in Expo Go');
+  }
   VirtualCameraModule = requireNativeModule('VirtualCamera');
 } catch (error) {
   // Module not available - provide mock implementation for development
-  console.warn('[VirtualCamera] Native module not available, using mock');
+  const reason = isExpoGo ? 'Running in Expo Go' : 'Native module not built';
+  console.warn(`[VirtualCamera] ${reason}, using mock implementation`);
   
   VirtualCameraModule = {
     async getState() {
+      const errorMessage = isExpoGo 
+        ? 'VirtualCamera not available in Expo Go - use standard protocols or create a development build'
+        : 'Native module not available - this feature requires a native build';
       return {
         status: 'disabled',
         videoUri: null,
@@ -57,7 +67,7 @@ try {
         fps: 0,
         width: 0,
         height: 0,
-        error: 'Native module not available - this feature requires a native build',
+        error: errorMessage,
       };
     },
     async enable() {
