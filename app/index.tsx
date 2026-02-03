@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   UIManager,
   Linking,
+  ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -83,37 +84,6 @@ type PermissionAction = 'simulate' | 'real' | 'deny';
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
   const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    clearAllDebugLogs();
-    console.log('[App] Component mounted - logs cleared');
-    return () => {
-      isMountedRef.current = false;
-      console.log('[App] Component unmounting');
-      if (pendingInjectionRef.current) {
-        clearTimeout(pendingInjectionRef.current);
-        pendingInjectionRef.current = null;
-      }
-    };
-  }, []);
-  
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
-      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
-      console.log('[App] Enterprise WebKit toggled - reloading WebView');
-      setWebViewKey(prev => prev + 1);
-    }
-  }, [enterpriseWebKitEnabled]);
-
-  useEffect(() => {
-    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
-    return () => {
-      nativeBridgeRef.current?.dispose();
-      nativeBridgeRef.current = null;
-    };
-  }, []);
 
   const { 
     activeTemplate, 
@@ -204,6 +174,40 @@ export default function MotionBrowserScreen() {
   const capabilityAlertShownRef = useRef<boolean>(false);
   const enterpriseWebKitRef = useRef<boolean>(enterpriseWebKitEnabled);
   const nativeBridgeRef = useRef<NativeWebRTCBridge | null>(null);
+
+  // Component mount/unmount lifecycle
+  useEffect(() => {
+    isMountedRef.current = true;
+    clearAllDebugLogs();
+    console.log('[App] Component mounted - logs cleared');
+    return () => {
+      isMountedRef.current = false;
+      console.log('[App] Component unmounting');
+      if (pendingInjectionRef.current) {
+        clearTimeout(pendingInjectionRef.current);
+        pendingInjectionRef.current = null;
+      }
+    };
+  }, []);
+  
+  // Handle enterprise WebKit toggle
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
+
+  // Initialize native WebRTC bridge
+  useEffect(() => {
+    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
+    return () => {
+      nativeBridgeRef.current?.dispose();
+      nativeBridgeRef.current = null;
+    };
+  }, []);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   // Default OFF: the Safari spoof script is large and can reduce injection reliability/perf in WebViews.
@@ -475,6 +479,16 @@ export default function MotionBrowserScreen() {
       true;
     `);
   }, [standardSettings.injectMotionData]);
+
+  // Platform detection - needed early for callback dependencies
+  const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+  const nativeBridgeEnabled = useMemo(() => {
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
 
   const injectMediaConfigImmediate = useCallback(() => {
     if (!webViewRef.current || !activeTemplate || !isMountedRef.current) {
@@ -1149,11 +1163,6 @@ export default function MotionBrowserScreen() {
     setInputUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
-  const isWeb = Platform.OS === 'web';
-  const webViewAvailable = !isWeb && Boolean(
-    UIManager.getViewManagerConfig?.('RNCWebView') ||
-    UIManager.getViewManagerConfig?.('RCTWebView')
-  );
   const allowLocalFileAccess = Platform.OS === 'android'
     && requiresFileAccess
     && isProtocolEnabled
@@ -1161,10 +1170,6 @@ export default function MotionBrowserScreen() {
   const mixedContentMode = Platform.OS === 'android'
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
-
-  const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1631,7 +1636,7 @@ export default function MotionBrowserScreen() {
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
-                enterpriseWebKitEnabled={enterpriseWebKitEnabled}
+                {...({ enterpriseWebKitEnabled } as any)}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
                 // Ensure injection runs in iframes too (important for some real-world sites).
@@ -1796,11 +1801,7 @@ export default function MotionBrowserScreen() {
 
                   return isNavigationAllowed(requestUrl);
                 }}
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
                 startInLoadingState
-                mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
                 thirdPartyCookiesEnabled
