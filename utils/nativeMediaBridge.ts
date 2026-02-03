@@ -152,11 +152,11 @@ export async function handleNativeGumOffer(
       closeNativeGumSession({ requestId });
       return;
     }
-    const normalizedOffer: RTCSessionDescriptionInit = {
+    const normalizedOffer = {
       type: payload.offer.type ?? 'offer',
       sdp: payload.offer.sdp,
     };
-    await pc.setRemoteDescription(new RTCSessionDescription(normalizedOffer));
+    await pc.setRemoteDescription(new RTCSessionDescription(normalizedOffer as any));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
@@ -166,9 +166,10 @@ export async function handleNativeGumOffer(
       closeNativeGumSession({ requestId });
       return;
     }
-    const answerPayload: RTCSessionDescriptionInit = localDescription.toJSON
-      ? localDescription.toJSON()
-      : { type: localDescription.type, sdp: localDescription.sdp };
+    const answerPayload: RTCSessionDescriptionInit = {
+      type: (localDescription.type ?? 'answer') as RTCSdpType,
+      sdp: localDescription.sdp,
+    };
     handlers.onAnswer({
       requestId,
       answer: answerPayload,
