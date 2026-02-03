@@ -1,4 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
@@ -38,6 +39,9 @@ const EVENT_NAMES = {
   state: 'WebRtcLoopbackState',
 };
 
+// Detect Expo Go environment
+const isExpoGo = Constants.appOwnership === 'expo';
+
 export class WebRtcLoopbackBridge {
   private webViewRef: RefObject<WebView> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
@@ -53,10 +57,19 @@ export class WebRtcLoopbackBridge {
   }> = [];
 
   constructor() {
+    // Skip native module initialization in Expo Go
+    if (isExpoGo) {
+      console.log('[WebRtcLoopbackBridge] Running in Expo Go - native module disabled');
+      this.nativeModule = null;
+      return;
+    }
+
     this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
     if (this.nativeModule) {
       this.emitter = new NativeEventEmitter(this.nativeModule as any);
       this.attachNativeEvents();
+    } else {
+      console.log('[WebRtcLoopbackBridge] Native module not available - graceful fallback');
     }
   }
 
@@ -126,7 +139,10 @@ export class WebRtcLoopbackBridge {
   private ensureNativeAvailable(requireNative: boolean): boolean {
     if (!this.nativeModule || !this.nativeModule.createAnswer) {
       if (requireNative) {
-        this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify('Native WebRTC loopback module not available.')});`);
+        const message = isExpoGo 
+          ? 'WebRTC loopback is not available in Expo Go. Please use a development build or other protocols.'
+          : 'Native WebRTC loopback module not available.';
+        this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify(message)});`);
       }
       return false;
     }

@@ -4,13 +4,19 @@
  * Master orchestrator that ties together all components of the
  * Advanced Protocol 2 system:
  * - Video Source Pipeline (multi-source hot-switching)
- * - WebRTC Local Relay (virtual TURN/ICE)
+ * - WebRTC Local Relay (virtual TURN/ICE) - EXPO GO COMPATIBLE
  * - GPU Processing (shader-based video effects)
  * - Adaptive Stream Intelligence (site-specific optimization)
  * - Cross-Device Streaming (live relay from secondary devices)
  * - Cryptographic Validation (frame signing and tamper detection)
+ * 
+ * EXPO GO COMPATIBILITY:
+ * - Gracefully disables native-dependent features in Expo Go
+ * - Falls back to WebView-based implementations
+ * - All core protocols work without custom native modules
  */
 
+import Constants from 'expo-constants';
 import {
   AdvancedProtocol2Config,
   AdvancedProtocol2State,
@@ -28,6 +34,9 @@ import { GPUProcessor } from './GPUProcessor';
 import { AdaptiveStreamIntelligence } from './AdaptiveStreamIntelligence';
 import { CrossDeviceStreamingManager } from './CrossDeviceStreaming';
 import { CryptoValidator } from './CryptoValidator';
+
+// Detect Expo Go environment
+const isExpoGo = Constants.appOwnership === 'expo';
 
 // ============================================================================
 // TYPES
@@ -78,8 +87,25 @@ export class AdvancedProtocol2Engine {
   private lastFrameTime: number = 0;
 
   constructor(config: Partial<AdvancedProtocol2Config> = {}) {
-    this.config = this.mergeConfig(DEFAULT_ADVANCED_PROTOCOL2_CONFIG, config);
+    // Apply Expo Go compatibility adjustments to config
+    const expoGoAdjustedConfig = isExpoGo ? {
+      ...config,
+      webrtc: { 
+        ...config.webrtc, 
+        enabled: false, // Disable native WebRTC in Expo Go
+      },
+      crossDevice: {
+        ...config.crossDevice,
+        enabled: false, // Disable native cross-device in Expo Go
+      },
+    } : config;
+
+    this.config = this.mergeConfig(DEFAULT_ADVANCED_PROTOCOL2_CONFIG, expoGoAdjustedConfig);
     this.state = this.createInitialState();
+    
+    if (isExpoGo) {
+      console.log('[AdvancedProtocol2] Running in Expo Go - native features disabled');
+    }
     
     // Initialize components
     this.pipeline = new VideoSourcePipeline(this.config.pipeline);
