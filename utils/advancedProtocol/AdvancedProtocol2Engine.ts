@@ -9,6 +9,11 @@
  * - Adaptive Stream Intelligence (site-specific optimization)
  * - Cross-Device Streaming (live relay from secondary devices)
  * - Cryptographic Validation (frame signing and tamper detection)
+ * 
+ * NOTE: In Expo Go, some features are disabled or operate in degraded mode:
+ * - WebRTC Local Relay: Works via WebView injection only
+ * - GPU Processing: Limited (no native shaders)
+ * - Cross-Device Streaming: Disabled (requires native networking)
  */
 
 import {
@@ -21,6 +26,12 @@ import {
   DEFAULT_VIDEO_SOURCE_HEALTH,
   Resolution,
 } from '@/types/advancedProtocol';
+
+import {
+  isExpoGo,
+  getFeatureFlags,
+  applyExpoGoOptimizations,
+} from '@/utils/expoGoCompatibility';
 
 import { VideoSourcePipeline, VideoSourceInstance, createVideoSource } from './VideoSourcePipeline';
 import { WebRTCRelay } from './WebRTCRelay';
@@ -78,10 +89,21 @@ export class AdvancedProtocol2Engine {
   private lastFrameTime: number = 0;
 
   constructor(config: Partial<AdvancedProtocol2Config> = {}) {
-    this.config = this.mergeConfig(DEFAULT_ADVANCED_PROTOCOL2_CONFIG, config);
+    // Apply Expo Go optimizations if needed
+    const optimizedConfig = isExpoGo 
+      ? applyExpoGoOptimizations(config) 
+      : config;
+    
+    this.config = this.mergeConfig(DEFAULT_ADVANCED_PROTOCOL2_CONFIG, optimizedConfig);
     this.state = this.createInitialState();
     
-    // Initialize components
+    // Log Expo Go status
+    if (isExpoGo) {
+      console.log('[AdvancedProtocol2] Running in Expo Go - some features disabled');
+      console.log('[AdvancedProtocol2] Feature flags:', getFeatureFlags());
+    }
+    
+    // Initialize components (with Expo Go awareness)
     this.pipeline = new VideoSourcePipeline(this.config.pipeline);
     this.webrtcRelay = new WebRTCRelay(this.config.webrtc);
     this.gpuProcessor = new GPUProcessor(this.config.gpu);
@@ -184,6 +206,8 @@ export class AdvancedProtocol2Engine {
 
   /**
    * Initialize the engine
+   * 
+   * In Expo Go, some components will initialize in degraded mode
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -192,37 +216,52 @@ export class AdvancedProtocol2Engine {
     }
     
     console.log('[AdvancedProtocol2] Initializing Advanced Protocol 2 Engine...');
+    if (isExpoGo) {
+      console.log('[AdvancedProtocol2] Expo Go mode - initializing compatible components only');
+    }
+    
     this.startTime = Date.now();
     this.state.startTime = this.startTime;
     
+    const features = getFeatureFlags();
+    
     try {
-      // Initialize pipeline
+      // Initialize pipeline (always works)
       await this.pipeline.initialize();
       console.log('[AdvancedProtocol2] Pipeline initialized');
       
-      // Initialize GPU processor
-      const resolution = this.config.pipeline.sources[0]?.config?.preferredResolution || 
-                         { width: 1080, height: 1920 };
-      await this.gpuProcessor.initialize(resolution.width, resolution.height);
-      this.state.gpu = this.gpuProcessor.getState();
-      console.log('[AdvancedProtocol2] GPU processor initialized');
+      // Initialize GPU processor (limited in Expo Go)
+      if (features.advancedGPU) {
+        const resolution = this.config.pipeline.sources[0]?.config?.preferredResolution || 
+                           { width: 1080, height: 1920 };
+        await this.gpuProcessor.initialize(resolution.width, resolution.height);
+        this.state.gpu = this.gpuProcessor.getState();
+        console.log('[AdvancedProtocol2] GPU processor initialized');
+      } else {
+        console.log('[AdvancedProtocol2] GPU processor skipped (not available in Expo Go)');
+      }
       
-      // Initialize WebRTC relay
+      // Initialize WebRTC relay (degraded in Expo Go)
       await this.webrtcRelay.initialize();
       this.state.webrtc = this.webrtcRelay.getState();
-      console.log('[AdvancedProtocol2] WebRTC relay initialized');
+      console.log('[AdvancedProtocol2] WebRTC relay initialized', 
+        isExpoGo ? '(WebView mode only)' : '');
       
-      // Initialize ASI
+      // Initialize ASI (always works - JavaScript based)
       await this.asi.initialize();
       this.state.asi = this.asi.getState();
       console.log('[AdvancedProtocol2] ASI initialized');
       
-      // Initialize cross-device streaming
-      await this.crossDevice.initialize();
-      this.state.crossDevice = this.crossDevice.getState();
-      console.log('[AdvancedProtocol2] Cross-device streaming initialized');
+      // Initialize cross-device streaming (disabled in Expo Go)
+      if (features.crossDeviceStreaming) {
+        await this.crossDevice.initialize();
+        this.state.crossDevice = this.crossDevice.getState();
+        console.log('[AdvancedProtocol2] Cross-device streaming initialized');
+      } else {
+        console.log('[AdvancedProtocol2] Cross-device streaming skipped (not available in Expo Go)');
+      }
       
-      // Initialize crypto validator
+      // Initialize crypto validator (always works - JavaScript based)
       await this.crypto.initialize();
       this.state.crypto = this.crypto.getState();
       console.log('[AdvancedProtocol2] Crypto validator initialized');
@@ -237,6 +276,9 @@ export class AdvancedProtocol2Engine {
       this.state.isInitialized = true;
       
       console.log('[AdvancedProtocol2] Engine initialized successfully');
+      if (isExpoGo) {
+        console.log('[AdvancedProtocol2] Running in Expo Go compatible mode');
+      }
       this.emitStateChange();
       
     } catch (error) {
