@@ -39,7 +39,7 @@ const EVENT_NAMES = {
 };
 
 export class WebRtcLoopbackBridge {
-  private webViewRef: RefObject<WebView> | null = null;
+  private webViewRef: RefObject<WebView | null> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
   private emitter: NativeEventEmitter | null = null;
   private subscriptions: Array<{ remove: () => void }> = [];
@@ -60,7 +60,7 @@ export class WebRtcLoopbackBridge {
     }
   }
 
-  setWebViewRef(ref: RefObject<WebView>) {
+  setWebViewRef(ref: RefObject<WebView | null>) {
     this.webViewRef = ref;
   }
 

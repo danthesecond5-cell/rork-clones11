@@ -4,7 +4,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback' | 'sonnet' | 'claude-sonnet' | 'claude';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -405,6 +405,27 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     name: 'Protocol 6: WebRTC Loopback (iOS)',
     description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
     enabled: true,
+    settings: {},
+  },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol 7: Sonnet',
+    description: 'AI-powered adaptive injection with behavioral mimicry and stealth optimization.',
+    enabled: false,
+    settings: {},
+  },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol 8: Claude Sonnet',
+    description: 'Enhanced Sonnet protocol with Claude AI integration for real-time adaptation.',
+    enabled: false,
+    settings: {},
+  },
+  claude: {
+    id: 'claude',
+    name: 'Protocol 9: Claude',
+    description: 'Claude-only AI protocol for advanced stream manipulation.',
+    enabled: false,
     settings: {},
   },
 };
