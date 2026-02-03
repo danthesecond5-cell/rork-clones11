@@ -17,6 +17,10 @@
   ],
   "exclude": [
     "node_modules",
+    "__tests__",
+    "scripts",
+    "remote-browser-server",
+    "dist",
     "babel.config.js",
     "metro.config.js",
     "jest.config.js"

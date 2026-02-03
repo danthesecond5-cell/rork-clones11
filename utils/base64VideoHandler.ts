@@ -598,6 +598,7 @@ export async function createOptimizedVideoElement(
     console.error('[Base64VideoHandler] Failed to process base64:', result.error);
     return null;
   }
+  const objectUrl = result.objectUrl;
 
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
@@ -611,7 +612,7 @@ export async function createOptimizedVideoElement(
       reject(new Error('Video element failed to load'));
     };
     
-    video.src = result.objectUrl;
+    video.src = objectUrl;
   });
 }
 

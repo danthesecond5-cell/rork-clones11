@@ -1000,6 +1000,9 @@ export default function ProtocolSettingsModal({
     holographic: <ZapOff size={18} color="#00ff88" />,
     websocket: <Globe size={18} color="#00aaff" />,
     'webrtc-loopback': <Wifi size={18} color="#00aaff" />,
+    sonnet: <ZapOff size={18} color="#00ff88" />,
+    claude: <ZapOff size={18} color="#00ff88" />,
+    'claude-sonnet': <ZapOff size={18} color="#00ff88" />,
   };
 
   return (

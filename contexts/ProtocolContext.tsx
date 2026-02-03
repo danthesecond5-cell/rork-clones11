@@ -4,7 +4,17 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolType =
+  | 'standard'
+  | 'allowlist'
+  | 'protected'
+  | 'harness'
+  | 'holographic'
+  | 'websocket'
+  | 'webrtc-loopback'
+  | 'sonnet'
+  | 'claude'
+  | 'claude-sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -407,10 +417,42 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: true,
     settings: {},
   },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Sonnet Protocol',
+    description: 'AI-powered adaptive injection mode (experimental).',
+    enabled: true,
+    settings: {},
+  },
+  claude: {
+    id: 'claude',
+    name: 'Claude Protocol',
+    description: 'Experimental protocol variant (internal testing).',
+    enabled: true,
+    settings: {},
+  },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Claude Sonnet Protocol',
+    description: 'Experimental Sonnet-based protocol variant (internal testing).',
+    enabled: true,
+    settings: {},
+  },
 };
 
 const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness' || value === 'holographic' || value === 'websocket' || value === 'webrtc-loopback';
+  return (
+    value === 'standard' ||
+    value === 'allowlist' ||
+    value === 'protected' ||
+    value === 'harness' ||
+    value === 'holographic' ||
+    value === 'websocket' ||
+    value === 'webrtc-loopback' ||
+    value === 'sonnet' ||
+    value === 'claude' ||
+    value === 'claude-sonnet'
+  );
 };
 
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {

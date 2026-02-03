@@ -70,7 +70,7 @@ const buildError = (requestId: string, message: string, code?: string): NativeGu
   code,
 });
 
-const normalizeConstraints = (constraints?: MediaStreamConstraints): MediaStreamConstraints => {
+const normalizeConstraints = (constraints?: MediaStreamConstraints): any => {
   if (!constraints) {
     return { video: true, audio: false };
   }
@@ -119,7 +119,7 @@ export async function handleNativeGumOffer(
     const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+    (pc as any).onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
         handlers.onIceCandidate({
           requestId,
@@ -128,7 +128,7 @@ export async function handleNativeGumOffer(
       }
     };
 
-    pc.onconnectionstatechange = () => {
+    (pc as any).onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         handlers.onError(buildError(requestId, 'Native WebRTC connection failed', pc.connectionState));
         closeNativeGumSession({ requestId });
@@ -144,13 +144,13 @@ export async function handleNativeGumOffer(
       pc.addTrack(track, stream);
     });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer as any) as any);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
     handlers.onAnswer({
       requestId,
-      answer: pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!,
+      answer: (pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!) as any,
     });
   } catch (error) {
     handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'exception'));
