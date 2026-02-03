@@ -88,6 +88,8 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     TARGET_FPS: ${targetFPS},
     AUDIO_ENABLED: true,
     USE_FRAME_GENERATOR: ${preferFrameGenerator},
+    VIDEO_LOAD_TIMEOUT_MS: 8000,
+    CORS_STRATEGIES: ['anonymous', 'use-credentials', null],
   };
   
   const log = (...args) => {
@@ -658,15 +660,19 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
   // VIDEO STREAM LOADER
   // ============================================================================
   
-  function initVideoStream() {
-    if (!CONFIG.VIDEO_URI) {
-      log('No video URI provided, using canvas only');
-      return Promise.resolve(false);
-    }
-    
-    log('Loading video from URI...');
-    State.mode = 'video';
-    
+  function isBlobOrDataUri(uri) {
+    return typeof uri === 'string' && (
+      uri.startsWith('blob:') ||
+      uri.startsWith('data:') ||
+      uri.startsWith('file:')
+    );
+  }
+
+  function isExternalUrl(uri) {
+    return typeof uri === 'string' && /^https?:/i.test(uri);
+  }
+
+  function loadVideoElement(videoUri, corsMode, timeoutMs) {
     return new Promise((resolve) => {
       const video = document.createElement('video');
       video.muted = true;
@@ -677,11 +683,19 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       video.preload = 'auto';
       video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
       
+      if (corsMode !== null && corsMode !== undefined) {
+        try {
+          video.crossOrigin = corsMode;
+        } catch (e) {
+          // Some WebViews may not allow setting crossOrigin
+        }
+      }
+      
       const timeout = setTimeout(() => {
-        log('Video load timeout, falling back to canvas');
         cleanup();
-        resolve(false);
-      }, 10000);
+        safeRemoveElement(video);
+        resolve({ success: false, reason: 'timeout' });
+      }, timeoutMs);
       
       function cleanup() {
         clearTimeout(timeout);
@@ -691,48 +705,75 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
       }
       
       video.onloadeddata = () => {
-        log('Video loaded:', video.videoWidth, 'x', video.videoHeight);
+        log('Video loaded:', video.videoWidth, 'x', video.videoHeight, corsMode ? '(CORS: ' + corsMode + ')' : '');
         cleanup();
         
         // Try to play
         video.play().then(() => {
           log('Video playing successfully');
-          State.videoElement = video;
-          State.videoLoaded = true;
-          
-          // Append to DOM
-          if (document.body) {
-            document.body.appendChild(video);
-          } else {
-            document.addEventListener('DOMContentLoaded', () => {
-              if (document.body) document.body.appendChild(video);
-            });
-          }
-          
-          resolve(true);
+          resolve({ success: true, video });
         }).catch(err => {
           log('Video autoplay failed:', err.message);
           // Still consider it loaded, will play on user interaction
-          State.videoElement = video;
-          State.videoLoaded = true;
-          
-          if (document.body) {
-            document.body.appendChild(video);
-          }
-          
-          resolve(true);
+          resolve({ success: true, video });
         });
       };
       
       video.onerror = (e) => {
         error('Video load error:', e);
         cleanup();
-        resolve(false);
+        safeRemoveElement(video);
+        resolve({ success: false, reason: 'error', error: e });
       };
       
-      video.src = CONFIG.VIDEO_URI;
+      video.src = videoUri;
       video.load();
     });
+  }
+
+  async function initVideoStream() {
+    if (!CONFIG.VIDEO_URI) {
+      log('No video URI provided, using canvas only');
+      return false;
+    }
+    
+    log('Loading video from URI...');
+    State.mode = 'video';
+    
+    const isExternal = isExternalUrl(CONFIG.VIDEO_URI);
+    const useCorsStrategies = isExternal && !isBlobOrDataUri(CONFIG.VIDEO_URI);
+    const corsStrategies = useCorsStrategies ? CONFIG.CORS_STRATEGIES : [null];
+    
+    for (let i = 0; i < corsStrategies.length; i++) {
+      const corsMode = corsStrategies[i];
+      if (corsMode) {
+        log('Video load attempt with CORS:', corsMode);
+      } else {
+        log('Video load attempt without CORS');
+      }
+      
+      const result = await loadVideoElement(CONFIG.VIDEO_URI, corsMode, CONFIG.VIDEO_LOAD_TIMEOUT_MS);
+      if (result && result.success && result.video) {
+        State.videoElement = result.video;
+        State.videoLoaded = true;
+        
+        // Append to DOM
+        if (document.body) {
+          document.body.appendChild(result.video);
+        } else {
+          document.addEventListener('DOMContentLoaded', () => {
+            if (document.body) document.body.appendChild(result.video);
+          });
+        }
+        
+        return true;
+      }
+      
+      log('Video load failed for CORS strategy:', corsMode);
+    }
+    
+    log('Video load failed for all CORS strategies, falling back to canvas');
+    return false;
   }
   
   function cleanupVideoElement() {

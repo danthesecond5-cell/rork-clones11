@@ -55,6 +55,8 @@ export default function ProtocolSettingsModal({
     togglePresentationMode,
     showTestingWatermark,
     setShowTestingWatermark,
+    hideConsoleWarnings,
+    setHideConsoleWarnings,
     activeProtocol,
     setActiveProtocol,
     protocols,
@@ -1134,6 +1136,26 @@ export default function ProtocolSettingsModal({
               </View>
             </View>
 
+            {/* Console Section */}
+            <View style={styles.loggingSection}>
+              <Text style={styles.sectionTitle}>Console</Text>
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingLabelRow}>
+                    <EyeOff size={12} color="#b388ff" />
+                    <Text style={styles.settingLabel}>Hide Console Warnings</Text>
+                  </View>
+                  <Text style={styles.settingHint}>Suppress console.warn output in app logs</Text>
+                </View>
+                <Switch
+                  value={hideConsoleWarnings}
+                  onValueChange={setHideConsoleWarnings}
+                  trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#b388ff' }}
+                  thumbColor={hideConsoleWarnings ? '#ffffff' : '#888'}
+                />
+              </View>
+            </View>
+
             {/* Safety Features */}
             <View style={styles.safetySection}>
               <Text style={styles.sectionTitle}>Safety Features</Text>
@@ -1387,6 +1409,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 204, 0, 0.2)',
+  },
+  loggingSection: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   safetySection: {
     backgroundColor: 'rgba(255,255,255,0.05)',
