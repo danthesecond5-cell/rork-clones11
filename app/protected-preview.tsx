@@ -364,7 +364,7 @@ export default function ProtectedPreviewScreen() {
                     resizeMode={ResizeMode.COVER}
                   />
                 ) : (
-                  <AnimatedFallbackPattern isActive={simulateBodyDetected} />
+                  <AnimatedFallbackPattern isActive={bodyDetectionActive} />
                 )}
                 {protectedSettings.showProtectedBadge && selectedVideo && (
                   <View style={styles.overlayLabel}>
@@ -436,9 +436,9 @@ export default function ProtectedPreviewScreen() {
             </View>
             <Switch
               value={protectedSettings.showProtectedBadge}
-              onValueChange={(val) =>
-                developerModeEnabled && updateProtectedSettings({ showProtectedBadge: val })
-              }
+              onValueChange={(val) => {
+                if (developerModeEnabled) updateProtectedSettings({ showProtectedBadge: val });
+              }}
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={protectedSettings.showProtectedBadge ? '#ffffff' : '#888888'}
@@ -478,9 +478,9 @@ export default function ProtectedPreviewScreen() {
             </View>
             <Switch
               value={protectedSettings.blurFallback}
-              onValueChange={(val) =>
-                developerModeEnabled && updateProtectedSettings({ blurFallback: val })
-              }
+              onValueChange={(val) => {
+                if (developerModeEnabled) updateProtectedSettings({ blurFallback: val });
+              }}
               disabled={!developerModeEnabled}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
               thumbColor={protectedSettings.blurFallback ? '#ffffff' : '#888888'}
