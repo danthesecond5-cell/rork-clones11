@@ -431,37 +431,94 @@ export function createAdvancedProtocol2Script(
       return source;
     },
     
-    loadVideo: function(uri) {
-      return new Promise((resolve) => {
-        const video = document.createElement('video');
-        video.muted = true;
-        video.loop = true;
-        video.playsInline = true;
-        video.setAttribute('playsinline', 'true');
-        video.preload = 'auto';
-        video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
-        
-        const timeout = setTimeout(() => {
-          Logger.warn('VideoSource: Load timeout');
-          resolve(null);
-        }, 15000);
-        
-        video.onloadeddata = () => {
-          clearTimeout(timeout);
-          Logger.log('VideoSource: Loaded', video.videoWidth, 'x', video.videoHeight);
-          resolve(video);
-        };
-        
-        video.onerror = () => {
-          clearTimeout(timeout);
-          Logger.error('VideoSource: Load failed');
-          resolve(null);
-        };
-        
-        document.body?.appendChild(video);
-        video.src = uri;
-        video.load();
-      });
+    loadVideo: async function(uri) {
+      const trimmed = typeof uri === 'string' ? uri.trim() : '';
+      if (!trimmed) {
+        Logger.warn('VideoSource: No URI provided');
+        return null;
+      }
+
+      const isDataUri = trimmed.indexOf('data:') === 0;
+      const isBlobUri = trimmed.indexOf('blob:') === 0;
+      const isHttp = /^https?:\/\//i.test(trimmed);
+      const corsStrategies = ['anonymous', 'use-credentials', null];
+
+      const loadVideoElement = function(source, corsMode, label) {
+        return new Promise((resolve) => {
+          const video = document.createElement('video');
+          video.muted = true;
+          video.loop = true;
+          video.playsInline = true;
+          video.setAttribute('playsinline', 'true');
+          video.preload = 'auto';
+          video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
+
+          if (corsMode !== null && typeof corsMode !== 'undefined') {
+            try { video.crossOrigin = corsMode; } catch (e) {}
+          }
+
+          const timeout = setTimeout(() => {
+            Logger.warn('VideoSource: Load timeout', label || '');
+            cleanup(false);
+          }, 15000);
+
+          const cleanup = (success) => {
+            clearTimeout(timeout);
+            if (!success) {
+              try { video.pause(); } catch (e) {}
+              try { video.removeAttribute('src'); video.load(); } catch (e) {}
+              try { video.remove(); } catch (e) {}
+            }
+            resolve(success ? video : null);
+          };
+
+          video.onloadeddata = () => {
+            Logger.log('VideoSource: Loaded', video.videoWidth, 'x', video.videoHeight, label || '');
+            cleanup(true);
+          };
+
+          video.onerror = () => {
+            Logger.warn('VideoSource: Load failed', label || '');
+            cleanup(false);
+          };
+
+          document.body?.appendChild(video);
+          video.src = source;
+          video.load();
+        });
+      };
+
+      if (isDataUri || isBlobUri) {
+        return await loadVideoElement(trimmed, null, 'inline');
+      }
+
+      if (isHttp) {
+        for (let i = 0; i < corsStrategies.length; i++) {
+          const corsMode = corsStrategies[i];
+          const label = corsMode ? 'cors:' + corsMode : 'cors:none';
+          const video = await loadVideoElement(trimmed, corsMode, label);
+          if (video) return video;
+        }
+
+        // Attempt fetch-to-blob when CORS allows it.
+        try {
+          const response = await fetch(trimmed, { mode: 'cors', credentials: 'omit' });
+          if (response && response.ok) {
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const video = await loadVideoElement(blobUrl, null, 'blob');
+            if (video) return video;
+            try { URL.revokeObjectURL(blobUrl); } catch (e) {}
+          }
+        } catch (err) {
+          Logger.warn('VideoSource: Fetch failed', err?.message || err);
+        }
+
+        Logger.warn('VideoSource: CORS blocked, falling back to synthetic');
+        return null;
+      }
+
+      return await loadVideoElement(trimmed, null, 'direct');
     },
     
     getActiveSource: function() {

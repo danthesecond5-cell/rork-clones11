@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
+import { setConsoleWarningsHidden } from '@/utils/logger';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -151,6 +152,8 @@ export interface ProtocolContextValue {
   togglePresentationMode: () => void;
   showTestingWatermark: boolean;
   setShowTestingWatermark: (show: boolean) => void;
+  hideConsoleWarnings: boolean;
+  setHideConsoleWarnings: (hidden: boolean) => Promise<void>;
   
   // Active Protocol
   activeProtocol: ProtocolType;
@@ -216,6 +219,7 @@ const STORAGE_KEYS = {
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
+  CONSOLE_WARNINGS_HIDDEN: '@protocol_console_warnings_hidden',
   ENTERPRISE_WEBKIT: '@protocol_enterprise_webkit',
 };
 
@@ -419,6 +423,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [developerPin, setDeveloperPinState] = useState<string | null>(null);
   const [presentationMode, setPresentationMode] = useState(true);
   const [showTestingWatermark, setShowTestingWatermarkState] = useState(true);
+  const [hideConsoleWarnings, setHideConsoleWarningsState] = useState(false);
   const [activeProtocol, setActiveProtocolState] = useState<ProtocolType>('standard');
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
@@ -444,6 +449,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           pin,
           presMode,
           watermark,
+          consoleWarningsHidden,
           activeProto,
           protocolsConfig,
           standard,
@@ -460,6 +466,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.DEVELOPER_PIN),
           AsyncStorage.getItem(STORAGE_KEYS.PRESENTATION_MODE),
           AsyncStorage.getItem(STORAGE_KEYS.TESTING_WATERMARK),
+          AsyncStorage.getItem(STORAGE_KEYS.CONSOLE_WARNINGS_HIDDEN),
           AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_PROTOCOL),
           AsyncStorage.getItem(STORAGE_KEYS.PROTOCOLS_CONFIG),
           AsyncStorage.getItem(STORAGE_KEYS.STANDARD_SETTINGS),
@@ -487,6 +494,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         }
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
+        if (consoleWarningsHidden !== null) setHideConsoleWarningsState(consoleWarningsHidden === 'true');
         if (activeProto) {
           if (isProtocolType(activeProto)) {
             setActiveProtocolState(activeProto);
@@ -561,6 +569,10 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     loadSettings();
   }, []);
 
+  useEffect(() => {
+    setConsoleWarningsHidden(hideConsoleWarnings);
+  }, [hideConsoleWarnings]);
+
   const toggleDeveloperMode = useCallback(async () => {
     const newValue = !developerModeEnabled;
     setDeveloperModeEnabled(newValue);
@@ -619,6 +631,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const setShowTestingWatermark = useCallback(async (show: boolean) => {
     setShowTestingWatermarkState(show);
     await AsyncStorage.setItem(STORAGE_KEYS.TESTING_WATERMARK, String(show));
+  }, []);
+
+  const setHideConsoleWarnings = useCallback(async (hidden: boolean) => {
+    setHideConsoleWarningsState(hidden);
+    await AsyncStorage.setItem(STORAGE_KEYS.CONSOLE_WARNINGS_HIDDEN, String(hidden));
   }, []);
 
   const setActiveProtocol = useCallback(async (protocol: ProtocolType) => {
@@ -722,6 +739,8 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     togglePresentationMode,
     showTestingWatermark,
     setShowTestingWatermark,
+    hideConsoleWarnings,
+    setHideConsoleWarnings,
     activeProtocol,
     setActiveProtocol,
     protocols,
