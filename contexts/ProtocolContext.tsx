@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
+import Constants from 'expo-constants';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -21,6 +22,8 @@ export interface StandardProtocolSettings {
   injectMotionData: boolean;
   loopVideo: boolean;
 }
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 // Advanced Relay Protocol Settings (Protocol 2)
 // The most technically advanced video injection system
@@ -333,10 +336,10 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
 };
 
 const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
-  enabled: true,
+  enabled: !isExpoGo,
   autoStart: true,
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: !isExpoGo,
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -404,7 +407,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     id: 'webrtc-loopback',
     name: 'Protocol 6: WebRTC Loopback (iOS)',
     description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
-    enabled: true,
+    enabled: !isExpoGo,
     settings: {},
   },
 };
@@ -423,7 +426,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
-  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
+  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(!isExpoGo);
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
