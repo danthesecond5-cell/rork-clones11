@@ -98,6 +98,37 @@ If you have Xcode installed:
 bun run start -- --ios
 ```
 
+## Expo Go Compatibility
+
+This app has been optimized for **Expo Go compatibility**. Most features work out of the box in Expo Go without requiring a custom development build.
+
+### What Works in Expo Go
+
+| Feature | Expo Go | Native Build |
+|---------|---------|--------------|
+| Protocol 1 (Standard Injection) | ✅ | ✅ |
+| Protocol 2 (Advanced Relay) | ⚠️ Partial | ✅ |
+| Protocol 3 (Protected Preview) | ✅ | ✅ |
+| Protocol 4 (Test Harness) | ✅ | ✅ |
+| Protocol 5 (Holographic) | ✅ | ✅ |
+| Protocol 6 (WebSocket Bridge) | ✅ **RECOMMENDED** | ✅ |
+| Protocol 7 (Native WebRTC) | ❌ | ✅ |
+| Virtual Camera Native | ❌ | ✅ |
+
+### Recommended for Expo Go
+
+For the best experience in Expo Go, use **Protocol 6: WebSocket Bridge** for video injection. It provides maximum compatibility and reliable performance without requiring any native modules.
+
+### For Full Native Features
+
+Create a development build for:
+- Native WebRTC Loopback (Protocol 7)
+- Virtual Camera native module
+- react-native-webrtc integration
+- Cross-device streaming via mDNS
+
+See `EXPO_GO_COMPATIBILITY.md` for detailed compatibility information.
+
 ### Native WebRTC Bridge (custom dev client required)
 
 The WebView native WebRTC bridge uses `react-native-webrtc`, which requires a

@@ -319,11 +319,13 @@ export const DEFAULT_WEBSOCKET_SETTINGS: WebSocketBridgeSettings = {
   logFrameStats: false,
 };
 
+// WebRTC Loopback settings - disabled by default for Expo Go compatibility
+// Enable these settings only in development builds with native modules
 export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
-  enabled: true,
-  autoStart: true,
+  enabled: false, // Disabled by default for Expo Go compatibility
+  autoStart: false, // Don't auto-start in Expo Go
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: false, // Don't require native bridge by default (Expo Go)
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -336,7 +338,7 @@ export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
   enableDataChannel: true,
   enableIceRestart: true,
   enableSimulcast: false,
-  recordingEnabled: true,
+  recordingEnabled: false, // Disabled by default for Expo Go
   ringBufferSeconds: 15,
   ringSegmentSeconds: 3,
   cacheRemoteVideos: true,
@@ -369,11 +371,12 @@ export const DEFAULT_DEVELOPER_MODE: DeveloperModeSettings = {
 };
 
 // Protocol metadata for UI display
+// Note: Expo Go compatibility noted for each protocol
 export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   standard: {
     id: 'standard',
     name: 'Protocol 1: Standard Injection',
-    description: 'Uses the current media injection flow inside this app for internal testing and controlled environments.',
+    description: 'Browser-side getUserMedia interception. Works in Expo Go.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
@@ -381,7 +384,7 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   allowlist: {
     id: 'allowlist',
     name: 'Protocol 2: Advanced Relay',
-    description: 'The most technically advanced video injection system featuring WebRTC relay, GPU processing, Adaptive Stream Intelligence, cross-device streaming, and cryptographic validation.',
+    description: 'Advanced video injection with GPU processing and Adaptive Stream Intelligence. Browser-side features work in Expo Go; native WebRTC relay requires development build.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
@@ -389,7 +392,7 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   protected: {
     id: 'protected',
     name: 'Protocol 3: Protected Preview',
-    description: 'A consent-based local preview that swaps to a safe looping video whenever body detection is triggered.',
+    description: 'Consent-based local preview with body detection. Works in Expo Go.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
@@ -397,7 +400,7 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   harness: {
     id: 'harness',
     name: 'Protocol 4: Local Test Harness',
-    description: 'A local sandbox page for safe overlay testing without touching third-party sites.',
+    description: 'Local sandbox page for safe overlay testing. Works in Expo Go.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
@@ -405,24 +408,24 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   holographic: {
     id: 'holographic',
     name: 'Protocol 5: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. The most advanced injection method available.',
+    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. Works in Expo Go.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
   },
   websocket: {
     id: 'websocket',
-    name: 'Protocol 6: WebSocket Bridge',
-    description: 'Uses React Native postMessage bridge to stream video frames directly to WebView. Most reliable method - bypasses all canvas timing issues. Recommended for maximum compatibility.',
+    name: 'Protocol 6: WebSocket Bridge (Recommended)',
+    description: 'Uses React Native postMessage bridge to stream video frames directly to WebView. RECOMMENDED for Expo Go - maximum compatibility, bypasses all canvas timing issues.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: false,
   },
   'webrtc-loopback': {
     id: 'webrtc-loopback',
-    name: 'Protocol 6: WebRTC Loopback (iOS)',
-    description: 'iOS-only WebRTC loopback that relies on a native bridge to provide a fake camera track.',
-    enabled: true,
+    name: 'Protocol 7: WebRTC Loopback (Native Only)',
+    description: 'iOS-only WebRTC loopback requiring native bridge. NOT available in Expo Go - requires development build with react-native-webrtc.',
+    enabled: false, // Disabled by default for Expo Go compatibility
     isLive: true,
     requiresDeveloperMode: true,
   },

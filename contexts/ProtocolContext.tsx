@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
+import Constants from 'expo-constants';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -21,6 +22,27 @@ export interface StandardProtocolSettings {
   injectMotionData: boolean;
   loopVideo: boolean;
 }
+
+// Expo Go compatibility detection
+// In Expo Go, native modules like react-native-webrtc are not available
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Log Expo Go status for debugging
+if (__DEV__) {
+  console.log('[Protocol] Running in Expo Go:', isExpoGo);
+  console.log('[Protocol] App Ownership:', Constants.appOwnership);
+}
+
+// Expo Go compatible protocols (work without native modules):
+// - Protocol 1 (Standard): Browser-side getUserMedia interception
+// - Protocol 3 (Protected Preview): Browser-side ML detection
+// - Protocol 4 (Test Harness): Browser-side sandbox
+// - Protocol 5 (Holographic): WebSocket/PostMessage bridge
+// - Protocol 6 (WebSocket Bridge): PostMessage frame streaming - RECOMMENDED
+
+// Protocols requiring native modules (NOT Expo Go compatible):
+// - Protocol 2 Advanced Relay (partial - WebRTC relay components)
+// - Protocol 6 WebRTC Loopback (requires react-native-webrtc)
 
 // Advanced Relay Protocol Settings (Protocol 2)
 // The most technically advanced video injection system
@@ -251,23 +273,24 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
   autoAddCurrentSite: false,
   
   // Advanced Protocol 2 Settings
+  // In Expo Go, native-dependent features are disabled
   advancedRelay: {
-    // Video Pipeline - optimized for quality
+    // Video Pipeline - optimized for quality (works in Expo Go)
     pipeline: {
       hotSwitchThresholdMs: 50,
       minAcceptableFps: 15,
-      enableParallelDecoding: true,
+      enableParallelDecoding: !isExpoGo, // Parallel decoding uses native threads
     },
     
-    // WebRTC Relay - maximum stealth
+    // WebRTC Relay - disabled in Expo Go (requires native WebRTC)
     webrtc: {
-      enabled: true,
-      virtualTurnEnabled: true,
-      sdpManipulationEnabled: true,
+      enabled: !isExpoGo,
+      virtualTurnEnabled: !isExpoGo,
+      sdpManipulationEnabled: !isExpoGo,
       stealthMode: true,
     },
     
-    // GPU Processing - balanced quality
+    // GPU Processing - balanced quality (browser-side, works in Expo Go)
     gpu: {
       enabled: true,
       qualityPreset: 'high',
@@ -275,7 +298,7 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
       noiseIntensity: 0.02,
     },
     
-    // ASI - intelligent adaptation
+    // ASI - intelligent adaptation (browser-side, works in Expo Go)
     asi: {
       enabled: true,
       siteFingerprinting: true,
@@ -284,16 +307,16 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
       storeHistory: true,
     },
     
-    // Cross-Device - ready for pairing
+    // Cross-Device - limited in Expo Go (mDNS discovery needs native)
     crossDevice: {
-      enabled: true,
-      discoveryMethod: 'qr',
+      enabled: !isExpoGo, // Disabled in Expo Go - needs native networking
+      discoveryMethod: 'qr', // QR is safest fallback
       targetLatencyMs: 100,
-      autoReconnect: true,
+      autoReconnect: !isExpoGo,
       connectedDeviceId: null,
     },
     
-    // Crypto - secure by default
+    // Crypto - secure by default (uses expo-crypto, works in Expo Go)
     crypto: {
       enabled: true,
       frameSigning: true,
@@ -333,10 +356,10 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
 };
 
 const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
-  enabled: true,
+  enabled: !isExpoGo,
   autoStart: true,
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: !isExpoGo,
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -361,50 +384,54 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
   standard: {
     id: 'standard',
     name: 'Protocol 1: Standard Injection',
-    description: 'Uses the current media injection flow inside this app. Default for internal testing.',
+    description: 'Uses browser-side getUserMedia interception. Works in Expo Go.',
     enabled: true,
     settings: {},
   },
   allowlist: {
     id: 'allowlist',
     name: 'Protocol 2: Advanced Relay',
-    description: 'The most technically advanced video injection system with WebRTC relay, GPU processing, AI-powered site adaptation, cross-device streaming, and cryptographic validation.',
+    description: isExpoGo 
+      ? 'Advanced video injection (WebRTC relay disabled in Expo Go). Use Protocol 6 WebSocket Bridge for best compatibility.'
+      : 'The most technically advanced video injection system with WebRTC relay, GPU processing, AI-powered site adaptation, cross-device streaming, and cryptographic validation.',
     enabled: true,
     settings: {},
   },
   protected: {
     id: 'protected',
     name: 'Protocol 3: Protected Preview',
-    description: 'Consent-based local preview with body detection and safe video replacement.',
+    description: 'Consent-based local preview with body detection and safe video replacement. Works in Expo Go.',
     enabled: true,
     settings: {},
   },
   harness: {
     id: 'harness',
     name: 'Protocol 4: Local Test Harness',
-    description: 'Local sandbox page for safe overlay testing without third-party sites.',
+    description: 'Local sandbox page for safe overlay testing without third-party sites. Works in Expo Go.',
     enabled: true,
     settings: {},
   },
   holographic: {
     id: 'holographic',
     name: 'Protocol 5: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis.',
+    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. Works in Expo Go.',
     enabled: true,
     settings: {},
   },
   websocket: {
     id: 'websocket',
     name: 'Protocol 6: WebSocket Bridge',
-    description: 'Uses React Native postMessage bridge to stream frames directly to WebView for maximum compatibility.',
+    description: 'Uses React Native postMessage bridge to stream frames directly to WebView. RECOMMENDED for Expo Go - Maximum compatibility.',
     enabled: true,
     settings: {},
   },
   'webrtc-loopback': {
     id: 'webrtc-loopback',
-    name: 'Protocol 6: WebRTC Loopback (iOS)',
-    description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
-    enabled: true,
+    name: 'Protocol 7: WebRTC Loopback (iOS Native)',
+    description: isExpoGo 
+      ? 'NOT AVAILABLE in Expo Go - requires native WebRTC bridge. Use Protocol 6 WebSocket Bridge instead.'
+      : 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track. Requires development build.',
+    enabled: !isExpoGo,
     settings: {},
   },
 };
@@ -423,7 +450,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
-  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
+  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(!isExpoGo);
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
