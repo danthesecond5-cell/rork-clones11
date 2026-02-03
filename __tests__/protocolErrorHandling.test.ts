@@ -18,6 +18,15 @@ import {
 } from '@/utils/errorHandling';
 
 describe('Protocol Error Handling', () => {
+  let consoleWarnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
+  });
   describe('createProtocolError', () => {
     it('should create a protocol error with details', () => {
       const error = createProtocolError(

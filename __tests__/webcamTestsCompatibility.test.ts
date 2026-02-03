@@ -16,6 +16,7 @@
  * 6. May perform WebRTC connections for peer-to-peer features
  */
 
+import { createMediaInjectionScript } from '@/constants/browserScripts';
 import { createSonnetProtocolScript, SonnetProtocolConfig } from '@/constants/sonnetProtocol';
 import { createAdvancedProtocol2Script, AdvancedProtocol2ScriptOptions } from '@/utils/advancedProtocol/browserScript';
 import type { CaptureDevice } from '@/types/device';
@@ -593,61 +594,38 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
     });
     
     describe('Webcamtests.com Compatibility Issues', () => {
-      it('ISSUE: Script requires ReactNativeWebView for permission flow', () => {
+      it('FIXED: Script auto-simulates without ReactNativeWebView', () => {
         /**
-         * CRITICAL ISSUE IDENTIFIED:
-         * The standard MediaInjection script has a permission prompt flow that
-         * requires window.ReactNativeWebView.postMessage to work. Without this,
-         * the permission flow cannot complete properly.
-         * 
-         * On webcamtests.com running in a normal browser:
-         * - ReactNativeWebView doesn't exist
-         * - Permission prompt flow fails
-         * - getUserMedia promise never resolves or rejects improperly
+         * FIX APPLIED:
+         * The MediaInjection script now auto-simulates when the RN bridge is missing,
+         * allowing webcamtests.com to work in standalone browser contexts.
          */
-        const hasReactNativeWebView = !!(global as any).window?.ReactNativeWebView;
-        
-        // In our test env we mock it, but in real browser it won't exist
-        expect(hasReactNativeWebView).toBe(true);
-        
-        // This is why it doesn't work on webcamtests.com in a real browser
-        console.warn('[Protocol 1 Issue] Requires ReactNativeWebView - NOT compatible with standard browsers');
+        const script = createMediaInjectionScript(testDevices, { protocolId: 'standard' });
+
+        expect(script).toContain('auto-simulating for standalone testing');
       });
       
-      it('ISSUE: Canvas stream may lack proper track metadata', () => {
+      it('FIXED: Canvas stream includes full track metadata spoofing', () => {
         /**
-         * ISSUE: Canvas.captureStream() creates tracks with generic labels
-         * webcamtests.com checks track.label to display camera name
-         * Canvas streams have labels like "canvas-capture" not camera names
+         * FIX APPLIED:
+         * The injection script spoofs track label and settings to match device templates.
          */
-        const mockCanvas = browserEnv.getWindow().document.createElement('canvas');
-        const stream = mockCanvas.captureStream(30);
-        const track = stream.getVideoTracks()[0];
-        
-        // The script does spoof track.label but may not persist
-        expect(track.label).not.toContain('FaceTime');
-        
-        console.warn('[Protocol 1 Issue] Canvas stream tracks have generic labels, not camera names');
+        const script = createMediaInjectionScript(testDevices, { protocolId: 'standard' });
+
+        expect(script).toContain("videoTrack.getSettings = function()");
+        expect(script).toContain("Object.defineProperty(videoTrack, 'label'");
       });
       
-      it('ISSUE: getSettings returns canvas dimensions not camera specs', () => {
+      it('FIXED: getSettings/getCapabilities return camera-like values', () => {
         /**
-         * ISSUE: Canvas captureStream track.getSettings() returns canvas size
-         * not the expected camera resolution properties
-         * 
-         * Note: In our mock the settings have these properties, but in a real
-         * browser canvas.captureStream() tracks do NOT have facingMode or deviceId.
-         * This test documents the issue even though our mock differs.
+         * FIX APPLIED:
+         * getSettings/getCapabilities are overridden with device-accurate values.
          */
-        const issue = {
-          problem: 'Canvas captureStream tracks lack camera-specific properties',
-          missingProperties: ['facingMode', 'deviceId (real camera ID)', 'groupId'],
-          solution: 'Must spoof getSettings to return camera-accurate values',
-        };
-        
-        console.warn('[Protocol 1 Issue] track.getSettings() missing camera-specific properties');
-        
-        expect(issue.solution).toBe('Must spoof getSettings to return camera-accurate values');
+        const script = createMediaInjectionScript(testDevices, { protocolId: 'standard' });
+
+        expect(script).toContain('facingMode:');
+        expect(script).toContain('deviceId:');
+        expect(script).toContain('getCapabilities = function');
       });
     });
     
@@ -656,30 +634,22 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
         /**
          * CONCLUSION FOR PROTOCOL 1:
          * 
-         * CAN WORK: Yes, but only in React Native WebView context
-         * CANNOT WORK: In standard browsers (Chrome, Safari, Firefox)
+         * CAN WORK: Yes, in React Native WebView and standalone browsers
          * 
-         * The protocol is designed for mobile apps using React Native WebView
-         * to inject a fake camera. It is NOT designed for standard browser use.
-         * 
-         * To make it work on webcamtests.com:
-         * 1. Must be injected via React Native WebView app
-         * 2. Must have ReactNativeWebView.postMessage available
-         * 3. Permission flow must complete properly
+         * Fixes applied:
+         * - Auto-simulate when RN bridge is missing
+         * - Track metadata spoofing for canvas streams
+         * - Camera-accurate getSettings/getCapabilities
          */
         const assessment = {
           name: 'Protocol 1: Standard MediaInjection',
-          canWorkOnWebcamTests: 'YES - with React Native WebView',
-          canWorkInBrowser: 'NO - requires ReactNativeWebView',
-          mainIssues: [
-            'Permission flow requires ReactNativeWebView.postMessage',
-            'Canvas track metadata needs spoofing',
-            'getSettings/getCapabilities need camera-accurate values',
-          ],
-          fixRequired: 'Add fallback permission flow for browser context',
+          canWorkOnWebcamTests: 'YES - works in WebView and browser',
+          canWorkInBrowser: 'YES - auto-simulates without ReactNativeWebView',
+          mainIssues: [],
+          fixRequired: 'None (fallback + metadata spoofing applied)',
         };
         
-        expect(assessment.canWorkOnWebcamTests).toBe('YES - with React Native WebView');
+        expect(assessment.canWorkOnWebcamTests).toBe('YES - works in WebView and browser');
       });
     });
   });
@@ -735,9 +705,10 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
     });
     
     describe('Webcamtests.com Compatibility Issues', () => {
-      it('ISSUE: Also requires ReactNativeWebView (same as Protocol 1)', () => {
+      it('FIXED: ReactNativeWebView usage is optional and guarded', () => {
         /**
-         * Protocol 2 has the same ReactNativeWebView dependency
+         * Protocol 2 can report diagnostics to RN if available,
+         * but core injection runs without the bridge.
          */
         const options: AdvancedProtocol2ScriptOptions = {
           devices: testDevices,
@@ -752,15 +723,13 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
         
         const script = createAdvancedProtocol2Script(options);
         
-        expect(script).toContain('ReactNativeWebView');
-        
-        console.warn('[Protocol 2 Issue] Same ReactNativeWebView dependency as Protocol 1');
+        expect(script).toContain('if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage)');
       });
       
-      it('ISSUE: Video loading from URI may fail due to CORS', () => {
+      it('FIXED: Video loading retries with CORS strategies', () => {
         /**
-         * If videoUri is an external URL, CORS will block loading
-         * This is a common issue with video injection
+         * External URLs are retried with multiple CORS strategies
+         * and fall back to synthetic rendering if blocked.
          */
         const options: AdvancedProtocol2ScriptOptions = {
           videoUri: 'https://example.com/video.mp4', // External URL
@@ -777,9 +746,8 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
         const script = createAdvancedProtocol2Script(options);
         
         // Script should handle CORS failures gracefully
-        expect(script).toContain('onerror');
-        
-        console.warn('[Protocol 2 Issue] External video URLs blocked by CORS');
+        expect(script).toContain('crossOrigin');
+        expect(script).toContain('CORS blocked, falling back to synthetic');
       });
       
       it('BENEFIT: Provides ASI (Adaptive Stream Intelligence) for site detection', () => {
@@ -807,25 +775,24 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
     });
     
     describe('Protocol 2 Capability Assessment', () => {
-      it('CAN work on webcamtests.com with same conditions as Protocol 1', () => {
+      it('CAN work on webcamtests.com with browser fallback', () => {
         const assessment = {
           name: 'Protocol 2: Advanced Protocol 2 Engine',
-          canWorkOnWebcamTests: 'YES - with React Native WebView',
-          canWorkInBrowser: 'NO - requires ReactNativeWebView',
+          canWorkOnWebcamTests: 'YES - works in WebView and browser',
+          canWorkInBrowser: 'YES - optional RN bridge only',
           advantages: [
             'WebRTC relay for video chat sites',
             'ASI for site-specific adaptation',
             'Better metadata spoofing',
           ],
           mainIssues: [
-            'Same ReactNativeWebView dependency',
-            'CORS issues with external videos',
+            'External video URLs may fall back to synthetic if CORS blocked',
             'More complex, more potential failure points',
           ],
-          fixRequired: 'Add browser-native fallback paths',
+          fixRequired: 'None (CORS retry + synthetic fallback applied)',
         };
         
-        expect(assessment.canWorkOnWebcamTests).toBe('YES - with React Native WebView');
+        expect(assessment.canWorkOnWebcamTests).toBe('YES - works in WebView and browser');
       });
     });
   });
@@ -960,16 +927,16 @@ describe('Webcam Tests Compatibility - Deep Protocol Analysis', () => {
         'Protocol 1 (Standard MediaInjection)': {
           webcamTestsCompatible: 'YES - now auto-simulates without RN WebView',
           browserCompatible: 'YES - fixed browser fallback',
-          issues: ['Canvas track metadata (spoofed)'],
+          issues: [],
           recommendation: 'Works in both RN WebView and browser contexts',
           fixApplied: 'Auto-simulate when ReactNativeWebView not available',
         },
         'Protocol 2 (Advanced Protocol 2)': {
           webcamTestsCompatible: 'YES - works with stealth mode',
           browserCompatible: 'YES - no RN WebView dependency for core function',
-          issues: ['CORS for external videos (use local/base64)'],
+          issues: ['External URLs fall back to synthetic when CORS blocked'],
           recommendation: 'Best for WebRTC video chat sites',
-          fixApplied: 'Already had proper fallback behavior',
+          fixApplied: 'CORS retry + synthetic fallback when blocked',
         },
         'Protocol 5 (Sonnet Protocol)': {
           webcamTestsCompatible: 'YES - full injection now included',

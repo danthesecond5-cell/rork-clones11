@@ -395,7 +395,9 @@ class Logger {
         consoleTarget.log(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
         break;
       case 'warn':
-        consoleTarget.warn(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
+        if (!consoleWarningsHidden) {
+          consoleTarget.warn(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
+        }
         break;
       case 'error':
         consoleTarget.error(`${color}${formattedMessage}${reset}`, data !== undefined ? data : '');
@@ -467,6 +469,14 @@ export const clearAllDebugLogs = (): void => {
 };
 
 let consoleCaptureInstalled = false;
+let consoleWarningsHidden = false;
+
+export const setConsoleWarningsHidden = (hidden: boolean): void => {
+  consoleWarningsHidden = hidden;
+};
+
+export const areConsoleWarningsHidden = (): boolean => consoleWarningsHidden;
+
 export const installConsoleCapture = (): void => {
   if (consoleCaptureInstalled) return;
   consoleCaptureInstalled = true;
@@ -507,7 +517,9 @@ export const installConsoleCapture = (): void => {
   };
 
   console.warn = (...args: unknown[]) => {
-    original.warn(...args);
+    if (!consoleWarningsHidden) {
+      original.warn(...args);
+    }
     if (inCaptureRef.current) return;
     inCaptureRef.current = true;
     try {
