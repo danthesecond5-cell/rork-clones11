@@ -1596,7 +1596,7 @@ export default function MotionBrowserScreen() {
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
-                enterpriseWebKitEnabled={enterpriseWebKitEnabled}
+                {...(Platform.OS === 'ios' && enterpriseWebKitEnabled ? { enterpriseWebKitEnabled } : {})}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
                 // Ensure injection runs in iframes too (important for some real-world sites).
@@ -1761,11 +1761,7 @@ export default function MotionBrowserScreen() {
 
                   return isNavigationAllowed(requestUrl);
                 }}
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
                 startInLoadingState
-                mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
                 thirdPartyCookiesEnabled

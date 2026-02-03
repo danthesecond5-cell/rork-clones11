@@ -364,7 +364,7 @@ export default function ProtectedPreviewScreen() {
                     resizeMode={ResizeMode.COVER}
                   />
                 ) : (
-                  <AnimatedFallbackPattern isActive={simulateBodyDetected} />
+                  <AnimatedFallbackPattern isActive={protectedSettings.bodyDetectionEnabled} />
                 )}
                 {protectedSettings.showProtectedBadge && selectedVideo && (
                   <View style={styles.overlayLabel}>
