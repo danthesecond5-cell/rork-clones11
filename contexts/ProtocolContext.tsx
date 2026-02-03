@@ -196,6 +196,10 @@ export interface ProtocolContextValue {
   enterpriseWebKitEnabled: boolean;
   setEnterpriseWebKitEnabled: (enabled: boolean) => Promise<void>;
   
+  // Console warnings suppression
+  consoleWarningsSuppressed: boolean;
+  setConsoleWarningsSuppressed: (suppressed: boolean) => Promise<void>;
+  
   // Loading states
   isLoading: boolean;
 }
@@ -217,6 +221,7 @@ const STORAGE_KEYS = {
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
   ENTERPRISE_WEBKIT: '@protocol_enterprise_webkit',
+  CONSOLE_WARNINGS_SUPPRESSED: '@protocol_console_warnings_suppressed',
 };
 
 const PIN_HASH_PREFIX = 'sha256:';
@@ -424,6 +429,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
   const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
+  const [consoleWarningsSuppressed, setConsoleWarningsSuppressedState] = useState(false);
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
@@ -455,6 +461,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           https,
           mlSafety,
           enterpriseWebKit,
+          consoleWarnings,
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.DEVELOPER_MODE),
           AsyncStorage.getItem(STORAGE_KEYS.DEVELOPER_PIN),
@@ -471,6 +478,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
           AsyncStorage.getItem(STORAGE_KEYS.ENTERPRISE_WEBKIT),
+          AsyncStorage.getItem(STORAGE_KEYS.CONSOLE_WARNINGS_SUPPRESSED),
         ]);
 
         if (devMode !== null) setDeveloperModeEnabled(devMode === 'true');
@@ -549,6 +557,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         if (https !== null) setHttpsEnforcedState(https === 'true');
         if (mlSafety !== null) setMlSafetyEnabledState(mlSafety === 'true');
         if (enterpriseWebKit !== null) setEnterpriseWebKitEnabledState(enterpriseWebKit === 'true');
+        if (consoleWarnings !== null) setConsoleWarningsSuppressedState(consoleWarnings === 'true');
 
         console.log('[Protocol] Settings loaded successfully');
       } catch (error) {
@@ -712,6 +721,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, String(enabled));
   }, []);
 
+  const setConsoleWarningsSuppressed = useCallback(async (suppressed: boolean) => {
+    setConsoleWarningsSuppressedState(suppressed);
+    await AsyncStorage.setItem(STORAGE_KEYS.CONSOLE_WARNINGS_SUPPRESSED, String(suppressed));
+  }, []);
+
   return {
     developerModeEnabled,
     toggleDeveloperMode,
@@ -748,6 +762,8 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     setMlSafetyEnabled,
     enterpriseWebKitEnabled,
     setEnterpriseWebKitEnabled,
+    consoleWarningsSuppressed,
+    setConsoleWarningsSuppressed,
     isLoading,
   };
 });
