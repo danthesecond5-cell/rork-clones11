@@ -79,6 +79,7 @@ export default function ProtocolSettingsModal({
     setMlSafetyEnabled,
     enterpriseWebKitEnabled,
     setEnterpriseWebKitEnabled,
+    isExpoGo,
   } = useProtocol();
 
   const [pinInput, setPinInput] = useState('');
@@ -86,6 +87,13 @@ export default function ProtocolSettingsModal({
   const [domainInput, setDomainInput] = useState('');
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
+    if (isExpoGo) {
+      Alert.alert(
+        'Unavailable in Expo Go',
+        'Enterprise WebKit requires a custom native build. Use a dev client or EAS build to enable it.'
+      );
+      return;
+    }
     if (!developerModeEnabled) {
       Alert.alert('Developer Mode Required', 'Enable developer mode to modify enterprise WebKit settings.');
       return;
@@ -173,6 +181,17 @@ export default function ProtocolSettingsModal({
   };
 
   const renderProtocolSettings = (protocol: ProtocolType) => {
+    if (protocol === 'webrtc-loopback' && isExpoGo) {
+      return (
+        <View style={styles.enterpriseNotice}>
+          <AlertTriangle size={14} color="#ffcc00" />
+          <Text style={styles.enterpriseNoticeText}>
+            WebRTC loopback relies on native iOS modules that are not available in Expo Go.
+            Use a custom dev client or EAS build to enable this protocol.
+          </Text>
+        </View>
+      );
+    }
     if (!developerModeEnabled) {
       return (
         <View style={styles.lockedNotice}>
@@ -1094,13 +1113,15 @@ export default function ProtocolSettingsModal({
                     onValueChange={handleToggleEnterpriseWebKit}
                     trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#00ff88' }}
                     thumbColor={enterpriseWebKitEnabled ? '#ffffff' : '#888'}
-                    disabled={!developerModeEnabled}
+                  disabled={!developerModeEnabled || isExpoGo}
                   />
                 </View>
                 <View style={styles.enterpriseNotice}>
                   <AlertTriangle size={14} color="#ffcc00" />
                   <Text style={styles.enterpriseNoticeText}>
-                    Enterprise-only. Not App Store safe. WebView reload required.
+                  {isExpoGo
+                    ? 'Expo Go cannot load custom WebKit frameworks. Use a dev client or EAS build to enable this.'
+                    : 'Enterprise-only. Not App Store safe. WebView reload required.'}
                   </Text>
                 </View>
               </View>
@@ -1185,6 +1206,7 @@ export default function ProtocolSettingsModal({
                 const protocol = protocols[protocolId];
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
+                const isDisabled = !protocol.enabled;
 
                 return (
                   <View
@@ -1231,11 +1253,22 @@ export default function ProtocolSettingsModal({
 
                         {!isActive && (
                           <TouchableOpacity
-                            style={styles.setActiveButton}
+                            style={[
+                              styles.setActiveButton,
+                              isDisabled && styles.setActiveButtonDisabled,
+                            ]}
                             onPress={() => setActiveProtocol(protocolId)}
+                            disabled={isDisabled}
                           >
-                            <Check size={14} color="#0a0a0a" />
-                            <Text style={styles.setActiveButtonText}>Set as Active</Text>
+                            <Check size={14} color={isDisabled ? '#666' : '#0a0a0a'} />
+                            <Text
+                              style={[
+                                styles.setActiveButtonText,
+                                isDisabled && styles.setActiveButtonTextDisabled,
+                              ]}
+                            >
+                              {isDisabled ? 'Unavailable' : 'Set as Active'}
+                            </Text>
                           </TouchableOpacity>
                         )}
 
@@ -1528,10 +1561,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
   },
+  setActiveButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
   setActiveButtonText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#0a0a0a',
+  },
+  setActiveButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.4)',
   },
   settingsGroup: {
     backgroundColor: 'rgba(255,255,255,0.03)',
