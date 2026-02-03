@@ -18,8 +18,8 @@ const protocols = ['standard', 'allowlist', 'protected', 'harness', 'holographic
 describe('createMediaInjectionScript', () => {
   it('defines async getUserMedia override', () => {
     const script = createMediaInjectionScript(baseDevices, { protocolId: 'standard' });
-    expect(script).toContain('const newGetUserMedia = async function');
-    expect(script).toContain('navigator.mediaDevices.getUserMedia = newGetUserMedia');
+    expect(script).toContain('const overrideGetUserMedia = async function');
+    expect(script).toContain("safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia)");
   });
 
   it('uses config-based forceSimulation in shouldSimulate', () => {
