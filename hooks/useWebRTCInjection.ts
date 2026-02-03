@@ -24,6 +24,8 @@ import {
 } from '@/utils/webrtc/WebRTCInjectionScript';
 import type { ConnectionStats } from '@/utils/webrtc/WebRTCSignaling';
 
+import { isExpoGo, isWebRTCAvailable, getRecommendedProtocol } from '@/utils/expoGoCompatibility';
+
 export interface UseWebRTCInjectionConfig {
   videoConfig: {
     width: number;
@@ -40,6 +42,10 @@ export interface WebRTCInjectionState {
   stats: ConnectionStats | null;
   error: string | null;
   isReady: boolean;
+  /** Whether native WebRTC is available (false in Expo Go) */
+  isNativeWebRTCAvailable: boolean;
+  /** Whether running in Expo Go */
+  isExpoGo: boolean;
 }
 
 export interface UseWebRTCInjectionReturn {
@@ -81,8 +87,12 @@ export function useWebRTCInjection(
   const [state, setState] = useState<WebRTCInjectionState>({
     connectionState: 'disconnected',
     stats: null,
-    error: null,
+    error: isExpoGo 
+      ? 'Native WebRTC not available in Expo Go. WebView-based injection will still work.'
+      : null,
     isReady: false,
+    isNativeWebRTCAvailable: isWebRTCAvailable().available,
+    isExpoGo,
   });
 
   // Generate injection script
@@ -93,10 +103,20 @@ export function useWebRTCInjection(
 
   /**
    * Initialize signaling channel and bridge
+   * 
+   * Note: In Expo Go, this works for WebView-based WebRTC injection.
+   * The injectionScript will still work, but native RTCPeerConnection is not available.
    */
   const initialize = useCallback(() => {
     if (signalingRef.current || bridgeRef.current) {
       return; // Already initialized
+    }
+
+    // Log Expo Go status
+    if (isExpoGo) {
+      console.log('[useWebRTCInjection] Running in Expo Go');
+      console.log('[useWebRTCInjection] Native WebRTC not available, but WebView injection will work');
+      console.log('[useWebRTCInjection] Recommended protocol:', getRecommendedProtocol());
     }
 
     // Create signaling channel
@@ -129,7 +149,7 @@ export function useWebRTCInjection(
     });
 
     if (debug) {
-      console.log('[useWebRTCInjection] Initialized');
+      console.log('[useWebRTCInjection] Initialized', isExpoGo ? '(Expo Go mode)' : '');
     }
   }, [videoConfig, debug]);
 
