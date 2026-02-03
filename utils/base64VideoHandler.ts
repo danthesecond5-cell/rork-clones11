@@ -594,7 +594,8 @@ export async function createOptimizedVideoElement(
     }
   });
 
-  if (!result.success || !result.objectUrl) {
+  const objectUrl = result.objectUrl;
+  if (!result.success || !objectUrl) {
     console.error('[Base64VideoHandler] Failed to process base64:', result.error);
     return null;
   }
@@ -607,11 +608,11 @@ export async function createOptimizedVideoElement(
     
     video.onloadeddata = () => resolve(video);
     video.onerror = () => {
-      revokeBlobUrl(result.objectUrl);
+      revokeBlobUrl(objectUrl);
       reject(new Error('Video element failed to load'));
     };
     
-    video.src = result.objectUrl;
+    video.src = objectUrl;
   });
 }
 

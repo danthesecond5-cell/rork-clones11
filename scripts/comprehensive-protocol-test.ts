@@ -24,6 +24,7 @@ interface TestResult {
     videoSettings?: any;
     canPlayVideo: boolean;
     recordingStarted: boolean;
+    recordingSuccess?: boolean;
     recordedDataSize?: number;
     errors: string[];
     pageErrors: string[];
