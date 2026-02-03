@@ -1,12 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
-import {
-  RTCPeerConnection,
-  RTCSessionDescription,
-  RTCIceCandidate,
-  mediaDevices,
-  type MediaStream as RTCMediaStream,
-} from 'react-native-webrtc';
 
 import type {
   NativeGumOfferPayload,
@@ -23,11 +16,35 @@ type NativeBridgeHandlers = {
 };
 
 type NativeBridgeSession = {
-  pc: RTCPeerConnection;
-  stream: RTCMediaStream | null;
+  pc: any;
+  stream: any | null;
 };
 
 const sessions = new Map<string, NativeBridgeSession>();
+
+type WebRTCModule = {
+  RTCPeerConnection: any;
+  RTCSessionDescription: any;
+  RTCIceCandidate: any;
+  mediaDevices?: {
+    getUserMedia: (constraints: MediaStreamConstraints) => Promise<any>;
+  };
+};
+
+let webrtcModule: WebRTCModule | null | undefined = undefined;
+
+const getWebRTCModule = (): WebRTCModule | null => {
+  if (webrtcModule !== undefined) {
+    return webrtcModule;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    webrtcModule = require('react-native-webrtc');
+  } catch {
+    webrtcModule = null;
+  }
+  return webrtcModule;
+};
 
 let nativeBridge: {
   createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: MediaStreamConstraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
@@ -110,16 +127,17 @@ export async function handleNativeGumOffer(
     }
   }
 
-  if (typeof RTCPeerConnection !== 'function' || !mediaDevices?.getUserMedia) {
+  const webrtc = getWebRTCModule();
+  if (!webrtc || typeof webrtc.RTCPeerConnection !== 'function' || !webrtc.mediaDevices?.getUserMedia) {
     handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
     return;
   }
 
   try {
-    const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
+    const pc = new webrtc.RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+    pc.onicecandidate = (event: any) => {
       if (event.candidate) {
         handlers.onIceCandidate({
           requestId,
@@ -137,14 +155,14 @@ export async function handleNativeGumOffer(
 
     // NOTE: This currently uses the real camera. Replace with a custom video capturer
     // for file-backed or synthetic streams once the iOS native module is ready.
-    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
+    const stream = await webrtc.mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
     sessions.set(requestId, { pc, stream });
 
     stream.getTracks().forEach((track) => {
       pc.addTrack(track, stream);
     });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+    await pc.setRemoteDescription(new webrtc.RTCSessionDescription(payload.offer));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
@@ -163,6 +181,9 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
   const candidate = payload?.candidate;
   if (!requestId || !candidate) return;
 
+  const webrtc = getWebRTCModule();
+  if (!webrtc?.RTCIceCandidate) return;
+
   if (nativeBridge?.addIceCandidate) {
     try {
       await nativeBridge.addIceCandidate(requestId, candidate);
@@ -176,7 +197,7 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
   if (!session) return;
 
   try {
-    await session.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    await session.pc.addIceCandidate(new webrtc.RTCIceCandidate(candidate));
   } catch {
     // Ignore ICE errors for now (common during teardown).
   }
