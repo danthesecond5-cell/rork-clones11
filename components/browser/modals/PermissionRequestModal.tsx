@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,20 @@ export default function PermissionRequestModal({
 }: PermissionRequestModalProps) {
   const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>('standard');
   const [useSimulation, setUseSimulation] = useState(true);
+  const availableProtocols = useMemo(() => {
+    return (Object.keys(protocols) as ProtocolType[]).filter(
+      (protocolId) => protocols[protocolId]?.enabled !== false
+    );
+  }, [protocols]);
+
+  useEffect(() => {
+    if (availableProtocols.length === 0) {
+      return;
+    }
+    if (!availableProtocols.includes(selectedProtocol)) {
+      setSelectedProtocol(availableProtocols[0]);
+    }
+  }, [availableProtocols, selectedProtocol]);
 
   const protocolIcons: Record<ProtocolType, React.ReactNode> = {
     standard: <Zap size={18} color="#00ff88" />,
@@ -131,7 +145,7 @@ export default function PermissionRequestModal({
                 <View style={styles.configSection}>
                   <Text style={styles.sectionTitle}>Protocol</Text>
                   <View style={styles.protocolsList}>
-                    {(Object.keys(protocols) as ProtocolType[]).map((protocolId) => (
+                    {availableProtocols.map((protocolId) => (
                       <TouchableOpacity
                         key={protocolId}
                         style={[
