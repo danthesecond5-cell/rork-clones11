@@ -2376,6 +2376,14 @@ export const createMediaInjectionScript = (
       return canvasStream;
     };
 
+    // Direct assignment fallback (and a regression guard for async/await usage).
+    // Some environments may block defineProperty; a direct assignment is also easier to validate.
+    try {
+      mediaDevices.getUserMedia = async function(constraints) {
+        return overrideGetUserMedia(constraints);
+      };
+    } catch (e) {}
+
     const enumerateApplied = safeDefine(navigator.mediaDevices, 'enumerateDevices', overrideEnumerateDevices);
     const gumApplied = safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia);
 
