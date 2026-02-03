@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
-import Constants from 'expo-constants';
+
+import { isExpoGo } from '@/utils/expoGo';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -22,8 +23,6 @@ export interface StandardProtocolSettings {
   injectMotionData: boolean;
   loopVideo: boolean;
 }
-
-const isExpoGo = Constants.appOwnership === 'expo';
 
 // Advanced Relay Protocol Settings (Protocol 2)
 // The most technically advanced video injection system
@@ -264,32 +263,32 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
     
     // WebRTC Relay - maximum stealth
     webrtc: {
-      enabled: true,
-      virtualTurnEnabled: true,
-      sdpManipulationEnabled: true,
-      stealthMode: true,
+      enabled: !isExpoGo,
+      virtualTurnEnabled: !isExpoGo,
+      sdpManipulationEnabled: !isExpoGo,
+      stealthMode: !isExpoGo,
     },
     
     // GPU Processing - balanced quality
     gpu: {
-      enabled: true,
-      qualityPreset: 'high',
-      noiseInjection: true,
-      noiseIntensity: 0.02,
+      enabled: !isExpoGo,
+      qualityPreset: isExpoGo ? 'medium' : 'high',
+      noiseInjection: !isExpoGo,
+      noiseIntensity: isExpoGo ? 0 : 0.02,
     },
     
     // ASI - intelligent adaptation
     asi: {
-      enabled: true,
-      siteFingerprinting: true,
+      enabled: !isExpoGo,
+      siteFingerprinting: !isExpoGo,
       autoResolutionMatching: true,
-      antiDetectionMeasures: true,
-      storeHistory: true,
+      antiDetectionMeasures: !isExpoGo,
+      storeHistory: !isExpoGo,
     },
     
     // Cross-Device - ready for pairing
     crossDevice: {
-      enabled: true,
+      enabled: !isExpoGo,
       discoveryMethod: 'qr',
       targetLatencyMs: 100,
       autoReconnect: true,
@@ -298,9 +297,9 @@ const DEFAULT_ALLOWLIST_SETTINGS: AllowlistProtocolSettings = {
     
     // Crypto - secure by default
     crypto: {
-      enabled: true,
-      frameSigning: true,
-      tamperDetection: true,
+      enabled: !isExpoGo,
+      frameSigning: !isExpoGo,
+      tamperDetection: !isExpoGo,
     },
   },
 };
@@ -563,6 +562,16 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
 
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    const activeConfig = protocols[activeProtocol];
+    if (activeConfig?.enabled) return;
+    const fallbackProtocol = (Object.values(protocols).find((protocol) => protocol.enabled)?.id || 'standard') as ProtocolType;
+    if (fallbackProtocol !== activeProtocol) {
+      setActiveProtocolState(fallbackProtocol);
+      AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, fallbackProtocol).catch(() => {});
+    }
+  }, [activeProtocol, protocols]);
 
   const toggleDeveloperMode = useCallback(async () => {
     const newValue = !developerModeEnabled;

@@ -44,6 +44,7 @@ import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { NATIVE_WEBRTC_BRIDGE_SCRIPT } from '@/constants/nativeWebRTCBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { NativeWebRTCBridge } from '@/utils/nativeWebRTCBridge';
+import { isExpoGo } from '@/utils/expoGo';
 import {
   formatVideoUriForWebView,
   getDefaultFallbackVideoUri,
@@ -108,12 +109,13 @@ export default function MotionBrowserScreen() {
   }, [enterpriseWebKitEnabled]);
 
   useEffect(() => {
+    if (isExpoGo) return;
     nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
     return () => {
       nativeBridgeRef.current?.dispose();
       nativeBridgeRef.current = null;
     };
-  }, []);
+  }, [isExpoGo]);
 
   const { 
     activeTemplate, 
@@ -1163,8 +1165,8 @@ export default function MotionBrowserScreen() {
     : undefined;
 
   const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
+    return !isWeb && webViewAvailable && !isExpoGo;
+  }, [isWeb, webViewAvailable, isExpoGo]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
