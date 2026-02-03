@@ -2,6 +2,12 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
+import { 
+  isExpoGo, 
+  safeRequireNativeModule, 
+  getFeatureFlags,
+  getCompatibilityWarnings 
+} from './expoGoCompatibility';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -38,6 +44,15 @@ const EVENT_NAMES = {
   state: 'WebRtcLoopbackState',
 };
 
+/**
+ * WebRtcLoopbackBridge - Native WebRTC loopback for iOS
+ * 
+ * EXPO GO COMPATIBILITY:
+ * - This bridge requires custom native modules (NOT available in Expo Go)
+ * - In Expo Go, all methods will gracefully return without errors
+ * - Recommended to use WebSocket Bridge protocol as fallback
+ * - For full functionality: expo prebuild && expo run:ios
+ */
 export class WebRtcLoopbackBridge {
   private webViewRef: RefObject<WebView> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
@@ -45,6 +60,7 @@ export class WebRtcLoopbackBridge {
   private subscriptions: Array<{ remove: () => void }> = [];
   private lastOfferId: string | null = null;
   private settings: WebRtcLoopbackSettings | null = null;
+  private isExpoGoMode: boolean;
   private videoSources: Array<{
     id: string;
     uri: string | null;
@@ -53,11 +69,46 @@ export class WebRtcLoopbackBridge {
   }> = [];
 
   constructor() {
-    this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
-    if (this.nativeModule) {
-      this.emitter = new NativeEventEmitter(this.nativeModule as any);
-      this.attachNativeEvents();
+    this.isExpoGoMode = isExpoGo;
+    
+    if (this.isExpoGoMode) {
+      console.log('[WebRtcLoopbackBridge] Running in Expo Go - native module disabled');
+      console.log('[WebRtcLoopbackBridge] WebRTC Loopback requires a custom development build');
+      console.log('[WebRtcLoopbackBridge] Fallback: Use WebSocket Bridge protocol');
+      this.nativeModule = null;
+      return;
     }
+    
+    // Safe initialization of native module
+    this.nativeModule = safeRequireNativeModule<NativeLoopbackModule>('WebRtcLoopback');
+    
+    if (this.nativeModule) {
+      try {
+        this.emitter = new NativeEventEmitter(this.nativeModule as any);
+        this.attachNativeEvents();
+        console.log('[WebRtcLoopbackBridge] Native module initialized successfully');
+      } catch (e) {
+        console.warn('[WebRtcLoopbackBridge] Failed to initialize event emitter:', e);
+        this.emitter = null;
+      }
+    }
+  }
+
+  /**
+   * Check if native loopback is available
+   */
+  isAvailable(): boolean {
+    return !this.isExpoGoMode && this.nativeModule !== null;
+  }
+
+  /**
+   * Get compatibility status for display
+   */
+  getCompatibilityStatus(): { available: boolean; warnings: string[] } {
+    return {
+      available: this.isAvailable(),
+      warnings: getCompatibilityWarnings(),
+    };
   }
 
   setWebViewRef(ref: RefObject<WebView>) {

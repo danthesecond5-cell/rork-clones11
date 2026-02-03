@@ -1,5 +1,4 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
 
 import type {
   NativeGumOfferPayload,
@@ -8,6 +7,12 @@ import type {
   NativeGumErrorPayload,
   NativeGumCancelPayload,
 } from '@/types/nativeMediaBridge';
+import { 
+  isExpoGo, 
+  safeRequireWebRTC, 
+  safeRequireNativeModule,
+  logCompatibilityInfo 
+} from './expoGoCompatibility';
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -33,16 +38,23 @@ type WebRTCModule = {
 
 let webrtcModule: WebRTCModule | null | undefined = undefined;
 
+/**
+ * Get WebRTC module with Expo Go safety check
+ * In Expo Go, react-native-webrtc is not available
+ */
 const getWebRTCModule = (): WebRTCModule | null => {
   if (webrtcModule !== undefined) {
     return webrtcModule;
   }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    webrtcModule = require('react-native-webrtc');
-  } catch {
+  
+  // In Expo Go, WebRTC native module is not available
+  if (isExpoGo) {
+    console.log('[NativeMediaBridge] WebRTC not available in Expo Go - using fallback protocols');
     webrtcModule = null;
+    return null;
   }
+  
+  webrtcModule = safeRequireWebRTC() as WebRTCModule | null;
   return webrtcModule;
 };
 
@@ -52,8 +64,14 @@ let nativeBridge: {
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
 
+// Safe initialization of native bridge - gracefully handles Expo Go
 try {
-  nativeBridge = (NativeModules as any).NativeMediaBridge || requireNativeModule('NativeMediaBridge');
+  if (!isExpoGo) {
+    nativeBridge = safeRequireNativeModule('NativeMediaBridge');
+  } else {
+    console.log('[NativeMediaBridge] Running in Expo Go - native bridge disabled');
+    nativeBridge = null;
+  }
 } catch {
   nativeBridge = null;
 }

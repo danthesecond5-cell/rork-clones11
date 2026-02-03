@@ -4,6 +4,12 @@
  * This system creates a local WebRTC relay that intercepts and manipulates
  * WebRTC connections to inject video streams at the signaling level.
  * This provides superior stealth compared to canvas-based injection.
+ * 
+ * EXPO GO COMPATIBILITY:
+ * - Works in web environments (WebView JavaScript)
+ * - Native RTCPeerConnection interception not available in Expo Go
+ * - Falls back gracefully when RTCPeerConnection is undefined
+ * - All SDP manipulation functions work independently
  */
 
 import {

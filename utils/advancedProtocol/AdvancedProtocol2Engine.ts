@@ -9,6 +9,12 @@
  * - Adaptive Stream Intelligence (site-specific optimization)
  * - Cross-Device Streaming (live relay from secondary devices)
  * - Cryptographic Validation (frame signing and tamper detection)
+ * 
+ * EXPO GO COMPATIBILITY:
+ * - Core features work in Expo Go
+ * - WebRTC relay features are limited without native modules
+ * - GPU processing uses web-based canvas in Expo Go
+ * - All JavaScript-based injection protocols work fully
  */
 
 import {
@@ -28,6 +34,7 @@ import { GPUProcessor } from './GPUProcessor';
 import { AdaptiveStreamIntelligence } from './AdaptiveStreamIntelligence';
 import { CrossDeviceStreamingManager } from './CrossDeviceStreaming';
 import { CryptoValidator } from './CryptoValidator';
+import { isExpoGo, getFeatureFlags, logCompatibilityInfo } from '../expoGoCompatibility';
 
 // ============================================================================
 // TYPES
@@ -184,6 +191,8 @@ export class AdvancedProtocol2Engine {
 
   /**
    * Initialize the engine
+   * 
+   * EXPO GO: Some features will be automatically disabled/limited
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -192,6 +201,14 @@ export class AdvancedProtocol2Engine {
     }
     
     console.log('[AdvancedProtocol2] Initializing Advanced Protocol 2 Engine...');
+    
+    // Log Expo Go compatibility status
+    if (isExpoGo) {
+      console.log('[AdvancedProtocol2] Running in Expo Go - some native features limited');
+      const flags = getFeatureFlags();
+      console.log('[AdvancedProtocol2] Feature flags:', JSON.stringify(flags, null, 2));
+    }
+    
     this.startTime = Date.now();
     this.state.startTime = this.startTime;
     
