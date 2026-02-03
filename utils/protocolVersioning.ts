@@ -4,6 +4,7 @@
  */
 
 import type { ProtocolType } from '@/contexts/ProtocolContext';
+import { cerror, plog } from './configurableLogger';
 
 export interface ProtocolVersion {
   version: string;
@@ -290,7 +291,7 @@ export class ProtocolVersionManager {
       errors: [],
     };
 
-    console.log(`[ProtocolVersioning] Migrating ${protocolId} from ${fromVersion} to ${toVersion}`);
+    plog(`[ProtocolVersioning] Migrating ${protocolId} from ${fromVersion} to ${toVersion}`);
 
     // Protocol-specific migrations
     switch (protocolId) {
@@ -332,9 +333,9 @@ export class ProtocolVersionManager {
 
     if (result.success) {
       this.currentVersions.set(protocolId, toVersion);
-      console.log(`[ProtocolVersioning] Migration successful for ${protocolId}`);
+      plog(`[ProtocolVersioning] Migration successful for ${protocolId}`);
     } else {
-      console.error(`[ProtocolVersioning] Migration failed for ${protocolId}:`, result.errors);
+      cerror(`[ProtocolVersioning] Migration failed for ${protocolId}:`, result.errors);
     }
 
     return result;
