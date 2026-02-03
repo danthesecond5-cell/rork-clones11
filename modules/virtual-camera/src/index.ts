@@ -72,9 +72,9 @@ type VirtualCameraEventMap = {
 };
 
 // Event emitter for native events
-const emitter = new EventEmitter<VirtualCameraEventMap>(
-  VirtualCameraNative as unknown as EventEmitter<VirtualCameraEventMap>
-);
+const emitter = new EventEmitter(
+  VirtualCameraNative as unknown as EventEmitter<Record<never, never>>
+) as EventEmitter<VirtualCameraEventMap>;
 
 /**
  * Virtual Camera API
