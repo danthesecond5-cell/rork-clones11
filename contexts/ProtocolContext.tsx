@@ -3,6 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+import {
+  isExpoGo,
+  isProtocolExpoGoCompatible,
+  getExpoGoFallbackProtocol,
+  getRecommendedProtocol,
+  getFeatureFlags,
+  logCompatibilityInfo,
+} from '@/utils/expoGoCompatibility';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -13,6 +23,8 @@ export interface ProtocolConfig {
   description: string;
   enabled: boolean;
   settings: Record<string, unknown>;
+  /** Whether this protocol is compatible with Expo Go */
+  expoGoCompatible: boolean;
 }
 
 export interface StandardProtocolSettings {
@@ -23,7 +35,13 @@ export interface StandardProtocolSettings {
   loopVideo: boolean;
 }
 
-const isExpoGo = Constants.appOwnership === 'expo';
+// Re-export isExpoGo for backward compatibility
+export { isExpoGo };
+
+// Log compatibility info on module load (only in development)
+if (__DEV__) {
+  logCompatibilityInfo();
+}
 
 // Advanced Relay Protocol Settings (Protocol 2)
 // The most technically advanced video injection system
@@ -367,6 +385,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     description: 'Uses the current media injection flow inside this app. Default for internal testing.',
     enabled: true,
     settings: {},
+    expoGoCompatible: true,
   },
   allowlist: {
     id: 'allowlist',
@@ -374,6 +393,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     description: 'The most technically advanced video injection system with WebRTC relay, GPU processing, AI-powered site adaptation, cross-device streaming, and cryptographic validation.',
     enabled: true,
     settings: {},
+    expoGoCompatible: true,
   },
   protected: {
     id: 'protected',
@@ -381,6 +401,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     description: 'Consent-based local preview with body detection and safe video replacement.',
     enabled: true,
     settings: {},
+    expoGoCompatible: true,
   },
   harness: {
     id: 'harness',
@@ -388,6 +409,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     description: 'Local sandbox page for safe overlay testing without third-party sites.',
     enabled: true,
     settings: {},
+    expoGoCompatible: true,
   },
   holographic: {
     id: 'holographic',
@@ -395,20 +417,23 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis.',
     enabled: true,
     settings: {},
+    expoGoCompatible: true,
   },
   websocket: {
     id: 'websocket',
     name: 'Protocol 6: WebSocket Bridge',
-    description: 'Uses React Native postMessage bridge to stream frames directly to WebView for maximum compatibility.',
+    description: 'Uses React Native postMessage bridge to stream frames directly to WebView for maximum compatibility. Best choice for Expo Go.',
     enabled: true,
     settings: {},
+    expoGoCompatible: true,
   },
   'webrtc-loopback': {
     id: 'webrtc-loopback',
-    name: 'Protocol 6: WebRTC Loopback (iOS)',
-    description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
-    enabled: !isExpoGo,
+    name: 'Protocol 7: WebRTC Loopback (iOS)',
+    description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track. Requires development build.',
+    enabled: !isExpoGo && Platform.OS === 'ios',
     settings: {},
+    expoGoCompatible: false,
   },
 };
 
@@ -625,9 +650,16 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, []);
 
   const setActiveProtocol = useCallback(async (protocol: ProtocolType) => {
-    setActiveProtocolState(protocol);
-    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, protocol);
-    console.log('[Protocol] Active protocol set:', protocol);
+    // In Expo Go, automatically fallback to compatible protocol
+    const effectiveProtocol = getExpoGoFallbackProtocol(protocol) as ProtocolType;
+    
+    if (effectiveProtocol !== protocol) {
+      console.log('[Protocol] Protocol fallback:', protocol, '->', effectiveProtocol);
+    }
+    
+    setActiveProtocolState(effectiveProtocol);
+    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, effectiveProtocol);
+    console.log('[Protocol] Active protocol set:', effectiveProtocol);
   }, []);
 
   const updateProtocolConfig = useCallback(async <T extends ProtocolType>(
