@@ -2234,7 +2234,7 @@ export const createMediaInjectionScript = (
           Logger.log('Permission request sent to RN, awaiting response...', requestId);
         } else {
           // Fallback: if no RN bridge, use default behavior (simulate if configured)
-          Logger.warn('No ReactNativeWebView bridge, using default behavior');
+          Logger.log('No ReactNativeWebView bridge, using default behavior');
           resolve({
             requestId: requestId,
             choice: cfg.forceSimulation || cfg.stealthMode ? 'simulate' : 'allow',

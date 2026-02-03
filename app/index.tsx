@@ -1670,7 +1670,14 @@ export default function MotionBrowserScreen() {
                     if (data.type === 'console') {
                       const logLevel = data.level || 'log';
                       const timestamp = new Date().toISOString();
-                      console.log(`[WebView ${logLevel.toUpperCase()}] [${timestamp}]`, data.message);
+                      const logMethod = logLevel === 'warn'
+                        ? console.warn
+                        : logLevel === 'error'
+                          ? console.error
+                          : logLevel === 'debug'
+                            ? console.debug
+                            : console.log;
+                      logMethod(`[WebView ${logLevel.toUpperCase()}] [${timestamp}]`, data.message);
                     } else if (data.type === 'error') {
                       console.error('[WebView ERROR]', data.message, data.stack || '');
                     } else if (data.type === 'mediaInjectionReady') {

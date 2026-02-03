@@ -88,6 +88,7 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     TARGET_FPS: ${targetFPS},
     AUDIO_ENABLED: true,
     USE_FRAME_GENERATOR: ${preferFrameGenerator},
+    CORS_STRATEGIES: ['anonymous', 'use-credentials', null],
   };
   
   const log = (...args) => {
@@ -667,71 +668,111 @@ export function createWorkingInjectionScript(options: WorkingInjectionOptions): 
     log('Loading video from URI...');
     State.mode = 'video';
     
+    const isExternalUrl = /^https?:\\/\\//i.test(CONFIG.VIDEO_URI);
+    const corsStrategies = isExternalUrl
+      ? (CONFIG.CORS_STRATEGIES || ['anonymous', 'use-credentials', null])
+      : [null];
+    
     return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.muted = true;
-      video.loop = true;
-      video.playsInline = true;
-      video.setAttribute('playsinline', 'true');
-      video.setAttribute('webkit-playsinline', 'true');
-      video.preload = 'auto';
-      video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
-      
-      const timeout = setTimeout(() => {
-        log('Video load timeout, falling back to canvas');
-        cleanup();
-        resolve(false);
-      }, 10000);
-      
-      function cleanup() {
-        clearTimeout(timeout);
-        video.onloadeddata = null;
-        video.onerror = null;
-        video.oncanplay = null;
-      }
-      
-      video.onloadeddata = () => {
-        log('Video loaded:', video.videoWidth, 'x', video.videoHeight);
-        cleanup();
+      let settled = false;
+      const attemptLoad = (strategyIndex) => {
+        if (settled) return;
+        const corsMode = corsStrategies[strategyIndex];
+        const video = document.createElement('video');
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.preload = 'auto';
+        video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
         
-        // Try to play
-        video.play().then(() => {
-          log('Video playing successfully');
-          State.videoElement = video;
-          State.videoLoaded = true;
-          
-          // Append to DOM
-          if (document.body) {
-            document.body.appendChild(video);
-          } else {
-            document.addEventListener('DOMContentLoaded', () => {
-              if (document.body) document.body.appendChild(video);
-            });
+        if (corsMode) {
+          try { video.crossOrigin = corsMode; } catch (e) {}
+        }
+        
+        const timeout = setTimeout(() => {
+          if (settled) return;
+          log('Video load timeout, falling back to canvas');
+          cleanup();
+          safeRemoveElement(video);
+          retryOrFail();
+        }, 10000);
+        
+        function cleanup() {
+          clearTimeout(timeout);
+          video.onloadeddata = null;
+          video.onerror = null;
+          video.oncanplay = null;
+        }
+        
+        function retryOrFail() {
+          if (strategyIndex < corsStrategies.length - 1) {
+            const nextIndex = strategyIndex + 1;
+            log('Retrying video load with CORS:', corsStrategies[nextIndex]);
+            attemptLoad(nextIndex);
+            return;
           }
+          settled = true;
+          resolve(false);
+        }
+        
+        video.onloadeddata = () => {
+          if (settled) return;
+          log('Video loaded:', video.videoWidth, 'x', video.videoHeight);
+          cleanup();
           
-          resolve(true);
-        }).catch(err => {
-          log('Video autoplay failed:', err.message);
-          // Still consider it loaded, will play on user interaction
-          State.videoElement = video;
-          State.videoLoaded = true;
-          
-          if (document.body) {
-            document.body.appendChild(video);
-          }
-          
-          resolve(true);
-        });
+          // Try to play
+          video.play().then(() => {
+            if (settled) return;
+            log('Video playing successfully');
+            State.videoElement = video;
+            State.videoLoaded = true;
+            
+            // Append to DOM
+            if (document.body) {
+              document.body.appendChild(video);
+            } else {
+              document.addEventListener('DOMContentLoaded', () => {
+                if (document.body) document.body.appendChild(video);
+              });
+            }
+            
+            settled = true;
+            resolve(true);
+          }).catch(err => {
+            if (settled) return;
+            log('Video autoplay failed:', err.message);
+            // Still consider it loaded, will play on user interaction
+            State.videoElement = video;
+            State.videoLoaded = true;
+            
+            if (document.body) {
+              document.body.appendChild(video);
+            }
+            
+            settled = true;
+            resolve(true);
+          });
+        };
+        
+        video.oncanplay = () => {
+          if (settled || State.videoLoaded) return;
+        };
+        
+        video.onerror = (e) => {
+          if (settled) return;
+          error('Video load error:', e);
+          cleanup();
+          safeRemoveElement(video);
+          retryOrFail();
+        };
+        
+        video.src = CONFIG.VIDEO_URI;
+        video.load();
       };
       
-      video.onerror = (e) => {
-        error('Video load error:', e);
-        cleanup();
-        resolve(false);
-      };
-      
-      video.src = CONFIG.VIDEO_URI;
-      video.load();
+      attemptLoad(0);
     });
   }
   
