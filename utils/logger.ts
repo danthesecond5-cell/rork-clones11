@@ -46,6 +46,13 @@ const LOG_PREFIXES = {
 } as const;
 
 const ORIGINAL_CONSOLE_KEY = '__loggerOriginalConsole';
+let suppressConsoleWarnings = false;
+
+export const setConsoleWarningsHidden = (hidden: boolean): void => {
+  suppressConsoleWarnings = hidden;
+};
+
+export const getConsoleWarningsHidden = (): boolean => suppressConsoleWarnings;
 
 export type FreezeCallback = (freezeInfo: FreezeInfo) => void;
 
@@ -507,7 +514,9 @@ export const installConsoleCapture = (): void => {
   };
 
   console.warn = (...args: unknown[]) => {
-    original.warn(...args);
+    if (!suppressConsoleWarnings) {
+      original.warn(...args);
+    }
     if (inCaptureRef.current) return;
     inCaptureRef.current = true;
     try {
