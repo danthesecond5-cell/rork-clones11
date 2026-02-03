@@ -16,6 +16,12 @@ import {
   validateUrl,
   validateVideoUrl,
   withErrorLogging,
+  suppressConsoleWarnings,
+  areWarningsSuppressed,
+  safeWarn,
+  safeLog,
+  configureConsoleWarnings,
+  getConsoleWarningsConfig,
 } from '@/utils/errorHandling';
 import { Alert, Platform } from 'react-native';
 
@@ -225,5 +231,79 @@ describe('errorHandling utilities', () => {
 
     setPlatformOS('ios');
     expect(getPlatformSpecificError(new Error('Some error'))).toBe('Some error');
+  });
+});
+
+describe('Console Warnings Suppression', () => {
+  let consoleWarnSpy: jest.SpyInstance;
+  let consoleLogSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    // Reset suppression state before each test
+    suppressConsoleWarnings(false);
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+    suppressConsoleWarnings(false);
+  });
+
+  test('suppressConsoleWarnings toggles suppression state', () => {
+    expect(areWarningsSuppressed()).toBe(false);
+    
+    suppressConsoleWarnings(true);
+    expect(areWarningsSuppressed()).toBe(true);
+    
+    suppressConsoleWarnings(false);
+    expect(areWarningsSuppressed()).toBe(false);
+  });
+
+  test('safeWarn outputs when not suppressed', () => {
+    suppressConsoleWarnings(false);
+    safeWarn('Test warning');
+    expect(consoleWarnSpy).toHaveBeenCalledWith('Test warning');
+  });
+
+  test('safeWarn does not output when suppressed', () => {
+    suppressConsoleWarnings(true);
+    safeWarn('Test warning');
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+  });
+
+  test('safeLog outputs when not suppressed', () => {
+    configureConsoleWarnings({ suppressInfoLogs: false });
+    safeLog('Test log');
+    expect(consoleLogSpy).toHaveBeenCalledWith('Test log');
+  });
+
+  test('safeLog does not output when suppressed', () => {
+    configureConsoleWarnings({ suppressInfoLogs: true });
+    safeLog('Test log');
+    expect(consoleLogSpy).not.toHaveBeenCalled();
+  });
+
+  test('configureConsoleWarnings updates configuration', () => {
+    configureConsoleWarnings({
+      suppressWarnings: true,
+      suppressInfoLogs: true,
+      alwaysShowCategories: ['critical', 'security', 'test'],
+    });
+
+    const config = getConsoleWarningsConfig();
+    expect(config.suppressWarnings).toBe(true);
+    expect(config.suppressInfoLogs).toBe(true);
+    expect(config.alwaysShowCategories).toContain('test');
+  });
+
+  test('getConsoleWarningsConfig returns a copy of configuration', () => {
+    const config1 = getConsoleWarningsConfig();
+    const config2 = getConsoleWarningsConfig();
+    
+    // Should be equal but not the same object
+    expect(config1).toEqual(config2);
+    expect(config1).not.toBe(config2);
   });
 });
