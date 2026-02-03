@@ -4,4 +4,16 @@ declare module 'react-native-webview' {
   interface WebViewProps {
     enterpriseWebKitEnabled?: boolean;
   }
+
+  interface IOSWebViewProps {
+    enterpriseWebKitEnabled?: boolean;
+  }
+
+  interface AndroidWebViewProps {
+    enterpriseWebKitEnabled?: boolean;
+  }
+
+  interface WindowsWebViewProps {
+    enterpriseWebKitEnabled?: boolean;
+  }
 }

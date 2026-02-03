@@ -34,11 +34,11 @@ type Session = {
 };
 
 export class NativeWebRTCBridge {
-  private webViewRef: RefObject<WebView>;
+  private webViewRef: RefObject<WebView<{}> | null>;
   private sessions = new Map<string, Session>();
   private webrtcModule: any | null | undefined = undefined;
 
-  constructor(webViewRef: RefObject<WebView>) {
+  constructor(webViewRef: RefObject<WebView<{}> | null>) {
     this.webViewRef = webViewRef;
   }
 
