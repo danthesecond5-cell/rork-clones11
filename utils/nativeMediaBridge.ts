@@ -1,12 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
-import {
-  RTCPeerConnection,
-  RTCSessionDescription,
-  RTCIceCandidate,
-  mediaDevices,
-  type MediaStream as RTCMediaStream,
-} from 'react-native-webrtc';
 
 import type {
   NativeGumOfferPayload,
@@ -23,8 +16,30 @@ type NativeBridgeHandlers = {
 };
 
 type NativeBridgeSession = {
-  pc: RTCPeerConnection;
-  stream: RTCMediaStream | null;
+  pc: any;
+  stream: any | null;
+};
+
+type WebRTCModule = {
+  RTCPeerConnection?: any;
+  RTCSessionDescription?: any;
+  RTCIceCandidate?: any;
+  mediaDevices?: any;
+};
+
+let webrtcModule: WebRTCModule | null | undefined;
+
+const getWebRTCModule = (): WebRTCModule | null => {
+  if (webrtcModule !== undefined) {
+    return webrtcModule;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    webrtcModule = require('react-native-webrtc');
+  } catch {
+    webrtcModule = null;
+  }
+  return webrtcModule;
 };
 
 const sessions = new Map<string, NativeBridgeSession>();
@@ -110,7 +125,12 @@ export async function handleNativeGumOffer(
     }
   }
 
-  if (typeof RTCPeerConnection !== 'function' || !mediaDevices?.getUserMedia) {
+  const webrtc = getWebRTCModule();
+  const RTCPeerConnection = webrtc?.RTCPeerConnection;
+  const RTCSessionDescription = webrtc?.RTCSessionDescription;
+  const mediaDevices = webrtc?.mediaDevices;
+
+  if (!RTCPeerConnection || !mediaDevices?.getUserMedia) {
     handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
     return;
   }
@@ -119,7 +139,7 @@ export async function handleNativeGumOffer(
     const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+    pc.onicecandidate = (event: any) => {
       if (event.candidate) {
         handlers.onIceCandidate({
           requestId,
@@ -174,6 +194,10 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
 
   const session = sessions.get(requestId);
   if (!session) return;
+
+  const webrtc = getWebRTCModule();
+  const RTCIceCandidate = webrtc?.RTCIceCandidate;
+  if (!RTCIceCandidate) return;
 
   try {
     await session.pc.addIceCandidate(new RTCIceCandidate(candidate));

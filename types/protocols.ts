@@ -3,7 +3,11 @@
  * Defines configuration for all 4 testing protocols
  */
 
+import { isExpoGo } from '@/utils/expoGo';
+
 export type ProtocolId = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+
+const IS_EXPO_GO = isExpoGo();
 
 export interface ProtocolConfig {
   id: ProtocolId;
@@ -223,47 +227,47 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
   pipeline: {
     hotSwitchThresholdMs: 50,
     minAcceptableFps: 15,
-    enableParallelDecoding: true,
+    enableParallelDecoding: !IS_EXPO_GO,
   },
   
   // WebRTC Relay - maximum stealth
   webrtc: {
-    enabled: true,
-    virtualTurnEnabled: true,
-    sdpManipulationEnabled: true,
-    stealthMode: true,
+    enabled: !IS_EXPO_GO,
+    virtualTurnEnabled: !IS_EXPO_GO,
+    sdpManipulationEnabled: !IS_EXPO_GO,
+    stealthMode: !IS_EXPO_GO,
   },
   
   // GPU Processing - balanced quality
   gpu: {
-    enabled: true,
+    enabled: !IS_EXPO_GO,
     qualityPreset: 'high',
-    noiseInjection: true,
-    noiseIntensity: 0.02,
+    noiseInjection: !IS_EXPO_GO,
+    noiseIntensity: IS_EXPO_GO ? 0 : 0.02,
   },
   
   // ASI - intelligent adaptation
   asi: {
-    enabled: true,
-    siteFingerprinting: true,
-    autoResolutionMatching: true,
-    antiDetectionMeasures: true,
-    storeHistory: true,
+    enabled: !IS_EXPO_GO,
+    siteFingerprinting: !IS_EXPO_GO,
+    autoResolutionMatching: !IS_EXPO_GO,
+    antiDetectionMeasures: !IS_EXPO_GO,
+    storeHistory: !IS_EXPO_GO,
   },
   
   // Cross-Device - ready for pairing
   crossDevice: {
-    enabled: true,
+    enabled: !IS_EXPO_GO,
     discoveryMethod: 'qr',
     targetLatencyMs: 100,
-    autoReconnect: true,
+    autoReconnect: !IS_EXPO_GO,
   },
   
   // Crypto - secure by default
   crypto: {
-    enabled: true,
-    frameSigning: true,
-    tamperDetection: true,
+    enabled: !IS_EXPO_GO,
+    frameSigning: !IS_EXPO_GO,
+    tamperDetection: !IS_EXPO_GO,
     keyRotationIntervalMs: 3600000, // 1 hour
   },
   
@@ -278,14 +282,14 @@ export const DEFAULT_ADVANCED_RELAY_SETTINGS: AdvancedRelaySettings = {
 export const DEFAULT_ALLOWLIST_SETTINGS = DEFAULT_ADVANCED_RELAY_SETTINGS;
 
 export const DEFAULT_HOLOGRAPHIC_SETTINGS: HolographicSettings = {
-  enabled: true,
+  enabled: !IS_EXPO_GO,
   useWebSocketBridge: true,
   bridgePort: 8080,
   latencyMode: 'balanced',
   canvasResolution: '1080p',
   frameRate: 30,
   noiseInjectionLevel: 0.1,
-  sdpMasquerade: true,
+  sdpMasquerade: !IS_EXPO_GO,
   emulatedDevice: 'iphone-front',
 };
 
@@ -310,9 +314,9 @@ export const DEFAULT_HARNESS_SETTINGS: TestHarnessSettings = {
 export const DEFAULT_WEBSOCKET_SETTINGS: WebSocketBridgeSettings = {
   enabled: true,
   port: 8765,
-  resolution: '1080p',
-  frameRate: 30,
-  quality: 0.7,
+  resolution: IS_EXPO_GO ? '720p' : '1080p',
+  frameRate: IS_EXPO_GO ? 24 : 30,
+  quality: IS_EXPO_GO ? 0.6 : 0.7,
   useSyntheticFallback: true,
   enableFrameInterpolation: false,
   showDebugOverlay: false,
@@ -320,10 +324,10 @@ export const DEFAULT_WEBSOCKET_SETTINGS: WebSocketBridgeSettings = {
 };
 
 export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
-  enabled: true,
-  autoStart: true,
+  enabled: !IS_EXPO_GO,
+  autoStart: !IS_EXPO_GO,
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: !IS_EXPO_GO,
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -336,7 +340,7 @@ export const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackSettings = {
   enableDataChannel: true,
   enableIceRestart: true,
   enableSimulcast: false,
-  recordingEnabled: true,
+  recordingEnabled: !IS_EXPO_GO,
   ringBufferSeconds: 15,
   ringSegmentSeconds: 3,
   cacheRemoteVideos: true,
@@ -405,7 +409,7 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   holographic: {
     id: 'holographic',
     name: 'Protocol 5: Holographic Stream Injection',
-    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. The most advanced injection method available.',
+    description: 'Advanced WebSocket bridge with SDP mutation and canvas-based stream synthesis. Requires a native build for full support.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,
@@ -421,7 +425,7 @@ export const PROTOCOL_METADATA: Record<ProtocolId, ProtocolConfig> = {
   'webrtc-loopback': {
     id: 'webrtc-loopback',
     name: 'Protocol 6: WebRTC Loopback (iOS)',
-    description: 'iOS-only WebRTC loopback that relies on a native bridge to provide a fake camera track.',
+    description: 'iOS-only WebRTC loopback that relies on a native bridge to provide a fake camera track. Requires native build.',
     enabled: true,
     isLive: true,
     requiresDeveloperMode: true,

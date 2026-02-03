@@ -44,6 +44,7 @@ import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { NATIVE_WEBRTC_BRIDGE_SCRIPT } from '@/constants/nativeWebRTCBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { NativeWebRTCBridge } from '@/utils/nativeWebRTCBridge';
+import { isExpoGo } from '@/utils/expoGo';
 import {
   formatVideoUriForWebView,
   getDefaultFallbackVideoUri,
@@ -83,6 +84,7 @@ type PermissionAction = 'simulate' | 'real' | 'deny';
 export default function MotionBrowserScreen() {
   const webViewRef = useRef<WebView>(null);
   const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
+  const expoGoRuntime = isExpoGo();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1163,8 +1165,8 @@ export default function MotionBrowserScreen() {
     : undefined;
 
   const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
+    return !isWeb && webViewAvailable && !expoGoRuntime;
+  }, [expoGoRuntime, isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 

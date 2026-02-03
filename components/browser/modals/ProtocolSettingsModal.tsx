@@ -34,6 +34,7 @@ import {
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
 import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
+import { isExpoGo } from '@/utils/expoGo';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -46,6 +47,7 @@ export default function ProtocolSettingsModal({
   currentHostname,
   onClose,
 }: ProtocolSettingsModalProps) {
+  const expoGoRuntime = isExpoGo();
   const {
     developerModeEnabled,
     toggleDeveloperMode,
@@ -84,6 +86,20 @@ export default function ProtocolSettingsModal({
   const [pinInput, setPinInput] = useState('');
   const [showPinEntry, setShowPinEntry] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+  const getProtocolUnavailableReason = (protocolId: ProtocolType): string | null => {
+    if (protocols[protocolId]?.enabled) return null;
+    if (protocolId === 'webrtc-loopback') {
+      return expoGoRuntime
+        ? 'Requires native WebRTC loopback module (not included in Expo Go).'
+        : 'Requires native WebRTC loopback module.';
+    }
+    if (protocolId === 'holographic') {
+      return expoGoRuntime
+        ? 'Requires native build for captureStream/WebRTC features in Expo Go.'
+        : 'Requires native build for full captureStream/WebRTC support.';
+    }
+    return 'Protocol disabled in the current runtime.';
+  };
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
     if (!developerModeEnabled) {
@@ -173,6 +189,16 @@ export default function ProtocolSettingsModal({
   };
 
   const renderProtocolSettings = (protocol: ProtocolType) => {
+    const unavailableReason = getProtocolUnavailableReason(protocol);
+    if (unavailableReason) {
+      return (
+        <View style={styles.disabledNotice}>
+          <AlertTriangle size={14} color="#ffcc00" />
+          <Text style={styles.disabledNoticeText}>{unavailableReason}</Text>
+        </View>
+      );
+    }
+
     if (!developerModeEnabled) {
       return (
         <View style={styles.lockedNotice}>
@@ -1185,6 +1211,8 @@ export default function ProtocolSettingsModal({
                 const protocol = protocols[protocolId];
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
+              const unavailableReason = getProtocolUnavailableReason(protocolId);
+              const isDisabled = Boolean(unavailableReason);
 
                 return (
                   <View
@@ -1192,6 +1220,7 @@ export default function ProtocolSettingsModal({
                     style={[
                       styles.protocolCard,
                       isActive && styles.protocolCardActive,
+                    isDisabled && styles.protocolCardDisabled,
                     ]}
                   >
                     <TouchableOpacity
@@ -1213,6 +1242,11 @@ export default function ProtocolSettingsModal({
                             <Text style={styles.activeBadgeText}>ACTIVE</Text>
                           </View>
                         )}
+                      {isDisabled && (
+                        <View style={styles.disabledBadge}>
+                          <Text style={styles.disabledBadgeText}>UNAVAILABLE</Text>
+                        </View>
+                      )}
                         <ChevronRight
                           size={18}
                           color="rgba(255,255,255,0.4)"
@@ -1229,7 +1263,7 @@ export default function ProtocolSettingsModal({
                           {protocol.description}
                         </Text>
 
-                        {!isActive && (
+                      {!isActive && !isDisabled && (
                           <TouchableOpacity
                             style={styles.setActiveButton}
                             onPress={() => setActiveProtocol(protocolId)}
@@ -1464,6 +1498,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 255, 136, 0.4)',
     backgroundColor: 'rgba(0, 255, 136, 0.05)',
   },
+  protocolCardDisabled: {
+    borderColor: 'rgba(255, 204, 0, 0.3)',
+    opacity: 0.75,
+  },
   protocolHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1504,6 +1542,18 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#00ff88',
+    letterSpacing: 0.5,
+  },
+  disabledBadge: {
+    backgroundColor: 'rgba(255, 204, 0, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  disabledBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#ffcc00',
     letterSpacing: 0.5,
   },
   protocolContent: {
@@ -1547,6 +1597,17 @@ const styles = StyleSheet.create({
   lockedNoticeText: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.4)',
+  },
+  disabledNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  disabledNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: 'rgba(255, 204, 0, 0.85)',
   },
   currentSiteRow: {
     flexDirection: 'row',
