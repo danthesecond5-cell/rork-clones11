@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,21 @@ export default function PermissionRequestModal({
 }: PermissionRequestModalProps) {
   const [selectedProtocol, setSelectedProtocol] = useState<ProtocolType>('standard');
   const [useSimulation, setUseSimulation] = useState(true);
+  const enabledProtocolIds = useMemo(
+    () => (Object.keys(protocols) as ProtocolType[]).filter((protocolId) => protocols[protocolId]?.enabled),
+    [protocols]
+  );
+  const availableProtocolIds = enabledProtocolIds.length
+    ? enabledProtocolIds
+    : (Object.keys(protocols) as ProtocolType[]);
+  const hasAvailableProtocols = availableProtocolIds.length > 0;
+
+  useEffect(() => {
+    if (!hasAvailableProtocols) return;
+    if (!availableProtocolIds.includes(selectedProtocol)) {
+      setSelectedProtocol(availableProtocolIds[0]);
+    }
+  }, [availableProtocolIds, hasAvailableProtocols, selectedProtocol]);
 
   const protocolIcons: Record<ProtocolType, React.ReactNode> = {
     standard: <Zap size={18} color="#00ff88" />,
@@ -56,6 +71,9 @@ export default function PermissionRequestModal({
   };
 
   const handleSimulate = () => {
+    if (!hasAvailableProtocols) {
+      return;
+    }
     onAction(requestId, 'simulate', {
       protocolId: selectedProtocol,
       videoUri: selectedVideo?.uri,
@@ -131,7 +149,7 @@ export default function PermissionRequestModal({
                 <View style={styles.configSection}>
                   <Text style={styles.sectionTitle}>Protocol</Text>
                   <View style={styles.protocolsList}>
-                    {(Object.keys(protocols) as ProtocolType[]).map((protocolId) => (
+                    {availableProtocolIds.map((protocolId) => (
                       <TouchableOpacity
                         key={protocolId}
                         style={[
@@ -174,6 +192,15 @@ export default function PermissionRequestModal({
               </>
             )}
 
+            {!hasAvailableProtocols && useSimulation && (
+              <View style={styles.warningBox}>
+                <AlertTriangle size={16} color="#ff4757" />
+                <Text style={styles.warningText}>
+                  No compatible protocols are available in this runtime. Disable simulation to continue.
+                </Text>
+              </View>
+            )}
+
             <View style={styles.warningBox}>
               <AlertTriangle size={16} color="#ffcc00" />
               <Text style={styles.warningText}>
@@ -190,10 +217,17 @@ export default function PermissionRequestModal({
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.confirmButton} 
+              style={[
+                styles.confirmButton,
+                useSimulation && !hasAvailableProtocols && styles.confirmButtonDisabled,
+              ]}
               onPress={useSimulation ? handleSimulate : handleAllow}
+              disabled={useSimulation && !hasAvailableProtocols}
             >
-              <Text style={styles.confirmButtonText}>
+              <Text style={[
+                styles.confirmButtonText,
+                useSimulation && !hasAvailableProtocols && styles.confirmButtonTextDisabled,
+              ]}>
                 {useSimulation ? 'Start Simulation' : 'Allow Access'}
               </Text>
             </TouchableOpacity>
@@ -396,9 +430,15 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
   },
+  confirmButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
   confirmButtonText: {
     color: '#0a0a0a',
     fontWeight: '600',
     fontSize: 16,
+  },
+  confirmButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.6)',
   },
 });
