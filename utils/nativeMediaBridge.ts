@@ -1,5 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
+import Constants from 'expo-constants';
 
 import type {
   NativeGumOfferPayload,
@@ -8,6 +8,17 @@ import type {
   NativeGumErrorPayload,
   NativeGumCancelPayload,
 } from '@/types/nativeMediaBridge';
+
+// Expo Go compatibility detection
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Log status in development
+if (__DEV__) {
+  console.log('[NativeMediaBridge] Expo Go mode:', isExpoGo);
+  if (isExpoGo) {
+    console.log('[NativeMediaBridge] Native WebRTC features disabled - use Protocol 6 WebSocket Bridge for best compatibility');
+  }
+}
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -33,14 +44,34 @@ type WebRTCModule = {
 
 let webrtcModule: WebRTCModule | null | undefined = undefined;
 
+/**
+ * Get the WebRTC module (react-native-webrtc)
+ * Returns null in Expo Go since native modules aren't available
+ */
 const getWebRTCModule = (): WebRTCModule | null => {
+  // In Expo Go, native modules like react-native-webrtc are not available
+  if (isExpoGo) {
+    if (__DEV__ && webrtcModule === undefined) {
+      console.log('[NativeMediaBridge] WebRTC module not available in Expo Go');
+    }
+    webrtcModule = null;
+    return null;
+  }
+  
   if (webrtcModule !== undefined) {
     return webrtcModule;
   }
+  
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     webrtcModule = require('react-native-webrtc');
-  } catch {
+    if (__DEV__) {
+      console.log('[NativeMediaBridge] WebRTC module loaded successfully');
+    }
+  } catch (error) {
+    if (__DEV__) {
+      console.log('[NativeMediaBridge] WebRTC module not available:', (error as Error)?.message);
+    }
     webrtcModule = null;
   }
   return webrtcModule;
@@ -52,10 +83,32 @@ let nativeBridge: {
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
 
-try {
-  nativeBridge = (NativeModules as any).NativeMediaBridge || requireNativeModule('NativeMediaBridge');
-} catch {
-  nativeBridge = null;
+// Only try to load native bridge if not in Expo Go
+if (!isExpoGo) {
+  try {
+    // Try to load from NativeModules first
+    nativeBridge = (NativeModules as any).NativeMediaBridge || null;
+    
+    // If not in NativeModules, try expo-modules-core
+    if (!nativeBridge) {
+      try {
+        const { requireNativeModule } = require('expo-modules-core');
+        nativeBridge = requireNativeModule('NativeMediaBridge');
+      } catch {
+        // Native module not available
+      }
+    }
+    
+    if (__DEV__ && nativeBridge) {
+      console.log('[NativeMediaBridge] Native bridge loaded successfully');
+    }
+  } catch {
+    nativeBridge = null;
+  }
+} else {
+  if (__DEV__) {
+    console.log('[NativeMediaBridge] Native bridge disabled in Expo Go');
+  }
 }
 
 let nativeEmitter: NativeEventEmitter | null = null;
@@ -96,12 +149,36 @@ const normalizeConstraints = (constraints?: MediaStreamConstraints): MediaStream
   return { video: wantsVideo, audio: wantsAudio };
 };
 
+/**
+ * Check if native WebRTC features are available
+ * Returns false in Expo Go
+ */
+export function isNativeWebRTCAvailable(): boolean {
+  if (isExpoGo) return false;
+  if (Platform.OS !== 'ios') return false;
+  return !!(nativeBridge?.createSession || getWebRTCModule());
+}
+
+/**
+ * Handle native getUserMedia offer
+ * In Expo Go, this will return an error suggesting to use Protocol 6 WebSocket Bridge
+ */
 export async function handleNativeGumOffer(
   payload: NativeGumOfferPayload,
   handlers: NativeBridgeHandlers
 ): Promise<void> {
   const requestId = payload?.requestId;
   if (!requestId) {
+    return;
+  }
+
+  // Expo Go compatibility check - provide helpful error message
+  if (isExpoGo) {
+    handlers.onError(buildError(
+      requestId, 
+      'Native WebRTC is not available in Expo Go. Use Protocol 6 (WebSocket Bridge) for video injection, or create a development build to enable native WebRTC.',
+      'expo_go_incompatible'
+    ));
     return;
   }
 
@@ -129,7 +206,11 @@ export async function handleNativeGumOffer(
 
   const webrtc = getWebRTCModule();
   if (!webrtc || typeof webrtc.RTCPeerConnection !== 'function' || !webrtc.mediaDevices?.getUserMedia) {
-    handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
+    handlers.onError(buildError(
+      requestId, 
+      'react-native-webrtc is not available. Use Protocol 6 (WebSocket Bridge) or create a development build.',
+      'missing_dependency'
+    ));
     return;
   }
 

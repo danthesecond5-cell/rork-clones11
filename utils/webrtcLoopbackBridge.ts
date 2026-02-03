@@ -1,7 +1,11 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
+
+// Expo Go compatibility detection
+const isExpoGo = Constants.appOwnership === 'expo';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -38,6 +42,14 @@ const EVENT_NAMES = {
   state: 'WebRtcLoopbackState',
 };
 
+/**
+ * WebRTC Loopback Bridge for native video injection
+ * 
+ * EXPO GO COMPATIBILITY:
+ * This class relies on native modules which are NOT available in Expo Go.
+ * In Expo Go, all operations will return errors suggesting to use Protocol 6 (WebSocket Bridge).
+ * For native WebRTC loopback support, create a development build with EAS Build.
+ */
 export class WebRtcLoopbackBridge {
   private webViewRef: RefObject<WebView> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
@@ -51,13 +63,48 @@ export class WebRtcLoopbackBridge {
     label?: string;
     loop?: boolean;
   }> = [];
+  private isAvailable: boolean = false;
 
   constructor() {
+    // Check Expo Go compatibility first
+    if (isExpoGo) {
+      this.nativeModule = null;
+      this.isAvailable = false;
+      
+      if (__DEV__) {
+        console.log('[WebRtcLoopbackBridge] Native module disabled in Expo Go');
+        console.log('[WebRtcLoopbackBridge] Use Protocol 6 (WebSocket Bridge) for video injection');
+      }
+      return;
+    }
+    
     this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
+    this.isAvailable = this.nativeModule !== null;
+    
     if (this.nativeModule) {
       this.emitter = new NativeEventEmitter(this.nativeModule as any);
       this.attachNativeEvents();
+      
+      if (__DEV__) {
+        console.log('[WebRtcLoopbackBridge] Native module loaded successfully');
+      }
+    } else if (__DEV__) {
+      console.log('[WebRtcLoopbackBridge] Native module not available - use Protocol 6 WebSocket Bridge');
     }
+  }
+
+  /**
+   * Check if native loopback is available
+   */
+  isNativeLoopbackAvailable(): boolean {
+    return this.isAvailable && this.nativeModule !== null;
+  }
+
+  /**
+   * Check if running in Expo Go
+   */
+  isRunningInExpoGo(): boolean {
+    return isExpoGo;
   }
 
   setWebViewRef(ref: RefObject<WebView>) {
@@ -124,9 +171,19 @@ export class WebRtcLoopbackBridge {
   }
 
   private ensureNativeAvailable(requireNative: boolean): boolean {
+    // Check Expo Go first for better error message
+    if (isExpoGo) {
+      if (requireNative) {
+        const errorMsg = 'Native WebRTC loopback is not available in Expo Go. Please use Protocol 6 (WebSocket Bridge) for video injection, or create a development build with EAS Build for native WebRTC support.';
+        this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify(errorMsg)});`);
+      }
+      return false;
+    }
+    
     if (!this.nativeModule || !this.nativeModule.createAnswer) {
       if (requireNative) {
-        this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify('Native WebRTC loopback module not available.')});`);
+        const errorMsg = 'Native WebRTC loopback module not available. Use Protocol 6 (WebSocket Bridge) or create a development build.';
+        this.sendToWebView(`window.__webrtcLoopbackError && window.__webrtcLoopbackError(${JSON.stringify(errorMsg)});`);
       }
       return false;
     }
