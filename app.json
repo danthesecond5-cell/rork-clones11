@@ -4,7 +4,8 @@
     "slug": "clones11",
     "version": "1.0.0",
     "platforms": [
-      "ios"
+      "ios",
+      "web"
     ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

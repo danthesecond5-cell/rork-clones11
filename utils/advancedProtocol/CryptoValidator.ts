@@ -95,13 +95,13 @@ class CryptoUtils {
     if (typeof crypto !== 'undefined' && crypto.subtle) {
       const cryptoKey = await crypto.subtle.importKey(
         'raw',
-        key,
+        key as unknown as BufferSource,
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         ['sign']
       );
       
-      const signature = await crypto.subtle.sign('HMAC', cryptoKey, message);
+      const signature = await crypto.subtle.sign('HMAC', cryptoKey, message as unknown as BufferSource);
       return new Uint8Array(signature);
     }
     

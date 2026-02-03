@@ -27,8 +27,8 @@ describe('createMediaInjectionScript', () => {
       protocolId: 'standard',
     });
 
-    expect(script).toContain('mediaDevices.getUserMedia = async function');
+    expect(script).toMatch(/const\s+overrideGetUserMedia\s*=\s*async\s+function\s*\(/);
+    expect(script).toContain("safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia)");
     expect(script).toContain('cfg.forceSimulation');
-    expect(script).not.toContain('mediaDevices.getUserMedia = function');
   });
 });

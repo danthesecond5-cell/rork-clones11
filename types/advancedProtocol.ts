@@ -273,7 +273,7 @@ export interface SiteProfile {
   // Behavioral patterns
   getUserMediaCallPattern: {
     frequency: number;
-    constraints: Record<string, unknown>[];
+    constraints: MediaStreamConstraints[];
     timing: number[];
   };
   
