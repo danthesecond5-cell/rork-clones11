@@ -27,8 +27,7 @@
  * ```
  */
 
-import { EventEmitter } from 'expo-modules-core';
-import type { EventSubscription } from 'expo-modules-core/build/ts-declarations/EventEmitter';
+import { EventEmitter, type EventSubscription } from 'expo-modules-core/build/EventEmitter';
 import VirtualCameraModule from './VirtualCameraModule';
 
 export type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
@@ -73,7 +72,7 @@ type VirtualCameraEvents = {
 const VirtualCameraNative = VirtualCameraModule;
 
 // Event emitter for native events
-const emitter = new (EventEmitter as any)(VirtualCameraNative) as EventEmitter<VirtualCameraEvents>;
+const emitter = new EventEmitter<VirtualCameraEvents>();
 
 /**
  * Virtual Camera API
