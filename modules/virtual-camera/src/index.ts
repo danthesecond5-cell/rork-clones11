@@ -27,7 +27,7 @@
  * ```
  */
 
-import { EventEmitter, type EventSubscription } from 'expo-modules-core/build/EventEmitter';
+import { EventEmitter, type EventSubscription } from 'expo-modules-core';
 import VirtualCameraModule from './VirtualCameraModule';
 
 export type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
