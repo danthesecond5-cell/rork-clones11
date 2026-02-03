@@ -2,6 +2,7 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
+import type { CaptureDevice } from '@/types/device';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -39,7 +40,7 @@ const EVENT_NAMES = {
 };
 
 export class WebRtcLoopbackBridge {
-  private webViewRef: RefObject<WebView> | null = null;
+  private webViewRef: RefObject<WebView<{}> | null> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
   private emitter: NativeEventEmitter | null = null;
   private subscriptions: Array<{ remove: () => void }> = [];
@@ -60,7 +61,7 @@ export class WebRtcLoopbackBridge {
     }
   }
 
-  setWebViewRef(ref: RefObject<WebView>) {
+  setWebViewRef(ref: RefObject<WebView<{}> | null>) {
     this.webViewRef = ref;
   }
 
@@ -74,7 +75,7 @@ export class WebRtcLoopbackBridge {
     }
   }
 
-  updateDeviceSources(devices: Array<{ id: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean }>) {
+  updateDeviceSources(devices: CaptureDevice[]) {
     const sources = devices
       .filter((d) => d.type === 'camera' && d.simulationEnabled !== false)
       .map((d) => ({

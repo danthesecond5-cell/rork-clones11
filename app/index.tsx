@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  ScrollView,
   TouchableOpacity,
   UIManager,
   Linking,
@@ -81,7 +82,7 @@ type CameraPermissionRequest = {
 type PermissionAction = 'simulate' | 'real' | 'deny';
 
 export default function MotionBrowserScreen() {
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<WebView<{}> | null>(null);
   const webrtcLoopbackBridge = useMemo(() => new WebRtcLoopbackBridge(), []);
 
   useEffect(() => {
@@ -98,23 +99,6 @@ export default function MotionBrowserScreen() {
     };
   }, []);
   
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
-      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
-      console.log('[App] Enterprise WebKit toggled - reloading WebView');
-      setWebViewKey(prev => prev + 1);
-    }
-  }, [enterpriseWebKitEnabled]);
-
-  useEffect(() => {
-    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
-    return () => {
-      nativeBridgeRef.current?.dispose();
-      nativeBridgeRef.current = null;
-    };
-  }, []);
-
   const { 
     activeTemplate, 
     templates, 
@@ -214,6 +198,22 @@ export default function MotionBrowserScreen() {
   const [showSiteSettingsModal, setShowSiteSettingsModal] = useState(false);
   const [showProtocolSettingsModal, setShowProtocolSettingsModal] = useState(false);
   const [webViewKey, setWebViewKey] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
+
+  useEffect(() => {
+    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
+    return () => {
+      nativeBridgeRef.current?.dispose();
+      nativeBridgeRef.current = null;
+    };
+  }, []);
   const [permissionQueue, setPermissionQueue] = useState<CameraPermissionRequest[]>([]);
   const [pendingPermissionRequest, setPendingPermissionRequest] = useState<CameraPermissionRequest | null>(null);
   const [protocolDropdownOpen, setProtocolDropdownOpen] = useState(false);
@@ -344,6 +344,15 @@ export default function MotionBrowserScreen() {
   ]);
 
   const allowlistBlocked = allowlistEnabled && allowlistSettings.blockUnlisted && !isAllowlisted;
+
+  const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+  const nativeBridgeEnabled = useMemo(() => {
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
 
   const permissionSiteLabel = useMemo(() => {
     if (!pendingPermissionRequest?.url && !pendingPermissionRequest?.origin) {
@@ -1149,11 +1158,6 @@ export default function MotionBrowserScreen() {
     setInputUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
-  const isWeb = Platform.OS === 'web';
-  const webViewAvailable = !isWeb && Boolean(
-    UIManager.getViewManagerConfig?.('RNCWebView') ||
-    UIManager.getViewManagerConfig?.('RCTWebView')
-  );
   const allowLocalFileAccess = Platform.OS === 'android'
     && requiresFileAccess
     && isProtocolEnabled
@@ -1161,10 +1165,6 @@ export default function MotionBrowserScreen() {
   const mixedContentMode = Platform.OS === 'android'
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
-
-  const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1796,11 +1796,7 @@ export default function MotionBrowserScreen() {
 
                   return isNavigationAllowed(requestUrl);
                 }}
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
                 startInLoadingState
-                mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
                 thirdPartyCookiesEnabled

@@ -1,9 +1,11 @@
 import { requireNativeModule } from 'expo-modules-core';
 
 // Type definitions for the native module
+type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
+
 export interface VirtualCameraModuleType {
   getState(): Promise<{
-    status: string;
+    status: VirtualCameraStatus;
     videoUri: string | null;
     isPlaying: boolean;
     currentFrame: number;

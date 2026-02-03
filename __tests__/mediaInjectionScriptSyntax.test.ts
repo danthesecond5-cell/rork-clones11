@@ -16,8 +16,9 @@ describe('createMediaInjectionScript', () => {
     });
 
     // Regression guard: this function uses `await`, so it MUST be async.
-    expect(script).toContain('mediaDevices.getUserMedia = async function');
-    expect(script).not.toContain('mediaDevices.getUserMedia = function(');
+    expect(script).toContain('const overrideGetUserMedia = async function');
+    expect(script).toContain("safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia)");
+    expect(script).not.toContain('const overrideGetUserMedia = function');
   });
 });
 

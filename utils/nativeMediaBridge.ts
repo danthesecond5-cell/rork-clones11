@@ -119,7 +119,8 @@ export async function handleNativeGumOffer(
     const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+    const pcAny = pc as any;
+    pcAny.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
         handlers.onIceCandidate({
           requestId,
@@ -128,7 +129,7 @@ export async function handleNativeGumOffer(
       }
     };
 
-    pc.onconnectionstatechange = () => {
+    pcAny.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         handlers.onError(buildError(requestId, 'Native WebRTC connection failed', pc.connectionState));
         closeNativeGumSession({ requestId });
@@ -137,20 +138,26 @@ export async function handleNativeGumOffer(
 
     // NOTE: This currently uses the real camera. Replace with a custom video capturer
     // for file-backed or synthetic streams once the iOS native module is ready.
-    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
+    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints) as any);
     sessions.set(requestId, { pc, stream });
 
     stream.getTracks().forEach((track) => {
       pc.addTrack(track, stream);
     });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer as any));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
+    if (!pc.localDescription) {
+      throw new Error('Missing local description');
+    }
+    const localDescription = pc.localDescription.toJSON
+      ? pc.localDescription.toJSON()
+      : pc.localDescription;
     handlers.onAnswer({
       requestId,
-      answer: pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!,
+      answer: localDescription as RTCSessionDescriptionInit,
     });
   } catch (error) {
     handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'exception'));

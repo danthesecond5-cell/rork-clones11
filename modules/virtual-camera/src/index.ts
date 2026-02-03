@@ -27,7 +27,7 @@
  * ```
  */
 
-import { NativeModulesProxy, EventEmitter, Subscription } from 'expo-modules-core';
+import { LegacyEventEmitter, type EventSubscription } from 'expo-modules-core';
 import VirtualCameraModule from './VirtualCameraModule';
 
 export type VirtualCameraStatus = 'disabled' | 'enabled' | 'error';
@@ -68,7 +68,7 @@ export type VirtualCameraEvent = {
 const VirtualCameraNative = VirtualCameraModule;
 
 // Event emitter for native events
-const emitter = new EventEmitter(VirtualCameraNative);
+const emitter = new LegacyEventEmitter(VirtualCameraNative as any);
 
 /**
  * Virtual Camera API
@@ -86,7 +86,7 @@ export const VirtualCamera = {
    */
   async getState(): Promise<VirtualCameraState> {
     if (!this.isAvailable()) {
-      return {
+      const fallbackState: VirtualCameraState = {
         status: 'disabled',
         videoUri: null,
         isPlaying: false,
@@ -97,6 +97,7 @@ export const VirtualCamera = {
         height: 0,
         error: 'Module not available',
       };
+      return fallbackState;
     }
     return await VirtualCameraNative.getState();
   },
@@ -226,14 +227,14 @@ export const VirtualCamera = {
   /**
    * Subscribe to virtual camera events
    */
-  addListener(callback: (event: VirtualCameraEvent) => void): Subscription {
-    return emitter.addListener('onVirtualCameraEvent', callback);
+  addListener(callback: (event: VirtualCameraEvent) => void): EventSubscription {
+    return emitter.addListener<VirtualCameraEvent>('onVirtualCameraEvent', callback);
   },
 
   /**
    * Remove event listener
    */
-  removeSubscription(subscription: Subscription): void {
+  removeSubscription(subscription: EventSubscription): void {
     subscription.remove();
   },
 };

@@ -228,11 +228,12 @@ async function testProtocol(
 
     if (testResult.success) {
       result.success = true;
+      const resolution = testResult.resolution ?? { width: 0, height: 0 };
       result.details = {
         streamCreated: testResult.streamCreated,
         videoTracks: testResult.videoTracks,
         audioTracks: testResult.audioTracks,
-        resolution: testResult.resolution,
+        resolution,
         mediaRecorderWorks: testResult.mediaRecorderWorks,
         recordedSize: testResult.recordedSize,
       };
@@ -241,19 +242,19 @@ async function testProtocol(
       log(`   Stream: ${testResult.streamCreated ? 'Created' : 'Failed'}`);
       log(`   Video tracks: ${testResult.videoTracks}`);
       log(`   Audio tracks: ${testResult.audioTracks}`);
-      log(`   Resolution: ${testResult.resolution.width}x${testResult.resolution.height}`);
+      log(`   Resolution: ${resolution.width}x${resolution.height}`);
       log(`   Frame rate: ${testResult.frameRate || 'unknown'}`);
       log(`   Device ID: ${testResult.deviceId || 'unknown'}`);
       log(`   Facing mode: ${testResult.facingMode || 'unknown'}`);
       log(`   Label: ${testResult.label || 'unknown'}`);
       log(`   MediaRecorder: ${testResult.mediaRecorderWorks ? 'WORKS' : 'FAILED'}`);
       log(`   Recorded size: ${testResult.recordedSize} bytes`);
-      log(`   Injection status:`, JSON.stringify(testResult.injectionStatus, null, 2));
+      log(`   Injection status: ${JSON.stringify(testResult.injectionStatus, null, 2)}`);
     } else {
       result.success = false;
       result.error = testResult.error;
       log(`❌ FAILED: ${testResult.error}`);
-      log(`   Injection status:`, JSON.stringify(testResult.injectionStatus, null, 2));
+      log(`   Injection status: ${JSON.stringify(testResult.injectionStatus, null, 2)}`);
     }
 
   } catch (error: any) {
