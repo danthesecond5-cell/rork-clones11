@@ -171,62 +171,6 @@ export const PROTOCOL_VERSIONS: Record<string, ProtocolVersion[]> = {
       deprecated: false,
     },
   ],
-  'claude-sonnet': [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'claude-sonnet',
-      changes: [
-        'Initial release',
-        'AI-powered adaptive quality',
-        'Advanced stealth techniques',
-        'Protocol chaining',
-        'Neural enhancement',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  claude: [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'claude',
-      changes: [
-        'Initial release',
-        'Neural optimization engine',
-        'Quantum fingerprint evasion',
-        'Behavioral mimicry profiles',
-        'Adaptive performance optimization',
-        'Context-aware injection',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
-  sonnet: [
-    {
-      version: '1.0.0',
-      releaseDate: '2026-01-31',
-      protocolId: 'sonnet',
-      changes: [
-        'Initial release',
-        'AI-powered adaptive injection',
-        'Context awareness engine',
-        'Behavior analysis system',
-        'Self-healing mechanism',
-        'Continuous learning',
-        'Predictive preloading',
-        'Anomaly detection',
-        'Performance optimization',
-        'Privacy preservation',
-        'Cross-protocol sync',
-        'Advanced metrics',
-      ],
-      breakingChanges: false,
-      deprecated: false,
-    },
-  ],
 };
 
 export class ProtocolVersionManager {
@@ -314,16 +258,6 @@ export class ProtocolVersionManager {
         break;
       case 'webrtc-loopback':
         result.warnings.push('WebRTC loopback protocol is new - using default settings');
-        break;
-      case 'claude-sonnet':
-        result.warnings.push('Claude Sonnet protocol is new - using default settings');
-        break;
-      case 'claude':
-        result.warnings.push('Claude protocol is new - using default settings');
-        break;
-      case 'sonnet':
-        // Sonnet is new - no migration needed yet
-        result.warnings.push('Sonnet protocol is new - using default settings');
         break;
       default:
         result.errors.push(`Unknown protocol: ${protocolId}`);

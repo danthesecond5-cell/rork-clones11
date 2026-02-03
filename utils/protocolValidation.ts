@@ -55,9 +55,6 @@ export class ProtocolValidator {
       'holographic',
       'websocket',
       'webrtc-loopback',
-      'claude-sonnet',
-      'claude',
-      'sonnet',
     ];
     protocols.forEach(id => {
       this.protocolStates.set(id, {
@@ -94,7 +91,7 @@ export class ProtocolValidator {
     };
 
     // Validate protocol ID
-    if (!['standard', 'allowlist', 'protected', 'harness', 'holographic', 'websocket', 'webrtc-loopback', 'claude-sonnet', 'claude', 'sonnet'].includes(protocolId)) {
+    if (!['standard', 'allowlist', 'protected', 'harness', 'holographic', 'websocket', 'webrtc-loopback'].includes(protocolId)) {
       result.valid = false;
       result.errors.push(`Invalid protocol ID: ${protocolId}`);
       return result;
@@ -187,39 +184,6 @@ export class ProtocolValidator {
         }
         if (config.cacheMaxSizeMB && config.cacheMaxSizeMB < 50) {
           result.warnings.push('Cache max size < 50MB may be too small for large videos');
-        }
-        break;
-
-      case 'claude-sonnet':
-        if (config.antiDetectionLevel && !['standard', 'advanced', 'maximum'].includes(config.antiDetectionLevel)) {
-          result.warnings.push('Unknown anti-detection level - using standard');
-        }
-        if (config.fallbackProtocols && !Array.isArray(config.fallbackProtocols)) {
-          result.errors.push('Fallback protocols must be an array');
-          result.valid = false;
-        }
-        break;
-
-      case 'claude':
-        if (config.antiDetectionLevel && !['standard', 'enhanced', 'maximum', 'paranoid'].includes(config.antiDetectionLevel)) {
-          result.warnings.push('Unknown anti-detection level - using standard');
-        }
-        if (config.noiseReductionLevel && !['off', 'light', 'moderate', 'aggressive'].includes(config.noiseReductionLevel)) {
-          result.warnings.push('Unknown noise reduction level - using moderate');
-        }
-        break;
-
-      case 'sonnet':
-        // Advanced AI-powered protocol validation
-        if (!config.aiModelVersion) {
-          result.warnings.push('AI model version not specified - using default');
-        }
-        if (config.adaptiveThreshold && (config.adaptiveThreshold < 0 || config.adaptiveThreshold > 1)) {
-          result.valid = false;
-          result.errors.push('Adaptive threshold must be between 0 and 1');
-        }
-        if (config.mlInferenceEnabled && !config.mlModelPath) {
-          result.warnings.push('ML inference enabled but no model path configured');
         }
         break;
     }

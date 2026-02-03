@@ -621,23 +621,6 @@ export default function MotionBrowserScreen() {
         showOverlay: showProtocolOverlayLabel,
         videoUri: videoUri || undefined,
       });
-    } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
-      const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
-      const sonnetConfig = {
-        enabled: true,
-        aiAdaptiveQuality: true,
-        behavioralMimicry: true,
-        neuralStyleTransfer: false,
-        predictiveFrameOptimization: true,
-        quantumTimingRandomness: true,
-        biometricSimulation: true,
-        realTimeProfiler: true,
-        adaptiveStealth: true,
-        performanceTarget: 'balanced' as const,
-        stealthIntensity: 'maximum' as const,
-        learningMode: true,
-      };
-      fallbackScript = createSonnetProtocolScript(normalizedDevices, sonnetConfig, videoUri);
     } else if (activeProtocol === 'allowlist') {
       const advancedSettings = allowlistSettings.advancedRelay;
       const advancedEnabled = Boolean(
@@ -1249,26 +1232,6 @@ export default function MotionBrowserScreen() {
         });
         injectionType = 'WEBSOCKET';
         console.log('[App] Using WEBSOCKET BRIDGE injection with video:', videoUri ? 'YES' : 'NO');
-      } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
-        // Use Sonnet Protocol for Protocol 5
-        const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
-        const sonnetConfig = {
-          enabled: true,
-          aiAdaptiveQuality: true,
-          behavioralMimicry: true,
-          neuralStyleTransfer: false,
-          predictiveFrameOptimization: true,
-          quantumTimingRandomness: true,
-          biometricSimulation: true,
-          realTimeProfiler: true,
-          adaptiveStealth: true,
-          performanceTarget: 'balanced' as const,
-          stealthIntensity: 'maximum' as const,
-          learningMode: true,
-        };
-        mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);
-        injectionType = 'SONNET';
-        console.log('[App] Using SONNET Protocol injection with video:', videoUri ? 'YES' : 'NO');
       } else if (activeProtocol === 'allowlist') {
         const advancedSettings = allowlistSettings.advancedRelay;
         const advancedEnabled = Boolean(
