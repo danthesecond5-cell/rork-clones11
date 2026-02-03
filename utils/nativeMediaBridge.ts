@@ -122,21 +122,22 @@ export async function handleNativeGumOffer(
     const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    pc.addEventListener('icecandidate', (event: any) => {
+    const pcAny = pc as any;
+    pcAny.onicecandidate = (event: any) => {
       if (event?.candidate) {
         handlers.onIceCandidate({
           requestId,
           candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
         });
       }
-    });
+    };
 
-    pc.addEventListener('connectionstatechange', () => {
+    pcAny.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         handlers.onError(buildError(requestId, 'Native WebRTC connection failed', pc.connectionState));
         closeNativeGumSession({ requestId });
       }
-    });
+    };
 
     // NOTE: This currently uses the real camera. Replace with a custom video capturer
     // for file-backed or synthetic streams once the iOS native module is ready.
