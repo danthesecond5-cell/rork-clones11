@@ -2,6 +2,7 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -53,10 +54,24 @@ export class WebRtcLoopbackBridge {
   }> = [];
 
   constructor() {
+    // WebRTC Loopback is not available in Expo Go
+    if (IS_EXPO_GO) {
+      console.log('[WebRtcLoopbackBridge] WebRTC Loopback not available in Expo Go');
+      return;
+    }
+    
+    if (Platform.OS !== 'ios') {
+      console.log('[WebRtcLoopbackBridge] WebRTC Loopback only available on iOS');
+      return;
+    }
+    
     this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
     if (this.nativeModule) {
       this.emitter = new NativeEventEmitter(this.nativeModule as any);
       this.attachNativeEvents();
+      console.log('[WebRtcLoopbackBridge] Native module initialized successfully');
+    } else {
+      console.log('[WebRtcLoopbackBridge] Native module not found');
     }
   }
 
