@@ -44,7 +44,7 @@ const getWebRTCModule = (): WebRTCModule | null => {
   }
   
   // In Expo Go, WebRTC native module is not available
-  if (isExpoGo()) {
+  if (IS_EXPO_GO || isExpoGo()) {
     console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
     webrtcModule = null;
     return webrtcModule;
@@ -150,7 +150,7 @@ export async function handleNativeGumOffer(
     }
   }
 
-  if (IS_EXPO_GO) {
+if (IS_EXPO_GO || isExpoGo()) {
     handlers.onError(
       buildError(
         requestId,
