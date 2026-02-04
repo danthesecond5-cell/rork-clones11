@@ -148,6 +148,7 @@ export async function handleNativeGumOffer(
     }
   }
 
+  // Check for Expo Go environment
   if (isExpoGo()) {
     handlers.onError(
       buildError(
