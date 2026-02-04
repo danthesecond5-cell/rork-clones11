@@ -4,6 +4,7 @@
  */
 
 import type { ProtocolType } from '@/contexts/ProtocolContext';
+import { cwarn, plog } from './configurableLogger';
 
 export interface ProtocolValidationResult {
   valid: boolean;
@@ -245,7 +246,7 @@ export class ProtocolValidator {
 
   transitionState(protocolId: string, toStatus: ProtocolState['status']): boolean {
     if (!this.canTransition(protocolId, toStatus)) {
-      console.warn(`[ProtocolValidator] Invalid state transition for ${protocolId}: ${this.protocolStates.get(protocolId)?.status} -> ${toStatus}`);
+      cwarn(`[ProtocolValidator] Invalid state transition for ${protocolId}: ${this.protocolStates.get(protocolId)?.status} -> ${toStatus}`);
       return false;
     }
 
@@ -268,7 +269,7 @@ export class ProtocolValidator {
       this.transitionHistory.shift();
     }
 
-    console.log(`[ProtocolValidator] State transition: ${protocolId} ${fromStatus} -> ${toStatus}`);
+    plog(`[ProtocolValidator] State transition: ${protocolId} ${fromStatus} -> ${toStatus}`);
     return true;
   }
 

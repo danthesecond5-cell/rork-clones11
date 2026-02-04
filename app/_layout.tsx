@@ -9,7 +9,7 @@ import { DeveloperModeProvider } from "@/contexts/DeveloperModeContext";
 import { DeviceTemplateProvider } from "@/contexts/DeviceTemplateContext";
 import { VideoLibraryProvider } from "@/contexts/VideoLibraryContext";
 import { ProtocolProvider } from "@/contexts/ProtocolContext";
-import { DeveloperModeProvider } from "@/contexts/DeveloperModeContext";
+import { LoggingSettingsProvider } from "@/contexts/LoggingSettingsContext";
 import {
   installConsoleCapture,
   startFreezeDetection,
@@ -33,6 +33,7 @@ function RootLayoutNav() {
       <Stack.Screen name="protected-preview" options={{ presentation: "modal" }} />
       <Stack.Screen name="test-harness" options={{ presentation: "modal" }} />
       <Stack.Screen name="remote-browser" options={{ presentation: "modal" }} />
+      <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -81,17 +82,19 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <DeveloperModeProvider>
-        <ProtocolProvider>
-          <DeviceTemplateProvider>
-            <VideoLibraryProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <RootLayoutNav />
-              </GestureHandlerRootView>
-            </VideoLibraryProvider>
-          </DeviceTemplateProvider>
-        </ProtocolProvider>
-      </DeveloperModeProvider>
+      <LoggingSettingsProvider>
+        <DeveloperModeProvider>
+          <ProtocolProvider>
+            <DeviceTemplateProvider>
+              <VideoLibraryProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <RootLayoutNav />
+                </GestureHandlerRootView>
+              </VideoLibraryProvider>
+            </DeviceTemplateProvider>
+          </ProtocolProvider>
+        </DeveloperModeProvider>
+      </LoggingSettingsProvider>
     </QueryClientProvider>
   );
 }
