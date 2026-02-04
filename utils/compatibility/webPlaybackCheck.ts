@@ -39,15 +39,10 @@ export const checkVideoCompatibilityWithPlayback = async (
   
   // Create a hard timeout promise that will ALWAYS resolve after 4 seconds
   const hardTimeout = new Promise<CompatibilityResult>((resolve) => {
-    setTimeout(async () => {
+    setTimeout(() => {
       console.warn('[CompatibilityChecker] HARD TIMEOUT - forcing fallback after 4 seconds');
-      try {
-        const result = await checkVideoCompatibility(video);
-        resolve(result);
-      } catch (error) {
-        console.error('[CompatibilityChecker] Hard timeout fallback error:', error);
-        resolve(createFallbackResult());
-      }
+      // Immediately resolve with fallback result to prevent any further delays
+      resolve(createFallbackResult());
     }, 4000);
   });
   
