@@ -1,4 +1,5 @@
-import { NativeEventEmitter, Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -9,7 +10,7 @@ import type {
 } from '@/types/nativeMediaBridge';
 import { isExpoGo, safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
 
-const isExpoGoEnvironment = isExpoGo();
+const isExpoGoEnvironment = IS_EXPO_GO || isExpoGo();
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -51,6 +52,14 @@ const getWebRTCModule = (): WebRTCModule | null => {
   }
 
   webrtcModule = safeRequireWebRTC();
+  if (!webrtcModule) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      webrtcModule = require('react-native-webrtc');
+    } catch {
+      webrtcModule = null;
+    }
+  }
   return webrtcModule;
 };
 
@@ -64,6 +73,10 @@ let nativeBridge: {
 if (!isExpoGoEnvironment) {
   try {
     nativeBridge = safeRequireNativeModule('NativeMediaBridge', null);
+
+    if (!nativeBridge) {
+      nativeBridge = NativeModules.NativeMediaBridge || null;
+    }
 
     // Also try expo-modules-core if NativeModules didn't work
     if (!nativeBridge) {
