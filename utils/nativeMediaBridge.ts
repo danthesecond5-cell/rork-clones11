@@ -1,4 +1,5 @@
 import { NativeEventEmitter, Platform } from 'react-native';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -41,9 +42,8 @@ const getWebRTCModule = (): WebRTCModule | null => {
   if (webrtcModule !== undefined) {
     return webrtcModule;
   }
-
   // In Expo Go, WebRTC native module is not available
-  if (isExpoGo()) {
+  if (IS_EXPO_GO || isExpoGo()) {
     console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
     webrtcModule = null;
     return webrtcModule;
@@ -149,7 +149,7 @@ export async function handleNativeGumOffer(
     }
   }
 
-  if (isExpoGo()) {
+  if (IS_EXPO_GO || isExpoGo()) {
     handlers.onError(
       buildError(
         requestId,
