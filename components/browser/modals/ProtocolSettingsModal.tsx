@@ -30,10 +30,12 @@ import {
   Video,
   Activity,
   ZapOff,
+  Settings,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
 import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
+import LoggingSettingsModal from './LoggingSettingsModal';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -84,6 +86,7 @@ export default function ProtocolSettingsModal({
   const [pinInput, setPinInput] = useState('');
   const [showPinEntry, setShowPinEntry] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+  const [showLoggingSettings, setShowLoggingSettings] = useState(false);
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
     if (!developerModeEnabled) {
@@ -1134,6 +1137,23 @@ export default function ProtocolSettingsModal({
               </View>
             </View>
 
+            {/* Logging Settings Button */}
+            <TouchableOpacity
+              style={styles.loggingButton}
+              onPress={() => setShowLoggingSettings(true)}
+            >
+              <View style={styles.loggingButtonContent}>
+                <View style={styles.loggingButtonLeft}>
+                  <Settings size={18} color="#3b82f6" />
+                  <View>
+                    <Text style={styles.loggingButtonLabel}>Logging Settings</Text>
+                    <Text style={styles.loggingButtonHint}>Configure console logging and filters</Text>
+                  </View>
+                </View>
+                <ChevronRight size={20} color="rgba(255,255,255,0.4)" />
+              </View>
+            </TouchableOpacity>
+
             {/* Safety Features */}
             <View style={styles.safetySection}>
               <Text style={styles.sectionTitle}>Safety Features</Text>
@@ -1723,5 +1743,35 @@ const styles = StyleSheet.create({
   },
   miniBarActive: {
     backgroundColor: '#ffcc00',
+  },
+  loggingButton: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  loggingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  loggingButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  loggingButtonLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  loggingButtonHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
   },
 });
