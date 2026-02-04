@@ -121,7 +121,7 @@ export async function handleNativeGumOffer(
     return;
   }
 
-  // Expo Go check
+  // Expo Go check - fail fast
   if (IS_EXPO_GO) {
     handlers.onError(buildError(requestId, 'Native bridge not available in Expo Go. Use a custom development build.', 'expo_go'));
     return;

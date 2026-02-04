@@ -54,24 +54,31 @@ export class WebRtcLoopbackBridge {
   }> = [];
 
   constructor() {
-    // WebRTC Loopback is not available in Expo Go
-    if (IS_EXPO_GO) {
-      console.log('[WebRtcLoopbackBridge] WebRTC Loopback not available in Expo Go');
+    // Set flag for Expo Go - but don't return early, complete initialization
+    const isUnavailableEnvironment = IS_EXPO_GO || Platform.OS !== 'ios';
+    
+    if (isUnavailableEnvironment) {
+      if (IS_EXPO_GO) {
+        console.log('[WebRtcLoopbackBridge] WebRTC Loopback not available in Expo Go');
+      } else {
+        console.log('[WebRtcLoopbackBridge] WebRTC Loopback only available on iOS');
+      }
+      this.nativeModule = null;
       return;
     }
     
-    if (Platform.OS !== 'ios') {
-      console.log('[WebRtcLoopbackBridge] WebRTC Loopback only available on iOS');
-      return;
-    }
-    
-    this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
-    if (this.nativeModule) {
-      this.emitter = new NativeEventEmitter(this.nativeModule as any);
-      this.attachNativeEvents();
-      console.log('[WebRtcLoopbackBridge] Native module initialized successfully');
-    } else {
-      console.log('[WebRtcLoopbackBridge] Native module not found');
+    try {
+      this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
+      if (this.nativeModule) {
+        this.emitter = new NativeEventEmitter(this.nativeModule as any);
+        this.attachNativeEvents();
+        console.log('[WebRtcLoopbackBridge] Native module initialized successfully');
+      } else {
+        console.log('[WebRtcLoopbackBridge] Native module not found');
+      }
+    } catch (e) {
+      console.warn('[WebRtcLoopbackBridge] Failed to initialize native module:', e);
+      this.nativeModule = null;
     }
   }
 

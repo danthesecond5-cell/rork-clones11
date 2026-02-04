@@ -75,7 +75,8 @@ export const isNativeMediaBridgeAvailable = (): boolean => {
   if (Platform.OS !== 'ios') return false;
   
   try {
-    const NativeMediaBridge = require('native-media-bridge');
+    const { NativeModules } = require('react-native');
+    const NativeMediaBridge = NativeModules.NativeMediaBridge;
     return Boolean(NativeMediaBridge);
   } catch {
     return false;
@@ -90,7 +91,8 @@ export const isWebRTCLoopbackAvailable = (): boolean => {
   if (Platform.OS !== 'ios') return false;
   
   try {
-    const WebRtcLoopback = require('webrtc-loopback');
+    const { NativeModules } = require('react-native');
+    const WebRtcLoopback = NativeModules.WebRtcLoopback;
     return Boolean(WebRtcLoopback);
   } catch {
     return false;
