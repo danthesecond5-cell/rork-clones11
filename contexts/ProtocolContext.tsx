@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -21,6 +22,8 @@ export interface StandardProtocolSettings {
   injectMotionData: boolean;
   loopVideo: boolean;
 }
+
+const DEFAULT_ACTIVE_PROTOCOL: ProtocolType = IS_EXPO_GO ? 'websocket' : 'standard';
 
 // Advanced Relay Protocol Settings (Protocol 2)
 // The most technically advanced video injection system
@@ -333,10 +336,10 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
 };
 
 const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
-  enabled: true,
+  enabled: !IS_EXPO_GO,
   autoStart: true,
   signalingTimeoutMs: 12000,
-  requireNativeBridge: true,
+  requireNativeBridge: !IS_EXPO_GO,
   iceServers: [],
   preferredCodec: 'auto',
   enableAdaptiveBitrate: true,
@@ -404,7 +407,7 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     id: 'webrtc-loopback',
     name: 'Protocol 6: WebRTC Loopback (iOS)',
     description: 'iOS-only loopback that relies on a native WebRTC bridge for a fake camera track.',
-    enabled: true,
+    enabled: !IS_EXPO_GO,
     settings: {},
   },
 };
@@ -413,17 +416,58 @@ const isProtocolType = (value: string): value is ProtocolType => {
   return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness' || value === 'holographic' || value === 'websocket' || value === 'webrtc-loopback';
 };
 
+const clampProtocolsForExpoGo = (
+  nextProtocols: Record<ProtocolType, ProtocolConfig>
+): Record<ProtocolType, ProtocolConfig> => {
+  if (!IS_EXPO_GO) {
+    return nextProtocols;
+  }
+  return {
+    ...nextProtocols,
+    'webrtc-loopback': {
+      ...nextProtocols['webrtc-loopback'],
+      enabled: false,
+    },
+  };
+};
+
+const clampWebRtcLoopbackSettings = (
+  settings: WebRtcLoopbackProtocolSettings
+): WebRtcLoopbackProtocolSettings => {
+  if (!IS_EXPO_GO) {
+    return settings;
+  }
+  return {
+    ...settings,
+    enabled: false,
+    requireNativeBridge: false,
+  };
+};
+
+const resolveActiveProtocol = (
+  candidate: ProtocolType | null | undefined,
+  nextProtocols: Record<ProtocolType, ProtocolConfig>
+): ProtocolType => {
+  if (candidate && nextProtocols[candidate]?.enabled) {
+    return candidate;
+  }
+  const firstEnabled = (Object.keys(nextProtocols) as ProtocolType[]).find(
+    (protocolId) => nextProtocols[protocolId]?.enabled
+  );
+  return firstEnabled ?? DEFAULT_ACTIVE_PROTOCOL;
+};
+
 export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContextValue>(() => {
   const [isLoading, setIsLoading] = useState(true);
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [developerPin, setDeveloperPinState] = useState<string | null>(null);
   const [presentationMode, setPresentationMode] = useState(true);
   const [showTestingWatermark, setShowTestingWatermarkState] = useState(true);
-  const [activeProtocol, setActiveProtocolState] = useState<ProtocolType>('standard');
+  const [activeProtocol, setActiveProtocolState] = useState<ProtocolType>(DEFAULT_ACTIVE_PROTOCOL);
   const [protocols, setProtocols] = useState<Record<ProtocolType, ProtocolConfig>>(DEFAULT_PROTOCOLS);
   const [httpsEnforced, setHttpsEnforcedState] = useState(true);
   const [mlSafetyEnabled, setMlSafetyEnabledState] = useState(true);
-  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(true);
+  const [enterpriseWebKitEnabled, setEnterpriseWebKitEnabledState] = useState(!IS_EXPO_GO);
   
   // Protocol-specific settings
   const [standardSettings, setStandardSettings] = useState<StandardProtocolSettings>(DEFAULT_STANDARD_SETTINGS);
@@ -487,22 +531,33 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         }
         if (presMode !== null) setPresentationMode(presMode === 'true');
         if (watermark !== null) setShowTestingWatermarkState(watermark === 'true');
-        if (activeProto) {
-          if (isProtocolType(activeProto)) {
-            setActiveProtocolState(activeProto);
-          } else {
-            console.warn('[Protocol] Invalid active protocol found:', activeProto);
-            setActiveProtocolState('standard');
-            await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, 'standard');
-          }
-        }
+        let nextProtocols = { ...DEFAULT_PROTOCOLS };
         if (protocolsConfig) {
           try {
             const parsed = JSON.parse(protocolsConfig);
-            setProtocols({ ...DEFAULT_PROTOCOLS, ...parsed });
+            nextProtocols = { ...DEFAULT_PROTOCOLS, ...parsed };
           } catch (e) {
             console.warn('[Protocol] Failed to parse protocols config:', e);
           }
+        }
+        nextProtocols = clampProtocolsForExpoGo(nextProtocols);
+        setProtocols(nextProtocols);
+        if (IS_EXPO_GO && protocolsConfig) {
+          await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(nextProtocols));
+        }
+
+        let requestedProtocol: ProtocolType | null = null;
+        if (activeProto) {
+          if (isProtocolType(activeProto)) {
+            requestedProtocol = activeProto;
+          } else {
+            console.warn('[Protocol] Invalid active protocol found:', activeProto);
+          }
+        }
+        const resolvedProtocol = resolveActiveProtocol(requestedProtocol, nextProtocols);
+        setActiveProtocolState(resolvedProtocol);
+        if (activeProto !== resolvedProtocol) {
+          await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, resolvedProtocol);
         }
         if (standard) {
           try {
@@ -541,14 +596,35 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
         }
         if (webrtcLoopback) {
           try {
-            setWebrtcLoopbackSettings({ ...DEFAULT_WEBRTC_LOOPBACK_SETTINGS, ...JSON.parse(webrtcLoopback) });
+            const parsed = { ...DEFAULT_WEBRTC_LOOPBACK_SETTINGS, ...JSON.parse(webrtcLoopback) };
+            const sanitized = clampWebRtcLoopbackSettings(parsed);
+            setWebrtcLoopbackSettings(sanitized);
+            if (IS_EXPO_GO) {
+              await AsyncStorage.setItem(
+                STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS,
+                JSON.stringify(sanitized)
+              );
+            }
           } catch (e) {
             console.warn('[Protocol] Failed to parse WebRTC loopback settings:', e);
           }
+        } else if (IS_EXPO_GO) {
+          setWebrtcLoopbackSettings(clampWebRtcLoopbackSettings(DEFAULT_WEBRTC_LOOPBACK_SETTINGS));
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
         if (mlSafety !== null) setMlSafetyEnabledState(mlSafety === 'true');
-        if (enterpriseWebKit !== null) setEnterpriseWebKitEnabledState(enterpriseWebKit === 'true');
+        if (enterpriseWebKit !== null) {
+          if (IS_EXPO_GO) {
+            setEnterpriseWebKitEnabledState(false);
+            if (enterpriseWebKit !== 'false') {
+              await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, 'false');
+            }
+          } else {
+            setEnterpriseWebKitEnabledState(enterpriseWebKit === 'true');
+          }
+        } else if (IS_EXPO_GO) {
+          setEnterpriseWebKitEnabledState(false);
+        }
 
         console.log('[Protocol] Settings loaded successfully');
       } catch (error) {
@@ -622,22 +698,28 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, []);
 
   const setActiveProtocol = useCallback(async (protocol: ProtocolType) => {
-    setActiveProtocolState(protocol);
-    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, protocol);
-    console.log('[Protocol] Active protocol set:', protocol);
-  }, []);
+    const resolved = resolveActiveProtocol(protocol, protocols);
+    setActiveProtocolState(resolved);
+    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, resolved);
+    console.log('[Protocol] Active protocol set:', resolved);
+  }, [protocols]);
 
   const updateProtocolConfig = useCallback(async <T extends ProtocolType>(
     protocol: T,
     updates: Partial<ProtocolConfig>
   ) => {
-    const newProtocols = {
+    const updatedProtocols = clampProtocolsForExpoGo({
       ...protocols,
       [protocol]: { ...protocols[protocol], ...updates },
-    };
-    setProtocols(newProtocols);
-    await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(newProtocols));
-  }, [protocols]);
+    });
+    setProtocols(updatedProtocols);
+    await AsyncStorage.setItem(STORAGE_KEYS.PROTOCOLS_CONFIG, JSON.stringify(updatedProtocols));
+    const resolved = resolveActiveProtocol(activeProtocol, updatedProtocols);
+    if (resolved !== activeProtocol) {
+      setActiveProtocolState(resolved);
+      await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PROTOCOL, resolved);
+    }
+  }, [activeProtocol, protocols]);
 
   const updateStandardSettings = useCallback(async (settings: Partial<StandardProtocolSettings>) => {
     const newSettings = { ...standardSettings, ...settings };
@@ -670,7 +752,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, [holographicSettings]);
 
   const updateWebRtcLoopbackSettings = useCallback(async (settings: Partial<WebRtcLoopbackProtocolSettings>) => {
-    const newSettings = { ...webrtcLoopbackSettings, ...settings };
+    const newSettings = clampWebRtcLoopbackSettings({ ...webrtcLoopbackSettings, ...settings });
     setWebrtcLoopbackSettings(newSettings);
     await AsyncStorage.setItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS, JSON.stringify(newSettings));
   }, [webrtcLoopbackSettings]);
@@ -708,6 +790,11 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   }, []);
   
   const setEnterpriseWebKitEnabled = useCallback(async (enabled: boolean) => {
+    if (IS_EXPO_GO) {
+      setEnterpriseWebKitEnabledState(false);
+      await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, 'false');
+      return;
+    }
     setEnterpriseWebKitEnabledState(enabled);
     await AsyncStorage.setItem(STORAGE_KEYS.ENTERPRISE_WEBKIT, String(enabled));
   }, []);

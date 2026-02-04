@@ -44,6 +44,7 @@ import { WebRtcLoopbackBridge } from '@/utils/webrtcLoopbackBridge';
 import { NATIVE_WEBRTC_BRIDGE_SCRIPT } from '@/constants/nativeWebRTCBridge';
 import { clearAllDebugLogs } from '@/utils/logger';
 import { NativeWebRTCBridge } from '@/utils/nativeWebRTCBridge';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 import {
   formatVideoUriForWebView,
   getDefaultFallbackVideoUri,
@@ -250,6 +251,17 @@ export default function MotionBrowserScreen() {
     [protocols, activeProtocol]
   );
 
+  useEffect(() => {
+    if (protocols[activeProtocol]?.enabled) {
+      return;
+    }
+    const fallback =
+      enabledProtocolOptions[0]?.id ?? (IS_EXPO_GO ? 'websocket' : 'standard');
+    if (fallback && fallback !== activeProtocol) {
+      setActiveProtocol(fallback);
+    }
+  }, [activeProtocol, enabledProtocolOptions, protocols, setActiveProtocol]);
+
   // Use protocol context for allowlist (only when allowlist protocol is active/enabled)
   const allowlistModeActive = activeProtocol === 'allowlist' && (protocols.allowlist?.enabled ?? true);
   const allowlistEnabled = allowlistModeActive && allowlistSettings.enabled;
@@ -382,7 +394,9 @@ export default function MotionBrowserScreen() {
   );
 
   const protocolMirrorVideo = isProtocolEnabled && activeProtocol === 'harness' && harnessSettings.mirrorVideo;
-  const enterpriseWebKitActive = Platform.OS === 'ios' ? enterpriseWebKitEnabled : true;
+  const enterpriseWebKitActive = Platform.OS === 'ios'
+    ? enterpriseWebKitEnabled && !IS_EXPO_GO
+    : true;
 
   const protocolOverlayLabel = useMemo(() => {
     if (!isProtocolEnabled) {
