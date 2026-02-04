@@ -36,7 +36,23 @@ export const checkVideoCompatibilityWithPlayback = async (
   }
   
   console.log('[CompatibilityChecker] Web platform, using playback check');
-  return new Promise((resolve) => {
+  
+  // Create a hard timeout promise that will ALWAYS resolve after 4 seconds
+  const hardTimeout = new Promise<CompatibilityResult>((resolve) => {
+    setTimeout(async () => {
+      console.warn('[CompatibilityChecker] HARD TIMEOUT - forcing fallback after 4 seconds');
+      try {
+        const result = await checkVideoCompatibility(video);
+        resolve(result);
+      } catch (error) {
+        console.error('[CompatibilityChecker] Hard timeout fallback error:', error);
+        resolve(createFallbackResult());
+      }
+    }, 4000);
+  });
+  
+  // Race between the hard timeout and the actual video check
+  const videoCheckPromise = new Promise<CompatibilityResult>((resolve) => {
     if (typeof document === 'undefined') {
       console.log('[CompatibilityChecker] No document available, falling back');
       checkVideoCompatibility(video).then((result) => {
@@ -79,8 +95,19 @@ export const checkVideoCompatibilityWithPlayback = async (
     };
     
     const timeout = setTimeout(() => {
-      console.warn('[CompatibilityChecker] Web metadata timeout after 5 seconds');
+      console.warn('[CompatibilityChecker] Web metadata timeout after 3 seconds');
       console.log('[CompatibilityChecker] Attempting fallback check...');
+      
+      // Immediately abort the video element to prevent hanging
+      if (!resolved) {
+        try {
+          videoEl.src = '';
+          videoEl.load();
+        } catch (e) {
+          console.warn('[CompatibilityChecker] Error aborting video:', e);
+        }
+      }
+      
       checkVideoCompatibility(video).then((result) => {
         console.log('[CompatibilityChecker] Timeout fallback completed');
         safeResolve(result);
@@ -88,7 +115,7 @@ export const checkVideoCompatibilityWithPlayback = async (
         console.error('[CompatibilityChecker] Timeout fallback error:', error);
         safeResolve(createFallbackResult());
       });
-    }, 5000);
+    }, 3000);
     
     videoEl.onloadedmetadata = () => {
       clearTimeout(timeout);
@@ -168,4 +195,7 @@ export const checkVideoCompatibilityWithPlayback = async (
     }
     console.log('[CompatibilityChecker] ========== PLAYBACK CHECK SETUP COMPLETE ==========');
   });
+  
+  // Race between the video check and the hard timeout to prevent freezing
+  return Promise.race([videoCheckPromise, hardTimeout]);
 };
