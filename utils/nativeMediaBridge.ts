@@ -118,6 +118,7 @@ export async function handleNativeGumOffer(
 ): Promise<void> {
   const requestId = payload?.requestId;
   if (!requestId) {
+    console.warn('[NativeMediaBridge] Missing requestId in offer payload');
     return;
   }
 

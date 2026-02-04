@@ -54,7 +54,7 @@ export class WebRtcLoopbackBridge {
   }> = [];
 
   constructor() {
-    // Set flag for Expo Go - but don't return early, complete initialization
+    // Early exit for unavailable environments - skip initialization
     const isUnavailableEnvironment = IS_EXPO_GO || Platform.OS !== 'ios';
     
     if (isUnavailableEnvironment) {
@@ -64,7 +64,7 @@ export class WebRtcLoopbackBridge {
         console.log('[WebRtcLoopbackBridge] WebRTC Loopback only available on iOS');
       }
       this.nativeModule = null;
-      return;
+      return; // Skip initialization in unavailable environments
     }
     
     try {

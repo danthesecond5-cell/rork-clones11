@@ -43,6 +43,9 @@ export const isNativeModuleAvailable = (moduleName: string): boolean => {
 /**
  * Safe lazy import of native modules
  * Returns the module if available, null otherwise
+ * 
+ * WARNING: This function uses dynamic require() which should only be called
+ * with trusted, validated module names. Do not pass user-provided input.
  */
 export const lazyLoadNativeModule = <T = any>(moduleName: string): T | null => {
   if (IS_EXPO_GO) {
