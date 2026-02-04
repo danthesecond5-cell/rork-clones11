@@ -1,4 +1,5 @@
-import { NativeEventEmitter, Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -7,7 +8,6 @@ import type {
   NativeGumErrorPayload,
   NativeGumCancelPayload,
 } from '@/types/nativeMediaBridge';
-import { isExpoGo, safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -43,13 +43,18 @@ const getWebRTCModule = (): WebRTCModule | null => {
   }
   
   // In Expo Go, WebRTC native module is not available
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
     webrtcModule = null;
     return webrtcModule;
   }
   
-  webrtcModule = safeRequireWebRTC();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    webrtcModule = require('react-native-webrtc');
+  } catch {
+    webrtcModule = null;
+  }
   return webrtcModule;
 };
 
@@ -60,9 +65,9 @@ let nativeBridge: {
 } | null = null;
 
 // Only try to load native bridge if not in Expo Go
-if (!isExpoGo()) {
+if (!IS_EXPO_GO) {
   try {
-    nativeBridge = safeRequireNativeModule('NativeMediaBridge', null);
+    nativeBridge = NativeModules.NativeMediaBridge || null;
     
     // Also try expo-modules-core if NativeModules didn't work
     if (!nativeBridge) {
@@ -149,8 +154,7 @@ export async function handleNativeGumOffer(
     }
   }
 
-  // Check for Expo Go environment
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     handlers.onError(
       buildError(
         requestId,
@@ -160,6 +164,7 @@ export async function handleNativeGumOffer(
     );
     return;
   }
+
   const webrtc = getWebRTCModule();
   if (!webrtc || typeof webrtc.RTCPeerConnection !== 'function' || !webrtc.mediaDevices?.getUserMedia) {
     handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
