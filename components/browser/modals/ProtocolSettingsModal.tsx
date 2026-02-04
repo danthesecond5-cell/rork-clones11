@@ -1269,6 +1269,12 @@ export default function ProtocolSettingsModal({
           </ScrollView>
         </View>
       </View>
+
+      {/* Logging Settings Modal */}
+      <LoggingSettingsModal
+        visible={showLoggingSettings}
+        onClose={() => setShowLoggingSettings(false)}
+      />
     </Modal>
   );
 }
