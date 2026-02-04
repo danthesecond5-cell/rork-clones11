@@ -41,7 +41,6 @@ const getWebRTCModule = (): WebRTCModule | null => {
   if (webrtcModule !== undefined) {
     return webrtcModule;
   }
-
   // In Expo Go, WebRTC native module is not available
   if (isExpoGo()) {
     console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
