@@ -1,5 +1,4 @@
 import { NativeEventEmitter, Platform } from 'react-native';
-import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -10,7 +9,7 @@ import type {
 } from '@/types/nativeMediaBridge';
 import { isExpoGo, safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
 
-const isExpoGoEnvironment = IS_EXPO_GO || isExpoGo();
+const isExpoGoEnvironment = isExpoGo();
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -151,6 +150,7 @@ export async function handleNativeGumOffer(
     }
   }
 
+  // Check for Expo Go environment
   if (isExpoGoEnvironment) {
     handlers.onError(
       buildError(
