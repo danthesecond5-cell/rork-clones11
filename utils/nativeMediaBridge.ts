@@ -10,8 +10,6 @@ import type {
 } from '@/types/nativeMediaBridge';
 import { isExpoGo, safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
 
-const isExpoGoEnvironment = IS_EXPO_GO || isExpoGo();
-
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
   onIceCandidate: (payload: NativeGumIcePayload) => void;
@@ -45,7 +43,7 @@ const getWebRTCModule = (): WebRTCModule | null => {
     return webrtcModule;
   }
   // In Expo Go, WebRTC native module is not available
-  if (isExpoGoEnvironment) {
+  if (IS_EXPO_GO || isExpoGo()) {
     console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
     webrtcModule = null;
     return webrtcModule;
@@ -70,12 +68,11 @@ let nativeBridge: {
 } | null = null;
 
 // Only try to load native bridge if not in Expo Go
-if (!isExpoGoEnvironment) {
+if (!(IS_EXPO_GO || isExpoGo())) {
   try {
-    nativeBridge = safeRequireNativeModule('NativeMediaBridge', null);
-
+    nativeBridge = NativeModules.NativeMediaBridge || null;
     if (!nativeBridge) {
-      nativeBridge = NativeModules.NativeMediaBridge || null;
+      nativeBridge = safeRequireNativeModule('NativeMediaBridge', null);
     }
 
     // Also try expo-modules-core if NativeModules didn't work
@@ -164,7 +161,7 @@ export async function handleNativeGumOffer(
   }
 
   // Check for Expo Go environment
-  if (isExpoGoEnvironment) {
+  if (IS_EXPO_GO || isExpoGo()) {
     handlers.onError(
       buildError(
         requestId,
