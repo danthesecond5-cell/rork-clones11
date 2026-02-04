@@ -10,5 +10,6 @@ export { default as ImportProgressModal } from './ImportProgressModal';
 export { default as ProtocolSettingsModal } from './ProtocolSettingsModal';
 export { default as CameraPermissionPromptModal } from './CameraPermissionPromptModal';
 export { default as PermissionRequestModal } from './PermissionRequestModal';
+export { default as LoggingSettingsModal } from './LoggingSettingsModal';
 export type { ImportProgress } from './ImportProgressModal';
 export type { PermissionChoice, CameraPermissionPromptResult } from './CameraPermissionPromptModal';
