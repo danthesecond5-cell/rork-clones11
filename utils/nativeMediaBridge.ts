@@ -1,5 +1,6 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
+import { IS_EXPO_GO, lazyLoadNativeModule } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -37,10 +38,19 @@ const getWebRTCModule = (): WebRTCModule | null => {
   if (webrtcModule !== undefined) {
     return webrtcModule;
   }
+  
+  // WebRTC is not available in Expo Go
+  if (IS_EXPO_GO) {
+    console.log('[NativeMediaBridge] WebRTC not available in Expo Go');
+    webrtcModule = null;
+    return null;
+  }
+  
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     webrtcModule = require('react-native-webrtc');
   } catch {
+    console.warn('[NativeMediaBridge] react-native-webrtc not available');
     webrtcModule = null;
   }
   return webrtcModule;
@@ -52,10 +62,16 @@ let nativeBridge: {
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
 
-try {
-  nativeBridge = (NativeModules as any).NativeMediaBridge || requireNativeModule('NativeMediaBridge');
-} catch {
-  nativeBridge = null;
+// Native media bridge is not available in Expo Go
+if (!IS_EXPO_GO) {
+  try {
+    nativeBridge = (NativeModules as any).NativeMediaBridge || requireNativeModule('NativeMediaBridge');
+  } catch {
+    console.log('[NativeMediaBridge] Native bridge module not available');
+    nativeBridge = null;
+  }
+} else {
+  console.log('[NativeMediaBridge] Skipping native bridge in Expo Go');
 }
 
 let nativeEmitter: NativeEventEmitter | null = null;
@@ -102,6 +118,13 @@ export async function handleNativeGumOffer(
 ): Promise<void> {
   const requestId = payload?.requestId;
   if (!requestId) {
+    console.warn('[NativeMediaBridge] Missing requestId in offer payload');
+    return;
+  }
+
+  // Expo Go check - fail fast
+  if (IS_EXPO_GO) {
+    handlers.onError(buildError(requestId, 'Native bridge not available in Expo Go. Use a custom development build.', 'expo_go'));
     return;
   }
 

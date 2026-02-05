@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Crypto from 'expo-crypto';
-import Constants from 'expo-constants';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 // Protocol Types
 export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
@@ -23,7 +23,17 @@ export interface StandardProtocolSettings {
   loopVideo: boolean;
 }
 
-const isExpoGo = Constants.appOwnership === 'expo';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
+
+export interface LoggingSettings {
+  enabled: boolean;
+  level: LogLevel;
+  hideProtocolWarnings: boolean;
+  hideWebRTCWarnings: boolean;
+  hideNativeModuleWarnings: boolean;
+}
+
+const isExpoGo = IS_EXPO_GO;
 
 // Advanced Relay Protocol Settings (Protocol 2)
 // The most technically advanced video injection system
@@ -182,6 +192,10 @@ export interface ProtocolContextValue {
   updateHolographicSettings: (settings: Partial<HolographicProtocolSettings>) => Promise<void>;
   updateWebRtcLoopbackSettings: (settings: Partial<WebRtcLoopbackProtocolSettings>) => Promise<void>;
   
+  // Logging Settings
+  loggingSettings: LoggingSettings;
+  updateLoggingSettings: (settings: Partial<LoggingSettings>) => Promise<void>;
+  
   // Allowlist helpers
   addAllowlistDomain: (domain: string) => Promise<void>;
   removeAllowlistDomain: (domain: string) => Promise<void>;
@@ -198,6 +212,9 @@ export interface ProtocolContextValue {
   // Enterprise iOS WebKit (private flags)
   enterpriseWebKitEnabled: boolean;
   setEnterpriseWebKitEnabled: (enabled: boolean) => Promise<void>;
+  
+  // Environment Info
+  isExpoGo: boolean;
   
   // Loading states
   isLoading: boolean;
@@ -216,6 +233,7 @@ const STORAGE_KEYS = {
   HARNESS_SETTINGS: '@protocol_harness_settings',
   HOLOGRAPHIC_SETTINGS: '@protocol_holographic_settings',
   WEBRTC_LOOPBACK_SETTINGS: '@protocol_webrtc_loopback_settings',
+  LOGGING_SETTINGS: '@protocol_logging_settings',
   HTTPS_ENFORCED: '@protocol_https_enforced',
   ML_SAFETY: '@protocol_ml_safety',
   TESTING_WATERMARK: '@protocol_testing_watermark',
@@ -335,6 +353,14 @@ const DEFAULT_HARNESS_SETTINGS: HarnessProtocolSettings = {
   testPatternOnNoVideo: true,
 };
 
+const DEFAULT_LOGGING_SETTINGS: LoggingSettings = {
+  enabled: true,
+  level: 'info',
+  hideProtocolWarnings: false,
+  hideWebRTCWarnings: isExpoGo, // Hide WebRTC warnings in Expo Go by default
+  hideNativeModuleWarnings: isExpoGo, // Hide native module warnings in Expo Go by default
+};
+
 const DEFAULT_WEBRTC_LOOPBACK_SETTINGS: WebRtcLoopbackProtocolSettings = {
   enabled: !isExpoGo,
   autoStart: true,
@@ -437,6 +463,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
   const [webrtcLoopbackSettings, setWebrtcLoopbackSettings] = useState<WebRtcLoopbackProtocolSettings>(
     DEFAULT_WEBRTC_LOOPBACK_SETTINGS
   );
+  const [loggingSettings, setLoggingSettings] = useState<LoggingSettings>(DEFAULT_LOGGING_SETTINGS);
 
   // Load all settings on mount
   useEffect(() => {
@@ -455,6 +482,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           harness,
           holographic,
           webrtcLoopback,
+          logging,
           https,
           mlSafety,
           enterpriseWebKit,
@@ -471,6 +499,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
           AsyncStorage.getItem(STORAGE_KEYS.HARNESS_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HOLOGRAPHIC_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS),
+          AsyncStorage.getItem(STORAGE_KEYS.LOGGING_SETTINGS),
           AsyncStorage.getItem(STORAGE_KEYS.HTTPS_ENFORCED),
           AsyncStorage.getItem(STORAGE_KEYS.ML_SAFETY),
           AsyncStorage.getItem(STORAGE_KEYS.ENTERPRISE_WEBKIT),
@@ -547,6 +576,13 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
             setWebrtcLoopbackSettings({ ...DEFAULT_WEBRTC_LOOPBACK_SETTINGS, ...JSON.parse(webrtcLoopback) });
           } catch (e) {
             console.warn('[Protocol] Failed to parse WebRTC loopback settings:', e);
+          }
+        }
+        if (logging) {
+          try {
+            setLoggingSettings({ ...DEFAULT_LOGGING_SETTINGS, ...JSON.parse(logging) });
+          } catch (e) {
+            console.warn('[Protocol] Failed to parse logging settings:', e);
           }
         }
         if (https !== null) setHttpsEnforcedState(https === 'true');
@@ -678,6 +714,12 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     await AsyncStorage.setItem(STORAGE_KEYS.WEBRTC_LOOPBACK_SETTINGS, JSON.stringify(newSettings));
   }, [webrtcLoopbackSettings]);
 
+  const updateLoggingSettings = useCallback(async (settings: Partial<LoggingSettings>) => {
+    const newSettings = { ...loggingSettings, ...settings };
+    setLoggingSettings(newSettings);
+    await AsyncStorage.setItem(STORAGE_KEYS.LOGGING_SETTINGS, JSON.stringify(newSettings));
+  }, [loggingSettings]);
+
   // Allowlist helpers
   const addAllowlistDomain = useCallback(async (domain: string) => {
     const normalized = domain.trim().toLowerCase().replace(/^www\./, '');
@@ -741,6 +783,8 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     updateHarnessSettings,
     updateHolographicSettings,
     updateWebRtcLoopbackSettings,
+    loggingSettings,
+    updateLoggingSettings,
     // allowlist helpers
     addAllowlistDomain,
     removeAllowlistDomain,
@@ -751,6 +795,7 @@ export const [ProtocolProvider, useProtocol] = createContextHook<ProtocolContext
     setMlSafetyEnabled,
     enterpriseWebKitEnabled,
     setEnterpriseWebKitEnabled,
+    isExpoGo: isExpoGo,
     isLoading,
   };
 });

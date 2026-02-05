@@ -2,6 +2,7 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -53,10 +54,31 @@ export class WebRtcLoopbackBridge {
   }> = [];
 
   constructor() {
-    this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
-    if (this.nativeModule) {
-      this.emitter = new NativeEventEmitter(this.nativeModule as any);
-      this.attachNativeEvents();
+    // Early exit for unavailable environments - skip initialization
+    const isUnavailableEnvironment = IS_EXPO_GO || Platform.OS !== 'ios';
+    
+    if (isUnavailableEnvironment) {
+      if (IS_EXPO_GO) {
+        console.log('[WebRtcLoopbackBridge] WebRTC Loopback not available in Expo Go');
+      } else {
+        console.log('[WebRtcLoopbackBridge] WebRTC Loopback only available on iOS');
+      }
+      this.nativeModule = null;
+      return; // Skip initialization in unavailable environments
+    }
+    
+    try {
+      this.nativeModule = (NativeModules as any).WebRtcLoopback || null;
+      if (this.nativeModule) {
+        this.emitter = new NativeEventEmitter(this.nativeModule as any);
+        this.attachNativeEvents();
+        console.log('[WebRtcLoopbackBridge] Native module initialized successfully');
+      } else {
+        console.log('[WebRtcLoopbackBridge] Native module not found');
+      }
+    } catch (e) {
+      console.warn('[WebRtcLoopbackBridge] Failed to initialize native module:', e);
+      this.nativeModule = null;
     }
   }
 
