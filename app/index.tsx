@@ -932,7 +932,15 @@ export default function MotionBrowserScreen() {
   useEffect(() => {
     const checkStuckRef = setInterval(() => {
       if (isApplyingVideoRef.current) {
-        console.warn('[App] WARNING: isApplyingVideoRef has been true for interval check');
+        console.warn('[App] WARNING: isApplyingVideoRef has been stuck true, auto-resetting after timeout');
+        // Auto-reset after 10 seconds - something went wrong
+        const stuckTime = Date.now();
+        setTimeout(() => {
+          if (isApplyingVideoRef.current) {
+            console.error('[App] Force resetting stuck isApplyingVideoRef after 10s timeout');
+            isApplyingVideoRef.current = false;
+          }
+        }, 10000);
       }
     }, 5000);
     
@@ -1064,6 +1072,12 @@ export default function MotionBrowserScreen() {
 
         // Use a longer delay to let the navigation animation complete first
         const timeoutId = setTimeout(async () => {
+          if (!isMountedRef.current) {
+            console.log('[VideoSim] Component unmounted, aborting video apply');
+            isApplyingVideoRef.current = false;
+            return;
+          }
+          
           try {
             console.log('[VideoSim] Applying video directly (skipping redundant check):', videoToProcess.name);
             console.log('[VideoSim] Timestamp:', new Date().toISOString());
@@ -1072,12 +1086,20 @@ export default function MotionBrowserScreen() {
             await assignVideoToAllDevices(templateId, videoToProcess.uri, videoToProcess.name, undefined, true);
             console.log('[VideoSim] Video applied successfully');
 
+            if (!isMountedRef.current) {
+              console.log('[VideoSim] Component unmounted after apply, skipping state updates');
+              isApplyingVideoRef.current = false;
+              return;
+            }
+
             isApplyingVideoRef.current = false;
 
             // Inject the updated config after a short delay
             setTimeout(() => {
-              injectMediaConfig();
-              console.log('[VideoSim] Media config injected after apply');
+              if (isMountedRef.current) {
+                injectMediaConfig();
+                console.log('[VideoSim] Media config injected after apply');
+              }
             }, 100);
 
             Alert.alert('Success', `Video "${videoToProcess.name}" applied to all cameras. Reload the page to see changes.`);
@@ -1092,7 +1114,10 @@ export default function MotionBrowserScreen() {
 
         return () => {
           clearTimeout(timeoutId);
-          isApplyingVideoRef.current = false;
+          if (isApplyingVideoRef.current) {
+            console.log('[VideoSim] Cleanup: resetting isApplyingVideoRef');
+            isApplyingVideoRef.current = false;
+          }
         };
       }
     }

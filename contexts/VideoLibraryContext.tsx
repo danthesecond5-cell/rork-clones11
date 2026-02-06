@@ -556,7 +556,13 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return true;
     }
     
-    return isVideoReadyForSimulation(video);
+    try {
+      return isVideoReadyForSimulation(video);
+    } catch (error) {
+      console.error('[VideoLibrary] Error checking video ready state:', error);
+      // On error, default to true to avoid blocking
+      return true;
+    }
   }, [savedVideos]);
 
   const selectVideoForSimulation = useCallback((id: string): SavedVideo | undefined => {
@@ -577,9 +583,14 @@ export const [VideoLibraryProvider, useVideoLibrary] = createContextHook<VideoLi
       return undefined;
     }
 
-    if (!isVideoReadyForSimulation(video)) {
-      console.warn('[VideoLibrary] Video file not ready:', video.name);
-      return undefined;
+    try {
+      if (!isVideoReadyForSimulation(video)) {
+        console.warn('[VideoLibrary] Video file not ready:', video.name);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('[VideoLibrary] Error checking video file readiness:', error);
+      // Continue with selection on error - let the player handle it
     }
 
     console.log('[VideoLibrary] Selected video for simulation:', video.name, video.uri);
