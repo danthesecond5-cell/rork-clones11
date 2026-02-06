@@ -1,4 +1,5 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 import type {
   NativeGumOfferPayload,
@@ -7,6 +8,7 @@ import type {
   NativeGumErrorPayload,
   NativeGumCancelPayload,
 } from '@/types/nativeMediaBridge';
+import { isExpoGo, safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -40,19 +42,21 @@ const getWebRTCModule = (): WebRTCModule | null => {
   if (webrtcModule !== undefined) {
     return webrtcModule;
   }
-  
   // In Expo Go, WebRTC native module is not available
-  if (isExpoGo()) {
+  if (IS_EXPO_GO || isExpoGo()) {
     console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
     webrtcModule = null;
     return webrtcModule;
   }
-  
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    webrtcModule = require('react-native-webrtc');
-  } catch {
-    webrtcModule = null;
+
+  webrtcModule = safeRequireWebRTC();
+  if (!webrtcModule) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      webrtcModule = require('react-native-webrtc');
+    } catch {
+      webrtcModule = null;
+    }
   }
   return webrtcModule;
 };
@@ -64,10 +68,13 @@ let nativeBridge: {
 } | null = null;
 
 // Only try to load native bridge if not in Expo Go
-if (!IS_EXPO_GO) {
+if (!(IS_EXPO_GO || isExpoGo())) {
   try {
     nativeBridge = NativeModules.NativeMediaBridge || null;
-    
+    if (!nativeBridge) {
+      nativeBridge = safeRequireNativeModule('NativeMediaBridge', null);
+    }
+
     // Also try expo-modules-core if NativeModules didn't work
     if (!nativeBridge) {
       try {
@@ -154,7 +161,7 @@ export async function handleNativeGumOffer(
   }
 
   // Check for Expo Go environment
-  if (isExpoGo()) {
+  if (IS_EXPO_GO || isExpoGo()) {
     handlers.onError(
       buildError(
         requestId,
@@ -164,7 +171,6 @@ export async function handleNativeGumOffer(
     );
     return;
   }
-
   const webrtc = getWebRTCModule();
   if (!webrtc || typeof webrtc.RTCPeerConnection !== 'function' || !webrtc.mediaDevices?.getUserMedia) {
     handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
