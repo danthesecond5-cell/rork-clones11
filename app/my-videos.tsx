@@ -240,10 +240,13 @@ export default function MyVideosScreen() {
           headerLeft: () => (
             <TouchableOpacity 
               onPress={() => {
+                // Dismiss keyboard first
                 Keyboard.dismiss();
-                requestAnimationFrame(() => {
+                
+                // Wait a bit for keyboard to dismiss, then navigate
+                setTimeout(() => {
                   router.back();
-                });
+                }, 50);
               }}
               style={styles.headerButton}
             >

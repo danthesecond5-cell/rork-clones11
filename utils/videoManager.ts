@@ -3,6 +3,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Audio } from 'expo-av';
+import { IS_EXPO_GO } from './expoEnvironment';
 
 export interface VideoMetadata {
   duration?: number;
@@ -771,14 +772,31 @@ export const getVideoLocalUri = (video: SavedVideo): string => {
 };
 
 export const isVideoReadyForSimulation = (video: SavedVideo): boolean => {
+  // Web platform - always return true as videos are URL-based
   if (Platform.OS === 'web') {
     return true;
   }
   
+  // Canvas-generated videos are always ready
+  if (video.uri.startsWith('canvas:')) {
+    return true;
+  }
+  
+  // In Expo Go, file system checks may fail, so default to true
+  // The actual playback will determine if the file is accessible
+  if (IS_EXPO_GO) {
+    console.log('[videoManager] Running in Expo Go, assuming video is ready:', video.name);
+    return true;
+  }
+  
+  // For native builds, check file existence
   try {
     const file = new File(video.uri);
     return file.exists;
-  } catch {
-    return false;
+  } catch (error) {
+    console.error('[videoManager] Error checking video file existence:', error);
+    // On error, default to true to avoid blocking the user
+    // The video player will handle file not found errors
+    return true;
   }
 };

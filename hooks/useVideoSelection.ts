@@ -28,15 +28,28 @@ export function useVideoSelection() {
   const isProcessingRef = useRef(false);
   const processingTokenRef = useRef(0);
   const isMountedRef = useRef(true);
+  const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     console.log('[useVideoSelection] Hook mounted');
     isMountedRef.current = true;
+    abortControllerRef.current = new AbortController();
     
     return () => {
       console.log('[useVideoSelection] Hook unmounting, cleaning up...');
       isMountedRef.current = false;
       isProcessingRef.current = false;
+      
+      // Abort any pending operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
+      // Clear all pending timeouts
+      pendingTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+      pendingTimeoutsRef.current.clear();
     };
   }, []);
 
@@ -65,9 +78,14 @@ export function useVideoSelection() {
     // Track timeout state at function scope so it's accessible throughout
     let timedOut = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let navTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let resetTimeoutId: ReturnType<typeof setTimeout> | null = null;
     
     try {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) {
+        isProcessingRef.current = false;
+        return;
+      }
 
       const isFullyCompatible =
         video.compatibility?.overallStatus === 'perfect' ||
@@ -76,17 +94,32 @@ export function useVideoSelection() {
       if (isFullyCompatible) {
         if (isVideoReady(video.id)) {
           console.log('[useVideoSelection] Setting pending video for apply:', video.name);
+          
+          if (!isMountedRef.current) {
+            isProcessingRef.current = false;
+            return;
+          }
+          
           setPendingVideoForApply(video);
 
-          requestAnimationFrame(() => {
+          // Use timeout and track it for cleanup
+          navTimeoutId = setTimeout(() => {
             if (isMountedRef.current) {
               router.back();
             }
-          });
+            pendingTimeoutsRef.current.delete(navTimeoutId!);
+          }, 0);
+          pendingTimeoutsRef.current.add(navTimeoutId);
           return;
         }
 
+        isProcessingRef.current = false;
         Alert.alert('Video File Missing', 'This video file is not available. It may have been deleted.');
+        return;
+      }
+      
+      if (!isMountedRef.current) {
+        isProcessingRef.current = false;
         return;
       }
       
@@ -101,12 +134,17 @@ export function useVideoSelection() {
         timeoutId = setTimeout(() => {
           timedOut = true;
           console.warn('[useVideoSelection] Compatibility check timed out after 6 seconds');
+          if (timeoutId) {
+            pendingTimeoutsRef.current.delete(timeoutId);
+          }
         }, 6000);
+        pendingTimeoutsRef.current.add(timeoutId);
         
         result = await checkCompatibility(video);
         
         if (timeoutId) {
           clearTimeout(timeoutId);
+          pendingTimeoutsRef.current.delete(timeoutId);
           timeoutId = null;
         }
         
@@ -120,16 +158,24 @@ export function useVideoSelection() {
       
       if (!isMountedRef.current) {
         console.log('[useVideoSelection] Unmounted during check, aborting');
+        isProcessingRef.current = false;
         return;
       }
       
       setIsCheckingCompatibility(false);
       
       if (!result || timedOut) {
-        setCompatibilityResult(null);
-        setCompatibilityModalVisible(false);
+        if (isMountedRef.current) {
+          setCompatibilityResult(null);
+          setCompatibilityModalVisible(false);
+        }
         isProcessingRef.current = false;
         Alert.alert('Error', 'Failed to check video compatibility. Please try again.');
+        return;
+      }
+      
+      if (!isMountedRef.current) {
+        isProcessingRef.current = false;
         return;
       }
       
@@ -140,6 +186,11 @@ export function useVideoSelection() {
         if (isVideoReady(video.id)) {
           console.log('[useVideoSelection] Setting pending video for apply:', video.name);
           
+          if (!isMountedRef.current) {
+            isProcessingRef.current = false;
+            return;
+          }
+          
           // Close modal and mark as done BEFORE setting pending video to avoid race conditions
           setCompatibilityModalVisible(false);
           isProcessingRef.current = false;
@@ -148,15 +199,20 @@ export function useVideoSelection() {
           setPendingVideoForApply(video);
           
           // Use a slightly longer delay before navigating back to let state settle
-          setTimeout(() => {
+          navTimeoutId = setTimeout(() => {
             if (isMountedRef.current) {
               console.log('[useVideoSelection] Navigating back to main screen');
               router.back();
             }
-          }, 50);
+            pendingTimeoutsRef.current.delete(navTimeoutId!);
+          }, 100);
+          pendingTimeoutsRef.current.add(navTimeoutId);
           return;
         } else {
-          setCompatibilityModalVisible(false);
+          if (isMountedRef.current) {
+            setCompatibilityModalVisible(false);
+          }
+          isProcessingRef.current = false;
           Alert.alert('Video File Missing', 'This video file is not available. It may have been deleted.');
         }
       }
@@ -166,18 +222,23 @@ export function useVideoSelection() {
         setIsCheckingCompatibility(false);
         setCompatibilityModalVisible(false);
       }
+      isProcessingRef.current = false;
       Alert.alert('Error', 'An unexpected error occurred while selecting the video.');
     } finally {
       // Clean up timeout if still pending
       if (timeoutId) {
         clearTimeout(timeoutId);
+        pendingTimeoutsRef.current.delete(timeoutId);
       }
-      // Reset processing flag after a short delay
-      setTimeout(() => {
+      
+      // Reset processing flag after a short delay with proper cleanup
+      resetTimeoutId = setTimeout(() => {
         if (processingTokenRef.current === operationToken) {
           isProcessingRef.current = false;
         }
+        pendingTimeoutsRef.current.delete(resetTimeoutId!);
       }, 300);
+      pendingTimeoutsRef.current.add(resetTimeoutId);
     }
   }, [checkCompatibility, isVideoReady, setPendingVideoForApply]);
 
@@ -218,8 +279,8 @@ export function useVideoSelection() {
   }, [regenerateVideoThumbnail]);
 
   const handleCheckCompatibility = useCallback(async (video: SavedVideo) => {
-    if (isProcessingRef.current) {
-      console.log('[useVideoSelection] Already processing, ignoring tap');
+    if (isProcessingRef.current || !isMountedRef.current) {
+      console.log('[useVideoSelection] Already processing or unmounted, ignoring tap');
       return;
     }
     
@@ -229,8 +290,14 @@ export function useVideoSelection() {
     // Track timeout state at function scope
     let timedOut = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let resetTimeoutId: ReturnType<typeof setTimeout> | null = null;
     
     try {
+      if (!isMountedRef.current) {
+        isProcessingRef.current = false;
+        return;
+      }
+      
       setCheckingVideoName(video.name);
       setCompatibilityResult(null);
       setCompatibilityModalVisible(true);
@@ -242,12 +309,17 @@ export function useVideoSelection() {
         timeoutId = setTimeout(() => {
           timedOut = true;
           console.warn('[useVideoSelection] Compatibility check timed out after 6 seconds');
+          if (timeoutId) {
+            pendingTimeoutsRef.current.delete(timeoutId);
+          }
         }, 6000);
+        pendingTimeoutsRef.current.add(timeoutId);
         
         result = await checkCompatibility(video);
         
         if (timeoutId) {
           clearTimeout(timeoutId);
+          pendingTimeoutsRef.current.delete(timeoutId);
           timeoutId = null;
         }
       } catch (checkError) {
@@ -255,12 +327,26 @@ export function useVideoSelection() {
         result = null;
       }
       
+      if (!isMountedRef.current) {
+        console.log('[useVideoSelection] Unmounted during check, aborting');
+        isProcessingRef.current = false;
+        return;
+      }
+      
       setIsCheckingCompatibility(false);
       
       if (!result || timedOut) {
-        setCompatibilityResult(null);
-        setCompatibilityModalVisible(false);
+        if (isMountedRef.current) {
+          setCompatibilityResult(null);
+          setCompatibilityModalVisible(false);
+        }
+        isProcessingRef.current = false;
         Alert.alert('Error', 'Compatibility check timed out or failed.');
+        return;
+      }
+      
+      if (!isMountedRef.current) {
+        isProcessingRef.current = false;
         return;
       }
       
@@ -271,19 +357,26 @@ export function useVideoSelection() {
       }
     } catch (error) {
       console.error('[useVideoSelection] handleCheckCompatibility error:', error);
-      setIsCheckingCompatibility(false);
-      setCompatibilityModalVisible(false);
+      if (isMountedRef.current) {
+        setIsCheckingCompatibility(false);
+        setCompatibilityModalVisible(false);
+      }
+      isProcessingRef.current = false;
       Alert.alert('Error', 'An unexpected error occurred.');
     } finally {
       // Clean up timeout if still pending
       if (timeoutId) {
         clearTimeout(timeoutId);
+        pendingTimeoutsRef.current.delete(timeoutId);
       }
-      setTimeout(() => {
+      
+      resetTimeoutId = setTimeout(() => {
         if (processingTokenRef.current === operationToken) {
           isProcessingRef.current = false;
         }
+        pendingTimeoutsRef.current.delete(resetTimeoutId!);
       }, 300);
+      pendingTimeoutsRef.current.add(resetTimeoutId);
     }
   }, [checkCompatibility]);
 
