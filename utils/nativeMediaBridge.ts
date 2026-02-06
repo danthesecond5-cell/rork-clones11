@@ -1,5 +1,4 @@
-import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { IS_EXPO_GO } from '@/utils/expoEnvironment';
+import { NativeEventEmitter, Platform } from 'react-native';
 
 import type {
   NativeGumOfferPayload,
