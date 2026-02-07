@@ -1,13 +1,4 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
-import {
-  RTCPeerConnection,
-  RTCSessionDescription,
-  RTCIceCandidate,
-  mediaDevices,
-  type MediaStream as RTCMediaStream,
-} from 'react-native-webrtc';
-import type { Constraints } from 'react-native-webrtc/lib/typescript/getUserMedia';
 
 import type {
   NativeGumOfferPayload,
@@ -18,6 +9,8 @@ import type {
   NativeWebRTCSessionDescription,
   NativeWebRTCMediaConstraints,
 } from '@/types/nativeMediaBridge';
+import { IS_EXPO_GO } from './expoEnvironment';
+import { safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
 
 type NativeBridgeHandlers = {
   onAnswer: (payload: NativeGumAnswerPayload) => void;
@@ -26,11 +19,49 @@ type NativeBridgeHandlers = {
 };
 
 type NativeBridgeSession = {
-  pc: RTCPeerConnection;
-  stream: RTCMediaStream | null;
+  pc: any;
+  stream: any | null;
 };
 
 const sessions = new Map<string, NativeBridgeSession>();
+
+type WebRTCModule = {
+  RTCPeerConnection: any;
+  RTCSessionDescription: any;
+  RTCIceCandidate: any;
+  mediaDevices?: {
+    getUserMedia: (constraints: MediaStreamConstraints) => Promise<any>;
+  };
+};
+
+let webrtcModule: WebRTCModule | null | undefined = undefined;
+
+/**
+ * Get the WebRTC module with Expo Go compatibility
+ * In Expo Go, react-native-webrtc is not available
+ */
+const getWebRTCModule = (): WebRTCModule | null => {
+  if (webrtcModule !== undefined) {
+    return webrtcModule;
+  }
+  // In Expo Go, WebRTC native module is not available
+  if (IS_EXPO_GO) {
+    console.log('[NativeMediaBridge] WebRTC not available in Expo Go - use WebView-based injection (Protocol 0) instead');
+    webrtcModule = null;
+    return webrtcModule;
+  }
+
+  webrtcModule = safeRequireWebRTC();
+  if (!webrtcModule) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      webrtcModule = require('react-native-webrtc');
+    } catch {
+      webrtcModule = null;
+    }
+  }
+  return webrtcModule;
+};
 
 let nativeBridge: {
   createSession?: (requestId: string, offer: NativeWebRTCSessionDescription, constraints?: NativeWebRTCMediaConstraints, rtcConfig?: RTCConfiguration) => Promise<NativeWebRTCSessionDescription>;
@@ -38,10 +69,28 @@ let nativeBridge: {
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
 
-try {
-  nativeBridge = (NativeModules as any).NativeMediaBridge || requireNativeModule('NativeMediaBridge');
-} catch {
-  nativeBridge = null;
+// Only try to load native bridge if not in Expo Go
+if (!IS_EXPO_GO) {
+  try {
+    nativeBridge = NativeModules.NativeMediaBridge || null;
+    if (!nativeBridge) {
+      nativeBridge = safeRequireNativeModule('NativeMediaBridge', null);
+    }
+
+    // Also try expo-modules-core if NativeModules didn't work
+    if (!nativeBridge) {
+      try {
+        const { requireNativeModule } = require('expo-modules-core');
+        nativeBridge = requireNativeModule('NativeMediaBridge');
+      } catch {
+        // Module not available
+      }
+    }
+  } catch {
+    nativeBridge = null;
+  }
+} else {
+  console.log('[NativeMediaBridge] Skipping native bridge in Expo Go - use Protocol 0 for video injection');
 }
 
 let nativeEmitter: NativeEventEmitter | null = null;
@@ -113,18 +162,29 @@ export async function handleNativeGumOffer(
     }
   }
 
-  if (typeof RTCPeerConnection !== 'function' || !mediaDevices?.getUserMedia) {
+  // Check for Expo Go environment
+  if (IS_EXPO_GO) {
+    handlers.onError(
+      buildError(
+        requestId,
+        'Native WebRTC bridge is not available in Expo Go. Use the WebSocket protocol.',
+        'expo_go'
+      )
+    );
+    return;
+  }
+  const webrtc = getWebRTCModule();
+  if (!webrtc || typeof webrtc.RTCPeerConnection !== 'function' || !webrtc.mediaDevices?.getUserMedia) {
     handlers.onError(buildError(requestId, 'react-native-webrtc is not available', 'missing_dependency'));
     return;
   }
 
   try {
-    const pc = new RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
+    const pc = new webrtc.RTCPeerConnection(payload?.rtcConfig || DEFAULT_RTC_CONFIG);
     sessions.set(requestId, { pc, stream: null });
 
-    const pcAny = pc as any;
-    pcAny.onicecandidate = (event: any) => {
-      if (event?.candidate) {
+    pc.onicecandidate = (event: any) => {
+      if (event.candidate) {
         handlers.onIceCandidate({
           requestId,
           candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
@@ -141,14 +201,14 @@ export async function handleNativeGumOffer(
 
     // NOTE: This currently uses the real camera. Replace with a custom video capturer
     // for file-backed or synthetic streams once the iOS native module is ready.
-    const stream = await mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
+    const stream = await webrtc.mediaDevices.getUserMedia(normalizeConstraints(payload?.constraints));
     sessions.set(requestId, { pc, stream });
 
     stream.getTracks().forEach((track) => {
       pc.addTrack(track, stream);
     });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+    await pc.setRemoteDescription(new webrtc.RTCSessionDescription(payload.offer));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
@@ -174,6 +234,9 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
   const candidate = payload?.candidate;
   if (!requestId || !candidate) return;
 
+  const webrtc = getWebRTCModule();
+  if (!webrtc?.RTCIceCandidate) return;
+
   if (nativeBridge?.addIceCandidate) {
     try {
       await nativeBridge.addIceCandidate(requestId, candidate);
@@ -187,7 +250,7 @@ export async function handleNativeGumIceCandidate(payload: NativeGumIcePayload):
   if (!session) return;
 
   try {
-    await session.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    await session.pc.addIceCandidate(new webrtc.RTCIceCandidate(candidate));
   } catch {
     // Ignore ICE errors for now (common during teardown).
   }

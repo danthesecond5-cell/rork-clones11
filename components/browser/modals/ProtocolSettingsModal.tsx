@@ -34,6 +34,7 @@ import {
 import { router } from 'expo-router';
 import { useProtocol, ProtocolType } from '@/contexts/ProtocolContext';
 import { exportRingBufferToPhotos } from '@/utils/webrtcLoopbackNative';
+import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 interface ProtocolSettingsModalProps {
   visible: boolean;
@@ -86,6 +87,13 @@ export default function ProtocolSettingsModal({
   const [domainInput, setDomainInput] = useState('');
 
   const handleToggleEnterpriseWebKit = async (nextValue: boolean) => {
+    if (IS_EXPO_GO) {
+      Alert.alert(
+        'Enterprise WebKit Unavailable',
+        'Expo Go cannot enable enterprise WebKit flags. Use a custom dev build.'
+      );
+      return;
+    }
     if (!developerModeEnabled) {
       Alert.alert('Developer Mode Required', 'Enable developer mode to modify enterprise WebKit settings.');
       return;
@@ -173,6 +181,17 @@ export default function ProtocolSettingsModal({
   };
 
   const renderProtocolSettings = (protocol: ProtocolType) => {
+    if (protocol === 'webrtc-loopback' && IS_EXPO_GO) {
+      return (
+        <View style={styles.infoNotice}>
+          <AlertTriangle size={14} color="#ffcc00" />
+          <Text style={styles.infoNoticeText}>
+            WebRTC loopback requires a custom dev build with native modules. It is disabled in Expo Go.
+          </Text>
+        </View>
+      );
+    }
+
     if (!developerModeEnabled) {
       return (
         <View style={styles.lockedNotice}>
@@ -1079,7 +1098,7 @@ export default function ProtocolSettingsModal({
               )}
             </View>
             
-            {Platform.OS === 'ios' && (
+            {Platform.OS === 'ios' && !IS_EXPO_GO && (
               <View style={styles.enterpriseSection}>
                 <Text style={styles.sectionTitle}>Enterprise iOS WebKit</Text>
                 <View style={styles.settingRow}>
@@ -1188,6 +1207,10 @@ export default function ProtocolSettingsModal({
                 const protocol = protocols[protocolId];
                 const isExpanded = expandedProtocol === protocolId;
                 const isActive = activeProtocol === protocolId;
+                const isDisabled = !protocol.enabled;
+                const disabledReason = protocolId === 'webrtc-loopback' && IS_EXPO_GO
+                  ? 'Requires a custom dev build with native WebRTC modules.'
+                  : null;
 
                 return (
                   <View
@@ -1195,6 +1218,7 @@ export default function ProtocolSettingsModal({
                     style={[
                       styles.protocolCard,
                       isActive && styles.protocolCardActive,
+                      isDisabled && styles.protocolCardDisabled,
                     ]}
                   >
                     <TouchableOpacity
@@ -1204,13 +1228,20 @@ export default function ProtocolSettingsModal({
                       <View style={styles.protocolHeaderLeft}>
                         {protocolIcons[protocolId]}
                         <View style={styles.protocolInfo}>
-                          <Text style={styles.protocolName}>{protocol.name}</Text>
+                          <Text style={[styles.protocolName, isDisabled && styles.protocolNameDisabled]}>
+                            {protocol.name}
+                          </Text>
                           <Text style={styles.protocolDescription} numberOfLines={1}>
                             {protocol.description}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.protocolHeaderRight}>
+                        {isDisabled && (
+                          <View style={styles.disabledBadge}>
+                            <Text style={styles.disabledBadgeText}>UNAVAILABLE</Text>
+                          </View>
+                        )}
                         {isActive && (
                           <View style={styles.activeBadge}>
                             <Text style={styles.activeBadgeText}>ACTIVE</Text>
@@ -1234,12 +1265,28 @@ export default function ProtocolSettingsModal({
 
                         {!isActive && (
                           <TouchableOpacity
-                            style={styles.setActiveButton}
+                            style={[
+                              styles.setActiveButton,
+                              isDisabled && styles.setActiveButtonDisabled,
+                            ]}
                             onPress={() => setActiveProtocol(protocolId)}
+                            disabled={isDisabled}
                           >
                             <Check size={14} color="#0a0a0a" />
-                            <Text style={styles.setActiveButtonText}>Set as Active</Text>
+                            <Text style={[
+                              styles.setActiveButtonText,
+                              isDisabled && styles.setActiveButtonTextDisabled,
+                            ]}>
+                              {isDisabled ? 'Unavailable' : 'Set as Active'}
+                            </Text>
                           </TouchableOpacity>
+                        )}
+
+                        {isDisabled && disabledReason && (
+                          <View style={styles.infoNotice}>
+                            <AlertTriangle size={14} color="#ffcc00" />
+                            <Text style={styles.infoNoticeText}>{disabledReason}</Text>
+                          </View>
                         )}
 
                         {renderProtocolSettings(protocolId)}
@@ -1467,6 +1514,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 255, 136, 0.4)',
     backgroundColor: 'rgba(0, 255, 136, 0.05)',
   },
+  protocolCardDisabled: {
+    borderColor: 'rgba(255,255,255,0.05)',
+    opacity: 0.7,
+  },
   protocolHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1486,6 +1537,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  protocolNameDisabled: {
+    color: 'rgba(255,255,255,0.6)',
   },
   protocolDescription: {
     fontSize: 11,
@@ -1507,6 +1561,18 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#00ff88',
+    letterSpacing: 0.5,
+  },
+  disabledBadge: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  disabledBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.6)',
     letterSpacing: 0.5,
   },
   protocolContent: {
@@ -1531,10 +1597,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
   },
+  setActiveButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
   setActiveButtonText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#0a0a0a',
+  },
+  setActiveButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.6)',
   },
   settingsGroup: {
     backgroundColor: 'rgba(255,255,255,0.03)',
