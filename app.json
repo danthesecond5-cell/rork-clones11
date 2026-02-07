@@ -4,7 +4,8 @@
     "slug": "clones11",
     "version": "1.0.0",
     "platforms": [
-      "ios"
+      "ios",
+      "android"
     ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -31,6 +32,25 @@
         ]
       },
       "usesIcloudStorage": true
+    },
+    "android": {
+      "package": "app.rork.clones11",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_IMAGES",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

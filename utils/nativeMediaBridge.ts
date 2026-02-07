@@ -91,8 +91,8 @@ export async function handleNativeGumOffer(
     return;
   }
 
-  if (Platform.OS !== 'ios') {
-    handlers.onError(buildError(requestId, 'Native bridge only enabled on iOS', 'platform'));
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    handlers.onError(buildError(requestId, 'Native bridge only enabled on iOS and Android', 'platform'));
     return;
   }
 
