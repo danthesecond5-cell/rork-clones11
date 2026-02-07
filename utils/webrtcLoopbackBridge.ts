@@ -2,7 +2,8 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { RefObject } from 'react';
 import type { WebView } from 'react-native-webview';
 import type { WebRtcLoopbackSettings } from '@/types/protocols';
-import { isExpoGo, safeRequireNativeModule } from './expoGoCompat';
+import { IS_EXPO_GO } from './expoEnvironment';
+import { safeRequireNativeModule } from './expoGoCompat';
 
 type LoopbackOfferPayload = {
   offerId?: string;
@@ -62,7 +63,7 @@ export class WebRtcLoopbackBridge {
   private isExpoGoEnv: boolean;
 
   constructor() {
-    this.isExpoGoEnv = isExpoGo();
+    this.isExpoGoEnv = IS_EXPO_GO;
     
     // Only attempt to load native module if not in Expo Go
     if (!this.isExpoGoEnv) {
