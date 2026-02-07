@@ -1,7 +1,8 @@
 import type { RefObject } from 'react';
 import { Platform } from 'react-native';
 import type { WebView } from 'react-native-webview';
-import { isExpoGo, safeRequireWebRTC } from './expoGoCompat';
+import { IS_EXPO_GO } from './expoEnvironment';
+import { safeRequireWebRTC } from './expoGoCompat';
 
 type WebRTCOfferMessage = {
   type: 'nativeWebRTCOffer';
@@ -49,7 +50,7 @@ export class NativeWebRTCBridge {
 
   constructor(webViewRef: RefObject<WebView>) {
     this.webViewRef = webViewRef;
-    this.isExpoGoEnv = isExpoGo();
+    this.isExpoGoEnv = IS_EXPO_GO;
     
     if (this.isExpoGoEnv) {
       console.log('[NativeWebRTCBridge] Running in Expo Go - native WebRTC not available');

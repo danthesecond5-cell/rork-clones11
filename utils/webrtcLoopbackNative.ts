@@ -1,8 +1,9 @@
 import { NativeModules, Platform } from 'react-native';
-import { isExpoGo, safeRequireNativeModule } from './expoGoCompat';
+import { IS_EXPO_GO } from './expoEnvironment';
+import { safeRequireNativeModule } from './expoGoCompat';
 
 // Only load native module if not in Expo Go
-const LoopbackModule = isExpoGo() 
+const LoopbackModule = IS_EXPO_GO 
   ? null 
   : safeRequireNativeModule('WebRtcLoopback', null);
 
@@ -10,7 +11,7 @@ const LoopbackModule = isExpoGo()
  * Check if the native WebRTC loopback module is available
  */
 export const isWebRtcLoopbackAvailable = (): boolean => {
-  return !isExpoGo() && LoopbackModule !== null;
+  return !IS_EXPO_GO && LoopbackModule !== null;
 };
 
 /**
@@ -20,7 +21,7 @@ export const isWebRtcLoopbackAvailable = (): boolean => {
  */
 export const exportRingBufferToPhotos = async (): Promise<void> => {
   // Check for Expo Go environment first
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     throw new Error(
       'Ring buffer export is not available in Expo Go. ' +
       'This feature requires a development build with native modules.'

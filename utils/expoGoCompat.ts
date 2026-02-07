@@ -16,11 +16,7 @@
  */
 
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-
-// Cache the detection result
-let _isExpoGo: boolean | null = null;
-let _detectionAttempted = false;
+import { IS_EXPO_GO } from './expoEnvironment';
 
 /**
  * Expo Go environment types
@@ -61,103 +57,30 @@ export interface ProtocolCompatibility {
 }
 
 /**
- * Check if the app is running in Expo Go
+ * Check if the app is running in Expo Go.
+ * Delegates to IS_EXPO_GO from expoEnvironment for a single source of truth.
  * 
  * @returns true if running in Expo Go, false otherwise
  */
 export function isExpoGo(): boolean {
-  if (_detectionAttempted && _isExpoGo !== null) {
-    return _isExpoGo;
-  }
-  
-  _detectionAttempted = true;
-  
-  try {
-    // Method 1: Check Constants.executionEnvironment (Expo SDK 46+)
-    const executionEnvironment = Constants.executionEnvironment;
-    if (executionEnvironment) {
-      _isExpoGo = executionEnvironment === 'storeClient';
-      return _isExpoGo;
-    }
-    
-    // Method 2: Check Constants.appOwnership (older method)
-    const appOwnership = Constants.appOwnership;
-    if (appOwnership) {
-      _isExpoGo = appOwnership === 'expo';
-      return _isExpoGo;
-    }
-    
-    // Method 3: Check if expo-dev-client is active
-    // In Expo Go, expoConfig will have certain characteristics
-    const expoConfig = Constants.expoConfig;
-    if (expoConfig) {
-      // Development builds typically have custom native modules
-      // Expo Go doesn't
-      const hasDevClient = !!(Constants as any).manifest2?.extra?.expoGo === false;
-      _isExpoGo = !hasDevClient;
-      return _isExpoGo;
-    }
-    
-    // Method 4: Try to detect by checking for development build indicators
-    // @ts-ignore - accessing potentially undefined property
-    const manifest = Constants.manifest || Constants.manifest2;
-    if (manifest && typeof manifest === 'object') {
-      // Expo Go manifests have specific patterns
-      const isExpoGoManifest = !!(manifest as any)?.extra?.expoClient;
-      _isExpoGo = isExpoGoManifest;
-      return _isExpoGo;
-    }
-    
-    // Default: Assume Expo Go for safety (fallback behavior)
-    _isExpoGo = true;
-    return _isExpoGo;
-    
-  } catch (error) {
-    console.warn('[ExpoGoCompat] Detection failed, assuming Expo Go environment:', error);
-    _isExpoGo = true;
-    return _isExpoGo;
-  }
+  return IS_EXPO_GO;
 }
 
 /**
  * Get the current Expo environment type
  */
 export function getExpoEnvironment(): ExpoEnvironment {
-  try {
-    const executionEnvironment = Constants.executionEnvironment;
-    
-    if (executionEnvironment === 'storeClient') {
-      return 'expo-go';
-    }
-    
-    if (executionEnvironment === 'standalone') {
-      return 'standalone';
-    }
-    
-    if (executionEnvironment === 'bare') {
-      return 'development-build';
-    }
-    
-    // Check app ownership as fallback
-    const appOwnership = Constants.appOwnership;
-    if (appOwnership === 'expo') {
-      return 'expo-go';
-    }
-    if (appOwnership === 'standalone') {
-      return 'standalone';
-    }
-    
-    return 'unknown';
-  } catch {
-    return 'unknown';
-  }
+  if (IS_EXPO_GO) return 'expo-go';
+  // Cannot distinguish standalone vs development-build from appOwnership alone,
+  // so return 'unknown' for all non-Expo-Go environments.
+  return 'unknown';
 }
 
 /**
  * Check if a specific native module is available
  */
 export function isNativeModuleAvailable(moduleName: string): boolean {
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     // In Expo Go, custom native modules are never available
     const customModules = [
       'NativeMediaBridge',
@@ -182,7 +105,7 @@ export function isNativeModuleAvailable(moduleName: string): boolean {
  * Check if react-native-webrtc is available
  */
 export function isWebRTCAvailable(): boolean {
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     // react-native-webrtc requires custom native code
     return false;
   }
@@ -199,7 +122,7 @@ export function isWebRTCAvailable(): boolean {
  * Get the availability status of all native modules
  */
 export function getNativeModuleStatus(): NativeModuleStatus {
-  const inExpoGo = isExpoGo();
+  const inExpoGo = IS_EXPO_GO;
   
   return {
     nativeMediaBridge: {
@@ -233,7 +156,7 @@ export function getNativeModuleStatus(): NativeModuleStatus {
  * Get the compatibility status of all protocols
  */
 export function getProtocolCompatibility(): ProtocolCompatibility {
-  const inExpoGo = isExpoGo();
+  const inExpoGo = IS_EXPO_GO;
   
   return {
     // Protocol 0: Pure WebView/JavaScript - FULLY COMPATIBLE with Expo Go
@@ -301,7 +224,7 @@ export function getCompatibilitySummary(): {
   warnings: string[];
 } {
   const env = getExpoEnvironment();
-  const inExpoGo = isExpoGo();
+  const inExpoGo = IS_EXPO_GO;
   const moduleStatus = getNativeModuleStatus();
   const protocolCompat = getProtocolCompatibility();
   
@@ -397,7 +320,7 @@ export function safeRequireNativeModule<T>(
   moduleName: string,
   fallback: T
 ): T {
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     console.log(`[ExpoGoCompat] Skipping native module "${moduleName}" in Expo Go`);
     return fallback;
   }
@@ -422,7 +345,7 @@ export function safeRequireNativeModule<T>(
  * Helper to safely require react-native-webrtc with fallback
  */
 export function safeRequireWebRTC(): any | null {
-  if (isExpoGo()) {
+  if (IS_EXPO_GO) {
     console.log('[ExpoGoCompat] react-native-webrtc not available in Expo Go');
     return null;
   }
@@ -443,7 +366,7 @@ export function requireDevelopmentBuild<T extends (...args: any[]) => any>(
   fallbackFn?: T
 ): T {
   return ((...args: Parameters<T>) => {
-    if (isExpoGo()) {
+    if (IS_EXPO_GO) {
       if (fallbackFn) {
         return fallbackFn(...args);
       }
