@@ -85,16 +85,16 @@ class NativeMediaBridgeModule : Module() {
         return video?.get("videoUri") as? String
     }
 
-    private fun parseBool(value: Any?, default_: Boolean): Boolean {
+    private fun parseBool(value: Any?, defaultValue: Boolean): Boolean {
         if (value is Boolean) return value
         if (value is String) return value.toBoolean()
-        return default_
+        return defaultValue
     }
 
-    private fun parseInt(value: Any?, default_: Int): Int {
+    private fun parseInt(value: Any?, defaultValue: Int): Int {
         if (value is Number) return value.toInt()
-        if (value is String) return value.toIntOrNull() ?: default_
-        return default_
+        if (value is String) return value.toIntOrNull() ?: defaultValue
+        return defaultValue
     }
 
     /**
@@ -158,8 +158,8 @@ private class BridgeSession(
             frameThread = HandlerThread("NativeMediaBridgeFrameThread-$requestId").apply { start() }
             frameHandler = Handler(frameThread!!.looper)
             frameHandler?.post(tickRunnable)
-        } catch (_: Exception) {
-            // Silently degrade – the JS side will see no frames
+        } catch (e: Exception) {
+            android.util.Log.w("NativeMediaBridge", "Failed to start session $requestId", e)
         }
     }
 
@@ -169,7 +169,9 @@ private class BridgeSession(
         frameThread?.quitSafely()
         frameThread = null
         frameHandler = null
-        try { retriever?.release() } catch (_: Exception) { }
+        try { retriever?.release() } catch (e: Exception) {
+            android.util.Log.w("NativeMediaBridge", "Error releasing retriever", e)
+        }
         retriever = null
     }
 
@@ -201,7 +203,8 @@ private class BridgeSession(
                 uriString.startsWith("content://") -> Uri.parse(uriString)
                 else -> null
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("NativeMediaBridge", "Failed to resolve URI: $uriString", e)
             null
         }
     }
