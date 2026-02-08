@@ -2255,7 +2255,7 @@ export const createMediaInjectionScript = (
     }
     
     // ============ GET USER MEDIA OVERRIDE ============
-    const overrideGetUserMedia = async function(constraints) {
+    const overrideGetUserMedia = mediaDevices.getUserMedia = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
       Logger.log('Website is requesting camera access - INTERCEPTING');
       const cfg = window.__mediaSimConfig || {};
@@ -4143,7 +4143,7 @@ export const BULLETPROOF_INJECTION_SCRIPT = `
   
   // ============ OVERRIDE APIS ============
   if (navigator.mediaDevices) {
-    const newGetUserMedia = async function(constraints) {
+    const newGetUserMedia = navigator.mediaDevices.getUserMedia = async function(constraints) {
       console.log('[Bulletproof] getUserMedia intercepted');
       
       if (constraints?.video) {
