@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   UIManager,
   Linking,
+  ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -98,23 +99,6 @@ export default function MotionBrowserScreen() {
       }
     };
   }, []);
-  
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
-      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
-      console.log('[App] Enterprise WebKit toggled - reloading WebView');
-      setWebViewKey(prev => prev + 1);
-    }
-  }, [enterpriseWebKitEnabled]);
-
-  useEffect(() => {
-    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
-    return () => {
-      nativeBridgeRef.current?.dispose();
-      nativeBridgeRef.current = null;
-    };
-  }, []);
 
   const { 
     activeTemplate, 
@@ -161,6 +145,23 @@ export default function MotionBrowserScreen() {
     mlSafetyEnabled,
     enterpriseWebKitEnabled,
   } = useProtocol();
+  
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    if (enterpriseWebKitRef.current !== enterpriseWebKitEnabled) {
+      enterpriseWebKitRef.current = enterpriseWebKitEnabled;
+      console.log('[App] Enterprise WebKit toggled - reloading WebView');
+      setWebViewKey(prev => prev + 1);
+    }
+  }, [enterpriseWebKitEnabled]);
+
+  useEffect(() => {
+    nativeBridgeRef.current = new NativeWebRTCBridge(webViewRef);
+    return () => {
+      nativeBridgeRef.current?.dispose();
+      nativeBridgeRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     webrtcLoopbackBridge.setWebViewRef(webViewRef);
@@ -203,7 +204,7 @@ export default function MotionBrowserScreen() {
   const lastInjectionTimeRef = useRef<number>(0);
   const pendingInjectionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capabilityAlertShownRef = useRef<boolean>(false);
-  const enterpriseWebKitRef = useRef<boolean>(enterpriseWebKitEnabled);
+  const enterpriseWebKitRef = useRef<boolean>(true);
   const nativeBridgeRef = useRef<NativeWebRTCBridge | null>(null);
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -245,6 +246,16 @@ export default function MotionBrowserScreen() {
     origin: string;
   } | null>(null);
   const [permissionSelectedVideo, setPermissionSelectedVideo] = useState<SavedVideo | null>(null);
+
+  const isWeb = Platform.OS === 'web';
+  const webViewAvailable = !isWeb && Boolean(
+    UIManager.getViewManagerConfig?.('RNCWebView') ||
+    UIManager.getViewManagerConfig?.('RCTWebView')
+  );
+  
+  const nativeBridgeEnabled = useMemo(() => {
+    return !isWeb && webViewAvailable;
+  }, [isWeb, webViewAvailable]);
 
   const isProtocolEnabled = useMemo(
     () => protocols[activeProtocol]?.enabled ?? true,
@@ -634,23 +645,6 @@ export default function MotionBrowserScreen() {
         showOverlay: showProtocolOverlayLabel,
         videoUri: videoUri || undefined,
       });
-    } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
-      const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
-      const sonnetConfig = {
-        enabled: true,
-        aiAdaptiveQuality: true,
-        behavioralMimicry: true,
-        neuralStyleTransfer: false,
-        predictiveFrameOptimization: true,
-        quantumTimingRandomness: true,
-        biometricSimulation: true,
-        realTimeProfiler: true,
-        adaptiveStealth: true,
-        performanceTarget: 'balanced' as const,
-        stealthIntensity: 'maximum' as const,
-        learningMode: true,
-      };
-      fallbackScript = createSonnetProtocolScript(normalizedDevices, sonnetConfig, videoUri);
     } else if (activeProtocol === 'allowlist') {
       const advancedSettings = allowlistSettings.advancedRelay;
       const advancedEnabled = Boolean(
@@ -1188,11 +1182,6 @@ export default function MotionBrowserScreen() {
     setInputUrl(normalizedUrl);
   }, [inputUrl, normalizeUrl]);
 
-  const isWeb = Platform.OS === 'web';
-  const webViewAvailable = !isWeb && Boolean(
-    UIManager.getViewManagerConfig?.('RNCWebView') ||
-    UIManager.getViewManagerConfig?.('RCTWebView')
-  );
   const allowLocalFileAccess = Platform.OS === 'android'
     && requiresFileAccess
     && isProtocolEnabled
@@ -1200,10 +1189,6 @@ export default function MotionBrowserScreen() {
   const mixedContentMode = Platform.OS === 'android'
     ? (httpsEnforced ? 'never' : 'always')
     : undefined;
-
-  const nativeBridgeEnabled = useMemo(() => {
-    return !isWeb && webViewAvailable;
-  }, [isWeb, webViewAvailable]);
 
   const requiresSetup = !isTemplateLoading && !hasMatchingTemplate && templates.filter(t => t.isComplete).length === 0;
 
@@ -1287,26 +1272,6 @@ export default function MotionBrowserScreen() {
         });
         injectionType = 'WEBSOCKET';
         console.log('[App] Using WEBSOCKET BRIDGE injection with video:', videoUri ? 'YES' : 'NO');
-      } else if (activeProtocol === 'sonnet' || activeProtocol === 'claude-sonnet') {
-        // Use Sonnet Protocol for Protocol 5
-        const { createSonnetProtocolScript } = require('@/constants/sonnetProtocol');
-        const sonnetConfig = {
-          enabled: true,
-          aiAdaptiveQuality: true,
-          behavioralMimicry: true,
-          neuralStyleTransfer: false,
-          predictiveFrameOptimization: true,
-          quantumTimingRandomness: true,
-          biometricSimulation: true,
-          realTimeProfiler: true,
-          adaptiveStealth: true,
-          performanceTarget: 'balanced' as const,
-          stealthIntensity: 'maximum' as const,
-          learningMode: true,
-        };
-        mediaInjectionScript = createSonnetProtocolScript(devices, sonnetConfig, videoUri);
-        injectionType = 'SONNET';
-        console.log('[App] Using SONNET Protocol injection with video:', videoUri ? 'YES' : 'NO');
       } else if (activeProtocol === 'allowlist') {
         const advancedSettings = allowlistSettings.advancedRelay;
         const advancedEnabled = Boolean(
@@ -1670,7 +1635,7 @@ export default function MotionBrowserScreen() {
                 style={styles.webView}
                 userAgent={safariModeEnabled ? SAFARI_USER_AGENT : undefined}
                 originWhitelist={originWhitelist}
-                enterpriseWebKitEnabled={enterpriseWebKitEnabled}
+                {...(Platform.OS === 'ios' && enterpriseWebKitEnabled ? { enterpriseWebKitEnabled } : {})}
                 injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
                 injectedJavaScript={afterLoadScript}
                 // Ensure injection runs in iframes too (important for some real-world sites).
@@ -1835,11 +1800,7 @@ export default function MotionBrowserScreen() {
 
                   return isNavigationAllowed(requestUrl);
                 }}
-                allowsInlineMediaPlayback
-                javaScriptEnabled
-                domStorageEnabled
                 startInLoadingState
-                mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo
                 sharedCookiesEnabled
                 thirdPartyCookiesEnabled
