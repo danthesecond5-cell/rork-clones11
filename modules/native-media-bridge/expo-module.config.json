@@ -1,7 +1,10 @@
 {
   "name": "NativeMediaBridge",
-  "platforms": ["ios"],
+  "platforms": ["ios", "android"],
   "ios": {
     "modules": ["NativeMediaBridgeModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.nativemediabridge.NativeMediaBridgeModule"]
   }
 }

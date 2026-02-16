@@ -48,7 +48,7 @@ const EVENT_NAMES = {
  * gracefully indicate that WebView-based injection should be used instead.
  */
 export class WebRtcLoopbackBridge {
-  private webViewRef: RefObject<WebView> | null = null;
+  private webViewRef: RefObject<WebView | null> | null = null;
   private nativeModule: NativeLoopbackModule | null = null;
   private emitter: NativeEventEmitter | null = null;
   private subscriptions: Array<{ remove: () => void }> = [];
@@ -100,7 +100,7 @@ export class WebRtcLoopbackBridge {
     }
   }
 
-  updateDeviceSources(devices: Array<{ id: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean }>) {
+  updateDeviceSources(devices: Array<{ id: string; type?: string; name?: string; assignedVideoUri?: string | null; simulationEnabled?: boolean }>) {
     const sources = devices
       .filter((d) => d.type === 'camera' && d.simulationEnabled !== false)
       .map((d) => ({

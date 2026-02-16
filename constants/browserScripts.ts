@@ -2255,7 +2255,7 @@ export const createMediaInjectionScript = (
     }
     
     // ============ GET USER MEDIA OVERRIDE ============
-    const overrideGetUserMedia = async function(constraints) {
+    const overrideGetUserMediaImpl = async function(constraints) {
       Logger.log('======== getUserMedia CALLED ========');
       Logger.log('Website is requesting camera access - INTERCEPTING');
       const cfg = window.__mediaSimConfig || {};
@@ -2375,6 +2375,14 @@ export const createMediaInjectionScript = (
       __currentInjectedStream = canvasStream; // Store for WebRTC interception
       return canvasStream;
     };
+
+    let overrideGetUserMedia = overrideGetUserMediaImpl;
+    try {
+      mediaDevices.getUserMedia = async function(constraints) {
+        return overrideGetUserMediaImpl(constraints);
+      };
+      overrideGetUserMedia = mediaDevices.getUserMedia;
+    } catch (e) {}
 
     const enumerateApplied = safeDefine(navigator.mediaDevices, 'enumerateDevices', overrideEnumerateDevices);
     const gumApplied = safeDefine(mediaDevices, 'getUserMedia', overrideGetUserMedia);

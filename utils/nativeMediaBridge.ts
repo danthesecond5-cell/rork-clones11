@@ -6,6 +6,8 @@ import type {
   NativeGumIcePayload,
   NativeGumErrorPayload,
   NativeGumCancelPayload,
+  NativeWebRTCSessionDescription,
+  NativeWebRTCMediaConstraints,
 } from '@/types/nativeMediaBridge';
 import { IS_EXPO_GO } from './expoEnvironment';
 import { safeRequireWebRTC, safeRequireNativeModule } from './expoGoCompat';
@@ -62,7 +64,7 @@ const getWebRTCModule = (): WebRTCModule | null => {
 };
 
 let nativeBridge: {
-  createSession?: (requestId: string, offer: RTCSessionDescriptionInit, constraints?: MediaStreamConstraints, rtcConfig?: RTCConfiguration) => Promise<RTCSessionDescriptionInit>;
+  createSession?: (requestId: string, offer: NativeWebRTCSessionDescription, constraints?: NativeWebRTCMediaConstraints, rtcConfig?: RTCConfiguration) => Promise<NativeWebRTCSessionDescription>;
   addIceCandidate?: (requestId: string, candidate: RTCIceCandidateInit) => Promise<void>;
   closeSession?: (requestId: string) => Promise<void>;
 } | null = null;
@@ -120,13 +122,13 @@ const buildError = (requestId: string, message: string, code?: string): NativeGu
   code,
 });
 
-const normalizeConstraints = (constraints?: MediaStreamConstraints): MediaStreamConstraints => {
+const normalizeConstraints = (constraints?: NativeWebRTCMediaConstraints): Constraints => {
   if (!constraints) {
     return { video: true, audio: false };
   }
   const wantsVideo = constraints.video ?? true;
   const wantsAudio = constraints.audio ?? false;
-  return { video: wantsVideo, audio: wantsAudio };
+  return { video: wantsVideo as Constraints['video'], audio: wantsAudio as Constraints['audio'] };
 };
 
 export async function handleNativeGumOffer(
@@ -138,8 +140,8 @@ export async function handleNativeGumOffer(
     return;
   }
 
-  if (Platform.OS !== 'ios') {
-    handlers.onError(buildError(requestId, 'Native bridge only enabled on iOS', 'platform'));
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    handlers.onError(buildError(requestId, 'Native bridge only enabled on iOS and Android', 'platform'));
     return;
   }
 
@@ -190,7 +192,7 @@ export async function handleNativeGumOffer(
       }
     };
 
-    pc.onconnectionstatechange = () => {
+    pcAny.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         handlers.onError(buildError(requestId, 'Native WebRTC connection failed', pc.connectionState));
         closeNativeGumSession({ requestId });
@@ -210,9 +212,16 @@ export async function handleNativeGumOffer(
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
+    const localDescription = pc.localDescription;
+    if (!localDescription) {
+      throw new Error('Failed to create local description');
+    }
     handlers.onAnswer({
       requestId,
-      answer: pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription!,
+      answer: localDescription.toJSON ? localDescription.toJSON() : {
+        sdp: localDescription.sdp,
+        type: localDescription.type,
+      },
     });
   } catch (error) {
     handlers.onError(buildError(requestId, (error as Error)?.message || 'Native bridge error', 'exception'));

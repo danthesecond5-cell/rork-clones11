@@ -38,6 +38,8 @@
  * ```
  */
 
+import { EventEmitter, type EventSubscription } from 'expo-modules-core';
+import VirtualCameraModule from './VirtualCameraModule';
 import { EventEmitter, Subscription } from 'expo-modules-core';
 
 // Safe import of VirtualCameraModule with Expo Go detection
@@ -165,7 +167,11 @@ export const VirtualCamera = {
         error: 'Module not available',
       };
     }
-    return await VirtualCameraNative.getState();
+    const state = await VirtualCameraNative.getState();
+    return {
+      ...state,
+      status: state.status as VirtualCameraStatus,
+    };
   },
 
   /**

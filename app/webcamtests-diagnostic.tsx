@@ -80,15 +80,19 @@ export default function WebcamTestsDiagnosticScreen() {
         name: 'Test Camera',
         type: 'camera',
         facing: 'front',
+        lensType: 'standard',
+        tested: true,
         isDefault: true,
         isPrimary: true,
         groupId: 'default',
         simulationEnabled: true,
         capabilities: {
+          photoResolutions: [],
           videoResolutions: [
             { width: 1920, height: 1080, fps: 30 },
             { width: 1280, height: 720, fps: 30 },
           ],
+          supportedModes: [],
         },
       },
     ];

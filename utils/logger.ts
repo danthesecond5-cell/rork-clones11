@@ -385,7 +385,8 @@ class Logger {
     const color = LOG_COLORS[level];
     const reset = LOG_COLORS.reset;
     const formattedMessage = `${prefix} [${this.module}] ${message}`;
-    const consoleTarget = (globalThis as Record<string, typeof console>)[ORIGINAL_CONSOLE_KEY] || console;
+    const consoleStore = globalThis as unknown as Record<string, typeof console>;
+    const consoleTarget = consoleStore[ORIGINAL_CONSOLE_KEY] || console;
 
     switch (level) {
       case 'debug':
@@ -479,8 +480,9 @@ export const installConsoleCapture = (): void => {
     debug: console.debug.bind(console),
   };
 
-  if (!(globalThis as Record<string, typeof original>)[ORIGINAL_CONSOLE_KEY]) {
-    (globalThis as Record<string, typeof original>)[ORIGINAL_CONSOLE_KEY] = original;
+  const globalStore = globalThis as unknown as Record<string, typeof original>;
+  if (!globalStore[ORIGINAL_CONSOLE_KEY]) {
+    globalStore[ORIGINAL_CONSOLE_KEY] = original;
   }
 
   const safeMessageFromArgs = (args: unknown[]): string => {

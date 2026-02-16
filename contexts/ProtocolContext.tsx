@@ -5,7 +5,17 @@ import * as Crypto from 'expo-crypto';
 import { IS_EXPO_GO } from '@/utils/expoEnvironment';
 
 // Protocol Types
-export type ProtocolType = 'standard' | 'allowlist' | 'protected' | 'harness' | 'holographic' | 'websocket' | 'webrtc-loopback';
+export type ProtocolType =
+  | 'standard'
+  | 'allowlist'
+  | 'protected'
+  | 'harness'
+  | 'holographic'
+  | 'websocket'
+  | 'webrtc-loopback'
+  | 'claude'
+  | 'sonnet'
+  | 'claude-sonnet';
 
 export interface ProtocolConfig {
   id: ProtocolType;
@@ -410,10 +420,40 @@ const DEFAULT_PROTOCOLS: Record<ProtocolType, ProtocolConfig> = {
     enabled: !IS_EXPO_GO,
     settings: {},
   },
+  claude: {
+    id: 'claude',
+    name: 'Protocol X: Claude',
+    description: 'Experimental AI-assisted injection profile.',
+    enabled: false,
+    settings: {},
+  },
+  sonnet: {
+    id: 'sonnet',
+    name: 'Protocol X: Sonnet',
+    description: 'Experimental AI-powered adaptive injection.',
+    enabled: false,
+    settings: {},
+  },
+  'claude-sonnet': {
+    id: 'claude-sonnet',
+    name: 'Protocol X: Claude Sonnet',
+    description: 'Hybrid AI-powered adaptive injection profile.',
+    enabled: false,
+    settings: {},
+  },
 };
 
 const isProtocolType = (value: string): value is ProtocolType => {
-  return value === 'standard' || value === 'allowlist' || value === 'protected' || value === 'harness' || value === 'holographic' || value === 'websocket' || value === 'webrtc-loopback';
+  return value === 'standard'
+    || value === 'allowlist'
+    || value === 'protected'
+    || value === 'harness'
+    || value === 'holographic'
+    || value === 'websocket'
+    || value === 'webrtc-loopback'
+    || value === 'claude'
+    || value === 'sonnet'
+    || value === 'claude-sonnet';
 };
 
 const clampProtocolsForExpoGo = (

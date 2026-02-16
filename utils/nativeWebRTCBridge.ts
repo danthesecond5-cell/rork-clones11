@@ -43,12 +43,12 @@ type Session = {
  * WebView-based injection (Protocol 0) instead.
  */
 export class NativeWebRTCBridge {
-  private webViewRef: RefObject<WebView>;
+  private webViewRef: RefObject<WebView | null>;
   private sessions = new Map<string, Session>();
   private webrtcModule: any | null | undefined = undefined;
   private isExpoGoEnv: boolean;
 
-  constructor(webViewRef: RefObject<WebView>) {
+  constructor(webViewRef: RefObject<WebView | null>) {
     this.webViewRef = webViewRef;
     this.isExpoGoEnv = IS_EXPO_GO;
     

@@ -1,13 +1,23 @@
+export type NativeWebRTCSessionDescription = {
+  sdp: string;
+  type: string | null;
+};
+
+export type NativeWebRTCMediaConstraints = {
+  audio?: boolean | Record<string, unknown>;
+  video?: boolean | Record<string, unknown>;
+};
+
 export type NativeGumOfferPayload = {
   requestId: string;
-  offer: RTCSessionDescriptionInit;
-  constraints?: MediaStreamConstraints;
+  offer: NativeWebRTCSessionDescription;
+  constraints?: NativeWebRTCMediaConstraints;
   rtcConfig?: RTCConfiguration;
 };
 
 export type NativeGumAnswerPayload = {
   requestId: string;
-  answer: RTCSessionDescriptionInit;
+  answer: NativeWebRTCSessionDescription;
 };
 
 export type NativeGumIcePayload = {
